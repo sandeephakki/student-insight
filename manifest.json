@@ -1,0 +1,25 @@
+{
+  "name": "Student Insight",
+  "short_name": "SIA",
+  "description": "Privacy-first student analytics for schools. All AI runs in-browser. No data leaves your Google Sheet.",
+  "start_url": "/student-insight/",
+  "scope": "/student-insight/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#ffffff",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/sandeephakki/student-insight/main/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/sandeephakki/student-insight/main/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
