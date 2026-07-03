@@ -103,7 +103,7 @@ h1,h2,h3,h4{font-family:var(--font-display);line-height:1.25}
 .section-sub{font-size:12.5px;color:var(--c-text2);margin-bottom:16px;line-height:1.6}
 
 /* TOAST */
-#toast-wrap{position:fixed;top:calc(var(--content-top) + 12px);right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+#toast-wrap{position:fixed;bottom:24px;right:24px;top:auto;z-index:9999;display:flex;flex-direction:column;gap:8px}
 .toast{background:var(--c-text);color:#fff;padding:10px 16px;border-radius:var(--r-sm);font-size:13px;box-shadow:var(--c-shadow-md);max-width:340px}
 .toast.success{background:#1a7a6e}.toast.error{background:#c0392b}.toast.warn{background:#9a6200}
 
@@ -153,10 +153,17 @@ h1,h2,h3,h4{font-family:var(--font-display);line-height:1.25}
 .prog-fill{height:100%;background:var(--c-primary);border-radius:99px;transition:width .3s ease}
 
 /* LOADER */
-#ai-loader{display:none;text-align:center;padding:40px}
+#ai-loader{display:none;text-align:center;padding:40px;scroll-margin-top:calc(var(--content-top) + 14px)}
+#ai-loader.card-loader{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r);box-shadow:var(--c-shadow-md);margin-bottom:16px}
 .loader-ring{width:48px;height:48px;border:4px solid var(--c-border);border-top-color:var(--c-primary);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loader-msg{font-size:13.5px;color:var(--c-text2);margin-bottom:12px}
+.loader-msg{font-size:13.5px;color:var(--c-text2);margin-bottom:12px;font-weight:600}
+.loader-step-count{font-size:11px;color:var(--c-text3);margin-bottom:10px}
+.loader-hint{font-size:11px;color:var(--c-text3);margin-top:10px;font-style:italic}
+
+/* Any element we programmatically scroll to should never be tucked
+   under the fixed topbar + stepper — always leave clearance below them. */
+#home-import-status,.scroll-target{scroll-margin-top:calc(var(--content-top) + 14px)}
 
 /* AI CHECKBOXES */
 .ai-checkbox-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-bottom:8px}
@@ -327,58 +334,56 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
 <div id="panel-home" class="panel active">
 
   <!-- HERO -->
-  <div style="background:linear-gradient(135deg,#1E3A5F 0%,#2D6A9F 60%,#2ec4b6 100%);border-radius:16px;padding:40px 40px 32px;margin-bottom:24px;position:relative;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#1E3A5F 0%,#2D6A9F 60%,#2ec4b6 100%);border-radius:14px;padding:22px 28px 20px;margin-bottom:14px;position:relative;overflow:hidden">
     <div style="position:absolute;top:-40px;right:-40px;width:220px;height:220px;background:rgba(255,255,255,.05);border-radius:50%"></div>
-    <div style="position:relative;z-index:1;max-width:600px">
-      <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border-radius:99px;padding:4px 14px;margin-bottom:14px">
-        <span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.9);letter-spacing:.5px;text-transform:uppercase">Free · Open Source · Privacy-First · Stateless</span>
+    <div style="position:relative;z-index:1;max-width:680px">
+      <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border-radius:99px;padding:3px 12px;margin-bottom:8px">
+        <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.9);letter-spacing:.5px;text-transform:uppercase">Free · Open Source · Privacy-First · Stateless</span>
       </div>
-      <h1 style="font-family:var(--font-display);font-size:32px;font-weight:800;color:#fff;margin-bottom:10px;line-height:1.2">Student Insight — AI-powered analytics<br>for every classroom</h1>
-      <p style="font-size:13px;color:rgba(255,255,255,.78);line-height:1.7;margin-bottom:0">Fill your class data in Excel → upload → get rich AI analytics, rankings, flags &amp; parent-ready PDFs. No account. No server. Your data never leaves your browser.</p>
+      <h1 style="font-family:var(--font-display);font-size:21px;font-weight:800;color:#fff;margin-bottom:5px;line-height:1.25">Student Insight — AI-powered analytics for every classroom</h1>
+      <p style="font-size:12px;color:rgba(255,255,255,.78);line-height:1.55;margin-bottom:0">Fill your class data in Excel → upload → get rich AI analytics, rankings, flags &amp; parent-ready PDFs. No account. No server. Your data never leaves your browser.</p>
     </div>
   </div>
 
   <!-- IMPORT STATUS (shown after import attempt — sits above the paths so it's the first thing you see) -->
-  <div id="home-import-status" style="display:none;margin-bottom:20px"></div>
+  <div id="home-import-status" style="display:none;margin-bottom:14px"></div>
 
   <!-- TWO PATHS -->
-  <div class="grid-2" style="margin-bottom:24px;gap:16px">
+  <div class="grid-2" style="margin-bottom:16px;gap:14px">
 
     <!-- PATH A: New Project -->
-    <div class="card" style="padding:24px;cursor:pointer;border:2px solid transparent;transition:var(--transition)" id="home-card-new"
+    <div class="card" style="padding:16px 18px;cursor:pointer;border:2px solid transparent;transition:var(--transition)" id="home-card-new"
       onmouseenter="this.style.borderColor='var(--c-primary)'" onmouseleave="this.style.borderColor='transparent'">
-      <div style="font-size:32px;margin-bottom:12px">📋</div>
-      <div style="font-family:var(--font-display);font-size:17px;font-weight:700;margin-bottom:6px;color:var(--c-primary)">New Project</div>
-      <div style="font-size:12.5px;color:var(--c-text2);line-height:1.7;margin-bottom:18px">
-        First time? Set up your institution, subjects &amp; tests.<br>
-        Download a ready-to-fill Excel template. Fill it offline, then import to analyse.
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="font-size:22px">📋</div>
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--c-primary)">New Project</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn btn-primary" onclick="goStep('setup')" style="width:100%;justify-content:center">
-          ➕ Setup &amp; Generate Template
-        </button>
+      <div style="font-size:12px;color:var(--c-text2);line-height:1.5;margin-bottom:12px">
+        First time? Set up your institution, subjects &amp; tests. Download a ready-to-fill Excel template, fill it offline, then import to analyse.
       </div>
-      <div style="margin-top:12px;font-size:11px;color:var(--c-text3)">
+      <button class="btn btn-primary" onclick="goStep('setup')" style="width:100%;justify-content:center">
+        ➕ Setup &amp; Generate Template
+      </button>
+      <div style="margin-top:8px;font-size:10.5px;color:var(--c-text3)">
         Step 1 of 2 — Setup → Download template → Fill marks in Excel → Import &amp; Analyse
       </div>
     </div>
 
     <!-- PATH B: Import Filled Excel -->
-    <div class="card" style="padding:24px;cursor:pointer;border:2px solid transparent;transition:var(--transition)" id="home-card-import"
+    <div class="card" style="padding:16px 18px;cursor:pointer;border:2px solid transparent;transition:var(--transition)" id="home-card-import"
       onmouseenter="this.style.borderColor='var(--c-success)'" onmouseleave="this.style.borderColor='transparent'">
-      <div style="font-size:32px;margin-bottom:12px">📂</div>
-      <div style="font-family:var(--font-display);font-size:17px;font-weight:700;margin-bottom:6px;color:var(--c-success)">Import Filled Excel</div>
-      <div style="font-size:12.5px;color:var(--c-text2);line-height:1.7;margin-bottom:18px">
-        Already have a filled Excel file?<br>
-        Import it directly — setup details, students &amp; marks are all read automatically.
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="font-size:22px">📂</div>
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--c-success)">Import Filled Excel</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <input type="file" id="home-import-input" accept=".xlsx,.xls" style="display:none" onchange="handleHomeImport(this)"/>
-        <div class="btn btn-success" style="width:100%;justify-content:center;cursor:pointer;text-align:center" onclick="document.getElementById('home-import-input').click()">
-          📤 Import Excel (.xlsx)
-        </div>
+      <div style="font-size:12px;color:var(--c-text2);line-height:1.5;margin-bottom:12px">
+        Already have a filled Excel file? Import it directly — setup details, students &amp; marks are all read automatically.
       </div>
-      <div style="margin-top:12px;font-size:11px;color:var(--c-text3)">
+      <input type="file" id="home-import-input" accept=".xlsx,.xls" style="display:none" onchange="handleHomeImport(this)"/>
+      <div class="btn btn-success" style="width:100%;justify-content:center;cursor:pointer;text-align:center" onclick="document.getElementById('home-import-input').click()">
+        📤 Import Excel (.xlsx)
+      </div>
+      <div style="margin-top:8px;font-size:10.5px;color:var(--c-text3)">
         Requires a 3-tab Excel workbook: SETUP · STUDENTS · MARKS+CONTEXT. CSV is not supported here — use the "Upload Data" step if you only have a marks CSV.
       </div>
     </div>
@@ -553,7 +558,16 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     </div>
   </div>
   <div id="validation-warnings" style="display:none"></div>
-  <div id="ai-loader"><div class="loader-ring"></div><div class="loader-msg" id="ai-loader-msg">Initialising…</div><div style="max-width:320px;margin:0 auto"><div class="prog-bar"><div class="prog-fill" id="ai-prog" style="width:0%"></div></div><div style="text-align:center;font-size:11px;color:var(--c-text3);margin-top:5px" id="ai-prog-label">0%</div></div></div>
+  <div id="ai-loader" class="card-loader">
+    <div class="loader-ring"></div>
+    <div class="loader-msg" id="ai-loader-msg">Initialising…</div>
+    <div class="loader-step-count" id="ai-loader-step">Step 1 of 10</div>
+    <div style="max-width:320px;margin:0 auto">
+      <div class="prog-bar"><div class="prog-fill" id="ai-prog" style="width:0%"></div></div>
+      <div style="text-align:center;font-size:11px;color:var(--c-text3);margin-top:5px" id="ai-prog-label">0%</div>
+    </div>
+    <div class="loader-hint">Crunching numbers in your browser — this only takes a few seconds.</div>
+  </div>
   <div style="display:flex;flex-direction:column;gap:16px">
     <div class="card"><div class="card-title"><span class="icon">📈</span> Performance Analysis</div><div class="ai-checkbox-grid" id="ai-perf-checks"></div></div>
     <div class="card"><div class="card-title"><span class="icon">⚠️</span> Early Warning &amp; Flags</div><div class="ai-checkbox-grid" id="ai-warn-checks"></div></div>
@@ -990,7 +1004,9 @@ function handleHomeImport(input){
   const statusEl=document.getElementById("home-import-status");
   statusEl.innerHTML=`<div class="card" style="padding:14px;border-color:var(--c-primary)"><div style="font-size:12.5px">⏳ Reading <b>${esc(fileName)}</b>...</div></div>`;
   statusEl.style.display="block";
-  statusEl.scrollIntoView({behavior:"smooth",block:"start"});
+  // No scroll here — this message is transient and gets replaced within
+  // milliseconds by the result below. Scrolling for both would fire two
+  // smooth-scrolls back to back and look like the page jumping around.
   input.value="";// reset early so same file triggers onchange again
 
   const reader=new FileReader();
@@ -1057,7 +1073,7 @@ function handleHomeImport(input){
           <button class="btn btn-secondary btn-sm" style="margin-top:10px;margin-left:8px" onclick="goStep('setup')">Edit Setup in App</button>
         </div>`;
         statusEl.style.display="block";
-        statusEl.scrollIntoView({behavior:"smooth",block:"start"});
+        scrollToEl(statusEl);
         if(hasRequired)return;// stop here — required fields missing
       } else {
         statusEl.innerHTML=`<div class="card" style="border-color:var(--c-success);background:#effaf8;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
@@ -1068,12 +1084,12 @@ function handleHomeImport(input){
           <button class="btn btn-primary btn-glow" style="font-size:14px;padding:10px 22px;white-space:nowrap" onclick="afterImportSuccess()">🔬 Run Analysis →</button>
         </div>`;
         statusEl.style.display="block";
-        statusEl.scrollIntoView({behavior:"smooth",block:"start"});
+        scrollToEl(statusEl);
       }
     }catch(err){
       statusEl.innerHTML=`<div class="card" style="border-color:var(--c-danger)"><b style="color:var(--c-danger)">❌ Import failed:</b> ${esc(err.message)}<br><span style="font-size:11.5px;color:var(--c-text2)">Make sure the file is a valid .xlsx or .xls file.</span></div>`;
       statusEl.style.display="block";
-      statusEl.scrollIntoView({behavior:"smooth",block:"start"});
+      scrollToEl(statusEl);
     }
   };
   reader.readAsArrayBuffer(file);
@@ -1117,6 +1133,10 @@ function renderHomePage(){
   document.querySelector('.step-item[data-step="samplefiles"]')?.classList.remove("locked");
   $("#btn-data-continue").prop("disabled",true).attr("title","Upload a file first").css({opacity:.45,cursor:"not-allowed"}).removeClass("btn-glow");
   $("#data-loaded-card").hide();$("#drop-zone").show();
+  // Clear any leftover import result card (success/warning/error) from a
+  // previous file so Home always starts blank — on refresh and whenever
+  // the user navigates back here.
+  $("#home-import-status").hide().empty();
 }
 
 /* ════ FILE UPLOAD ════ */
@@ -1318,11 +1338,25 @@ async function runAnalysis(){
     const el=document.getElementById("validation-warnings");
     if(el){el.innerHTML=`<div class="card" style="border-color:var(--c-warn);margin-bottom:12px"><b style="color:var(--c-warn)">⚠ Data warnings (analysis will proceed)</b>`+_warnings.map(w=>`<div style="font-size:12px;margin-top:4px">● ${w.m}</div>`).join("")+`</div>`;el.style.display="block";}
   } else {const el=document.getElementById("validation-warnings");if(el)el.style.display="none";}
-  $("#ai-loader").show();$("#btn-analyse").prop("disabled",true).removeClass("btn-glow");
+  $("#ai-loader").show();
+  $("#btn-analyse").prop("disabled",true).removeClass("btn-glow");
+  $("#panel-ai .phase-actionbar-btns .btn-secondary").prop("disabled",true).css("opacity",.5);
+  // Bring the loader into view (respecting the fixed header) so the user
+  // actually sees the progress instead of staring at a checkbox list that
+  // looks frozen while work happens off-screen above them.
+  scrollToEl(document.getElementById("ai-loader"));
   const steps=["Parsing student records…","Computing marks & percentages…","Running trend detection…","Calculating percentile ranks…","Detecting at-risk patterns…","Sentiment analysis on remarks…","Running stress & wellbeing scoring…","Generating AI narratives…","Predicting next test scores…","Finalising…"];
-  for(let i=0;i<steps.length;i++){$("#ai-loader-msg").text(steps[i]);const pct=Math.round(((i+1)/steps.length)*100);$("#ai-prog").css("width",pct+"%");$("#ai-prog-label").text(pct+"%");await sleep(280+Math.random()*220);}
+  for(let i=0;i<steps.length;i++){
+    $("#ai-loader-msg").text(steps[i]);
+    $("#ai-loader-step").text("Step "+(i+1)+" of "+steps.length);
+    const pct=Math.round(((i+1)/steps.length)*100);
+    $("#ai-prog").css("width",pct+"%");$("#ai-prog-label").text(pct+"%");
+    await sleep(280+Math.random()*220);
+  }
   parseStudents();computeAnalysis();
-  $("#ai-loader").hide();$("#btn-analyse").prop("disabled",false).addClass("btn-glow");
+  $("#ai-loader").hide();
+  $("#btn-analyse").prop("disabled",false).addClass("btn-glow");
+  $("#panel-ai .phase-actionbar-btns .btn-secondary").prop("disabled",false).css("opacity",1);
   if(APP.students.length){unlockStep("dashboard");unlockStep("export");}
   saveSession();toast("Analysis complete - "+APP.students.length+" students processed.","success");goStep("dashboard");
 }
@@ -1343,6 +1377,27 @@ function validateData(){
   return w;
 }
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+/* ════ SCROLL HELPER ════
+   The topbar + stepper are fixed/sticky (~96px). Native scrollIntoView()
+   doesn't know about them, so it happily scrolls a target's top edge to
+   y=0 — which is *behind* those fixed bars. The element then sits half
+   hidden and the page visibly "jumps up" further than expected.
+   This helper scrolls to the correct position (leaving clearance below
+   the fixed bars) and skips the scroll entirely if the target is
+   already comfortably in view, so repeated calls in quick succession
+   (e.g. a "reading…" message immediately followed by a "done" message)
+   don't produce a jarring double-jump. */
+function scrollToEl(el){
+  if(!el)return;
+  const headerH=(parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--content-top"))||96)+14;
+  const rect=el.getBoundingClientRect();
+  // Already fully visible below the fixed header and above the viewport
+  // bottom? Don't move the page at all.
+  if(rect.top>=headerH&&rect.bottom<=window.innerHeight)return;
+  const targetY=window.scrollY+rect.top-headerH;
+  window.scrollTo({top:Math.max(0,targetY),behavior:"smooth"});
+}
 
 /* ════ PARSE STUDENTS ════ */
 function parseStudents(){
