@@ -312,6 +312,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
   <div class="step-item locked" data-step="export" onclick="goStep('export')"><div class="step-num">5</div><span>Export PDFs</span></div>
   <div style="flex:1"></div>
   <div class="step-item" data-step="about" onclick="goStep('about')" style="border-left:1px solid var(--c-border);margin-left:8px"><div class="step-num" style="background:none;border:none;font-size:15px">ℹ️</div><span>About</span></div>
+  <div class="step-item" data-step="samplefiles" onclick="showSampleFiles()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showSampleFiles();}" aria-label="Sample Files"><div class="step-num" style="background:none;border:none;font-size:15px">📄</div><span>Sample Files</span></div>
 </nav>
 
 <div id="main">
@@ -1071,6 +1072,7 @@ function renderHomePage(){
   document.querySelectorAll(".step-item").forEach(el=>{el.classList.remove("active");el.classList.add("locked");});
   document.querySelector('.step-item[data-step="home"]')?.classList.remove("locked");
   document.querySelector('.step-item[data-step="about"]')?.classList.remove("locked");
+  document.querySelector('.step-item[data-step="samplefiles"]')?.classList.remove("locked");
 }
 
 /* ════ FILE UPLOAD ════ */
@@ -1652,6 +1654,20 @@ ${a.explainedWarnings&&a.explainedWarnings.length?`<div style="margin-bottom:12p
   setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);
 }
 let _modalLastFocus=null;
+function showSampleFiles(){
+  const base="https://sandeephakki.github.io/student-insight/samples/";
+  const files=[
+    {name:"Sample Class - Single Test.xlsx",file:"sample-single-test.xlsx",desc:"One test, quick way to see the basic import format."},
+    {name:"Sample Class - Multi Test Term.xlsx",file:"sample-multi-test.xlsx",desc:"Multiple tests across a term, for trend analysis."},
+    {name:"Sample Class - Multi Subject.xlsx",file:"sample-multi-subject.xlsx",desc:"Several subjects with different max marks per test."},
+    {name:"Sample Class - Full Year Data.xlsx",file:"sample-full-year.xlsx",desc:"A full academic year, good for dashboard & PDF export demos."}
+  ];
+  const rows=files.map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);margin-bottom:10px"><div><div style="font-weight:700;font-size:13px">${esc(f.name)}</div><div style="font-size:11.5px;color:var(--c-text3);margin-top:2px">${esc(f.desc)}</div></div><a class="btn btn-secondary btn-sm" href="${base}${f.file}" download style="flex-shrink:0">⬇ Download</a></div>`).join("");
+  $("#modal-content").html(`<h3 style="font-family:var(--font-display);font-size:18px;margin-bottom:4px">📄 Sample Files</h3><div style="font-size:12px;color:var(--c-text3);margin-bottom:16px">Ready-made Excel sheets you can download and use to try Student Insight, or as a template for formatting your own class data.</div>${rows}`);
+  $("#modal-overlay").addClass("open");
+  _modalLastFocus=document.activeElement;
+  setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);
+}
 function closeModal(){
   $("#modal-overlay").removeClass("open");
   if(_modalLastFocus&&_modalLastFocus.focus){try{_modalLastFocus.focus();}catch(e){}}
