@@ -110,8 +110,8 @@ h1,h2,h3,h4{font-family:var(--font-display);line-height:1.25}
 .student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:16px}
 .student-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r);padding:14px;cursor:pointer;transition:var(--transition)}
 .student-card:hover{border-color:var(--c-primary);box-shadow:var(--c-shadow-md);transform:translateY(-1px)}
-.sc-name{font-weight:700;font-size:13.5px;margin-bottom:2px}
-.sc-id{font-size:10.5px;color:var(--c-text3);margin-bottom:8px}
+.sc-name{font-weight:700;font-size:13.5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-id{font-size:10.5px;color:var(--c-text3);margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sc-avg{font-size:22px;font-weight:700;font-family:var(--font-display)}
 .sc-bar{height:4px;background:var(--c-border);border-radius:99px;overflow:hidden;margin-bottom:8px}
 .sc-bar-fill{height:100%;border-radius:99px}
@@ -563,6 +563,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     </div>
     <button class="btn btn-primary btn-sm" onclick="goStep('export')" style="flex-shrink:0">Export PDFs →</button>
   </div>
+  <div id="data-issue-banner" style="display:none;background:#fdecea;border:1px solid #f5c6c1;color:#8b1a1a;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px"></div>
   <div id="db-stats-bar" style="display:none;font-size:12px;color:var(--c-text2);background:var(--c-surface);padding:7px 14px;border-radius:var(--r-sm);border:1px solid var(--c-border);margin-bottom:10px"></div>
   <div class="db-kpi-strip" id="kpi-row"></div>
 
@@ -689,6 +690,25 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
         <div class="about-hero-eyebrow">📊 Student Insight — About</div>
         <h1 style="font-family:var(--font-display);font-size:30px;font-weight:800;line-height:1.25;margin-bottom:14px">Educational data belongs to <span style="color:#2ec4b6">educators</span> —<br>not to software vendors.</h1>
         <p style="font-size:13.5px;color:rgba(255,255,255,.75);line-height:1.85;max-width:620px">Student Insight is built on a simple belief. Unlike traditional web applications that require user accounts, cloud storage, or centralized databases, Student Insight is designed as a completely stateless, privacy-first analytics platform. The application itself never becomes the owner of your data. Instead, it serves as an intelligent processing engine that transforms your spreadsheets into meaningful educational insights while keeping complete control in your hands.</p>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px">
+      <div style="background:#fff;border:1px solid var(--c-border);border-radius:12px;padding:16px;text-align:center">
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--c-primary)">₹0</div>
+        <div style="font-size:11px;color:var(--c-text3);margin-top:2px">Cost, forever</div>
+      </div>
+      <div style="background:#fff;border:1px solid var(--c-border);border-radius:12px;padding:16px;text-align:center">
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--c-primary)">0</div>
+        <div style="font-size:11px;color:var(--c-text3);margin-top:2px">Servers involved</div>
+      </div>
+      <div style="background:#fff;border:1px solid var(--c-border);border-radius:12px;padding:16px;text-align:center">
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--c-primary)">100%</div>
+        <div style="font-size:11px;color:var(--c-text3);margin-top:2px">Offline capable</div>
+      </div>
+      <div style="background:#fff;border:1px solid var(--c-border);border-radius:12px;padding:16px;text-align:center">
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--c-primary)">MIT</div>
+        <div style="font-size:11px;color:var(--c-text3);margin-top:2px">Open source licence</div>
       </div>
     </div>
 
@@ -973,10 +993,18 @@ function handleHomeImport(input){
           const row=rawArr[r];if(!row||row.every(v=>v===null||v===undefined||v===""))continue;
           const obj={};
           hdr.forEach((h,i)=>{if(!h)return;let v=row[i];if(typeof v==="string"&&v.trim().startsWith("="))v=null;obj[h]=(v===null||v===undefined)?"":v;});
+          // Templates can repeat the same header (e.g. a subject name) once per
+          // test block. Plain object keys can only hold the LAST such value,
+          // silently losing every earlier test's marks. Stash the untouched
+          // positional row alongside the object (non-enumerable so it doesn't
+          // leak into Object.keys()/JSON use elsewhere) so downstream grouped-
+          // header parsing can recover every occurrence by column position.
+          Object.defineProperty(obj,"__raw",{value:row,enumerable:false,configurable:true});
           rows.push(obj);
         }
         APP.rawData[name]=rows;
         APP.rawData["_arr_"+name]=rawArr;
+        APP.rawData["_hdr_"+name]=hdr;
       });
 
       // Auto-read SETUP tab
@@ -1042,6 +1070,7 @@ function renderHomePage(){
   // Reset stepper
   document.querySelectorAll(".step-item").forEach(el=>{el.classList.remove("active");el.classList.add("locked");});
   document.querySelector('.step-item[data-step="home"]')?.classList.remove("locked");
+  document.querySelector('.step-item[data-step="about"]')?.classList.remove("locked");
 }
 
 /* ════ FILE UPLOAD ════ */
@@ -1116,16 +1145,16 @@ function autoInferSetup(){
   if(kv["Class / Batch"])APP.setup.className=kv["Class / Batch"];
   if(kv["Section"])APP.setup.section=kv["Section"];
   if(kv["Academic Year"])APP.setup.year=kv["Academic Year"];
+  // Support "Teacher Name" variant BEFORE reading Class Teacher, so either label works
+  if(kv["Teacher Name"]&&!kv["Class Teacher"])kv["Class Teacher"]=kv["Teacher Name"];
+  // Absent alert: "Absent Alert (days)" variant — also resolve before use
+  if(kv["Absent Alert (days)"]&&!kv["Absent Alert Days"])kv["Absent Alert Days"]=kv["Absent Alert (days)"];
   if(kv["Class Teacher"])APP.setup.teacher=kv["Class Teacher"];
   if(kv["Pass Threshold %"])APP.setup.passThreshold=parseInt(kv["Pass Threshold %"])||35;
   if(kv["Absent Alert Days"])APP.setup.absentAlert=parseInt(kv["Absent Alert Days"])||3;
   if(kv["Sharp Drop Alert %"])APP.setup.dropAlert=parseInt(kv["Sharp Drop Alert %"])||20;
   const subjects=[];let i=1;while(kv["Subject "+i]){subjects.push(kv["Subject "+i]);i++;}
   if(subjects.length)APP.setup.subjects=subjects;
-  // Also support "Teacher Name" variant
-  if(kv["Teacher Name"]&&!kv["Class Teacher"])kv["Class Teacher"]=kv["Teacher Name"];
-  // Absent alert: "Absent Alert (days)" variant
-  if(kv["Absent Alert (days)"]&&!kv["Absent Alert Days"])kv["Absent Alert Days"]=kv["Absent Alert (days)"];
 
   // Build raw rows for Format B parsing ["Test 1","Unit Test 1","Max Marks",50]
   const rawRows=setupSheet.map(row=>Object.values(row));
@@ -1272,31 +1301,40 @@ function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function parseStudents(){
   const {subjects,tests}=APP.setup;
   const markKey=Object.keys(APP.rawData).find(k=>k.includes("MARK")&&k.includes("CONTEXT"))||Object.keys(APP.rawData).find(k=>k.includes("MARK"))||"";
-  const markSheet=APP.rawData["MARKS+CONTEXT"]||APP.rawData["MARKS_CONTEXT"]||APP.rawData[markKey]||[];
+  const markSheetName=APP.rawData["MARKS+CONTEXT"]?"MARKS+CONTEXT":(APP.rawData["MARKS_CONTEXT"]?"MARKS_CONTEXT":markKey);
+  const markSheet=APP.rawData[markSheetName]||[];
   const studentSheet=APP.rawData["STUDENTS"]||[];
 
   // ── Grouped-header detection (sample Excel: subjects repeat per test) ──
-  const _sampleKeys=Object.keys(markSheet[0]||{});
+  // Object.keys() can never report the same header twice, so counting
+  // duplicates off markSheet[0]'s keys always looked like "1 occurrence"
+  // even when a subject column repeated once per test — silently disabling
+  // this whole branch. Read the true header row (duplicates intact) from
+  // _hdr_<sheet>, saved alongside the parsed rows during import instead.
+  const _hdrRow=APP.rawData["_hdr_"+markSheetName]||Object.keys(markSheet[0]||{});
   const _firstSubj=(subjects[0]||"").trim();
-  const _subjCount=_firstSubj?_sampleKeys.filter(k=>k.trim()===_firstSubj).length:0;
+  const _subjCount=_firstSubj?_hdrRow.filter(k=>(k||"").trim()===_firstSubj).length:0;
   const isGrouped=_subjCount>1;
   let posMap=null;
   if(isGrouped){
     posMap={};
     const ko={};
-    _sampleKeys.forEach((k,i)=>{const kn=k.trim();if(!ko[kn])ko[kn]=[];ko[kn].push(i);});
+    _hdrRow.forEach((k,i)=>{if(!k)return;const kn=k.trim();if(!ko[kn])ko[kn]=[];ko[kn].push(i);});
     tests.forEach((t,ti)=>{
       posMap[t.name]={};
-      subjects.forEach(s=>{const pos=ko[s.trim()]||[];if(pos[ti]!==undefined)posMap[t.name][s]=_sampleKeys[pos[ti]];});
-      const abPos=ko["Absent Days"]||ko["AbsentDays"]||[];if(abPos[ti]!==undefined)posMap[t.name]["__absent"]=_sampleKeys[abPos[ti]];
-      const rmPos=ko["Teacher Remark"]||ko["Remark"]||[];if(rmPos[0]!==undefined)posMap[t.name]["__remark"]=_sampleKeys[rmPos[0]];
+      subjects.forEach(s=>{const pos=ko[s.trim()]||[];if(pos[ti]!==undefined)posMap[t.name][s]=pos[ti];});
+      const abPos=ko["Absent Days"]||ko["AbsentDays"]||[];if(abPos[ti]!==undefined)posMap[t.name]["__absent"]=abPos[ti];
+      const rmPos=ko["Teacher Remark"]||ko["Remark"]||[];if(rmPos[0]!==undefined)posMap[t.name]["__remark"]=rmPos[0];
     });
   }
 
   function getVal(row,testName,short,full){
-    // Positional map first (grouped header)
+    // Positional map first (grouped header) — read straight from the
+    // untouched raw row array by column index, bypassing the row object's
+    // collapsed (last-value-wins) keys entirely.
     if(posMap&&posMap[testName]&&posMap[testName][short]!==undefined){
-      const pv=row[posMap[testName][short]];
+      const raw=row.__raw;
+      const pv=raw?raw[posMap[testName][short]]:undefined;
       if(pv!==undefined&&pv!==null&&pv!==""){const n=parseFloat(String(pv).replace(/[^0-9.-]/g,""));return isNaN(n)?pv:n;}
     }
   // Build key variants: hyphen, em dash, underscore separators
@@ -1336,11 +1374,11 @@ function parseStudents(){
     tests.forEach(t=>{
       if(!studentData[id].testData[t.name])studentData[id].testData[t.name]={marks:{},absents:0,remark:""};
       subjects.forEach(s=>{const m=getVal(row,t.name,s);if(m!==null&&typeof m==="number")studentData[id].testData[t.name].marks[s]=m;});
-      const abKey=posMap&&posMap[t.name]&&posMap[t.name]["__absent"];
-      const ab=abKey?row[abKey]:getVal(row,t.name,"Absent Days");
+      const abKey=posMap&&posMap[t.name]?posMap[t.name]["__absent"]:undefined;
+      const ab=abKey!==undefined?(row.__raw?row.__raw[abKey]:undefined):getVal(row,t.name,"Absent Days");
       if(ab!==null&&ab!=="")studentData[id].testData[t.name].absents=parseInt(ab)||0;
-      const rmKey=posMap&&posMap[t.name]&&posMap[t.name]["__remark"];
-      const rm=rmKey?row[rmKey]:getVal(row,t.name,"Remark");
+      const rmKey=posMap&&posMap[t.name]?posMap[t.name]["__remark"]:undefined;
+      const rm=rmKey!==undefined?(row.__raw?row.__raw[rmKey]:undefined):getVal(row,t.name,"Remark");
       if(rm!==null&&rm!=="")studentData[id].testData[t.name].remark=String(rm);
     });
   });
@@ -1351,22 +1389,26 @@ function parseStudents(){
 /* ════ COMPUTE ANALYSIS ════ */
 function computeAnalysis(){
   const {subjects,tests,passThreshold,absentAlert,dropAlert}=APP.setup;
+  APP.dataIssues=[];
   APP.students.forEach(st=>{
-    st.analysis={};const testAvgs=[];
+    st.analysis={};const testAvgs=[];let cumMarks=0,cumMax=0;
     tests.forEach((t)=>{
       const td=st.testData[t.name]||{marks:{},absents:0,remark:""};
       let total=0,maxTotal=0,scored=0;
-      subjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){total+=parseFloat(m)||0;maxTotal+=mx;scored++;}else maxTotal+=mx;});
+      subjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){const mv=parseFloat(m)||0;if(mv>mx)APP.dataIssues.push({studentId:st.id,studentName:st.name,test:t.name,subject:s,entered:mv,max:mx});total+=mv;maxTotal+=mx;scored++;}else maxTotal+=mx;});
       testAvgs.push(scored?Math.round((total/maxTotal)*100):null);
+      if(scored){cumMarks+=total;cumMax+=maxTotal;}
     });
     const valid=testAvgs.filter(v=>v!==null);
-    st.analysis.overallAvg=valid.length?Math.round(valid.reduce((a,b)=>a+b,0)/valid.length):0;
+    // Single rounding from raw cumulative totals (avoids compounding rounding error from averaging pre-rounded per-test %s)
+    st.analysis.overallAvg=cumMax?Math.round((cumMarks/cumMax)*100):0;
     st.analysis.testAvgs=testAvgs;
     const a=st.analysis.overallAvg;
     st.analysis.grade=a>=90?"A+":a>=80?"A":a>=70?"B":a>=60?"C":a>=passThreshold?"D":"F";
     let trend="stable";if(valid.length>=2){const diff=valid[valid.length-1]-valid[0];trend=diff>=5?"improving":diff<=-5?"declining":"stable";}
     st.analysis.trend=trend;
     st.flags=[];
+    if(APP.dataIssues.some(di=>di.studentId===st.id))st.flags.push({type:"data-error",label:"⚠ Data Error",color:"#c0392b"});
     if(a<passThreshold)st.flags.push({type:"at-risk",label:"At Risk",color:"var(--c-danger)"});
     if(trend==="declining")st.flags.push({type:"declining",label:"Declining",color:"var(--c-warn)"});
     if(trend==="improving")st.flags.push({type:"improving",label:"Improving",color:"var(--c-success)"});
@@ -1482,8 +1524,19 @@ function generateStudyPlan(st){const a=st.analysis,weak=Object.entries(a.subject
 function generateIntervention(st){const a=st.analysis,flags=st.flags.map(f=>f.label).join(", ");if(!flags)return "No immediate intervention needed. Continue regular monitoring.";return `Flags: ${flags}. `+(a.stressScore>=60?"High stress indicators - consider a one-on-one check-in. ":"")+"Recommended: parent-teacher meeting, additional practice material, monitor next test.";}
 
 /* ════ DASHBOARD ════ */
+function renderDataIssueBanner(){
+  const issues=APP.dataIssues||[];
+  const el=document.getElementById("data-issue-banner");
+  if(!el)return;
+  if(!issues.length){el.style.display="none";return;}
+  const rows=issues.slice(0,6).map(i=>`${esc(i.studentName)} — ${esc(i.subject)} (${esc(i.test)}): entered ${i.entered}, max is ${i.max}`).join("<br>");
+  const more=issues.length>6?`<br>+${issues.length-6} more`:"";
+  el.innerHTML=`<b>⚠ Data entry error${issues.length>1?"s":""} detected (${issues.length}):</b> marks entered exceed the maximum for that test/subject, which will inflate the affected student's percentage above 100%. Please correct the source sheet and re-import.<br>${rows}${more}`;
+  el.style.display="block";
+}
 function renderDashboard(){
   const s=APP.setup;$("#db-class-label").text([s.instName,s.className,s.section,s.year,s.teacher].filter(Boolean).join(" · "));
+  renderDataIssueBanner();
   renderKPIs();renderStudentCards();renderHeatmap();renderCharts();renderWellbeingPanel();renderFlagsTable();
 }
 function renderKPIs(){
@@ -1525,7 +1578,7 @@ function renderStudentCards(){
     const a=st.analysis,color=a.overallAvg>=85?"var(--c-success)":a.overallAvg>=60?"var(--c-primary)":a.overallAvg>=APP.setup.passThreshold?"var(--c-warn)":"var(--c-danger)";
     const sparkData=a.testAvgs.filter(v=>v!==null);const sparkSvg=buildSparkPath(sparkData);
     const flagBadges=st.flags.slice(0,3).map(f=>`<span class="badge" style="background:${f.color}22;color:${f.color};border:1px solid ${f.color}44">${f.label}</span>`).join("");
-    return `<div class="student-card" onclick="openStudentModal('${esc(st.id)}')"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div><div class="sc-name">${esc(st.name)}</div><div class="sc-id">${esc(st.id)} · Rank #${a.rank}</div></div><div style="text-align:right"><div class="sc-avg" style="color:${color}">${a.overallAvg}%</div><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:11px;color:var(--c-text3)">${a.grade}</span>${a.healthScore!=null?`<span style="font-size:9px;padding:1px 5px;border-radius:99px;font-weight:700;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'};color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥${a.healthScore}</span>`:''}</div></div></div><div class="sc-bar"><div class="sc-bar-fill" style="width:${a.overallAvg}%;background:${color}"></div></div>${sparkData.length>1?`<div style="margin:6px 0">${sparkSvg}</div>`:""}<div class="sc-flags">${flagBadges}</div></div>`;
+    return `<div class="student-card" onclick="openStudentModal('${esc(st.id)}')"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px"><div style="min-width:0;flex:1" title="${esc(st.name)}"><div class="sc-name">${esc(st.name)}</div><div class="sc-id">${esc(st.id)} · Rank #${a.rank}</div></div><div style="text-align:right;flex-shrink:0"><div class="sc-avg" style="color:${color}">${a.overallAvg}%</div><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:11px;color:var(--c-text3)">${a.grade}</span>${a.healthScore!=null?`<span style="font-size:9px;padding:1px 5px;border-radius:99px;font-weight:700;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'};color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥${a.healthScore}</span>`:''}</div></div></div><div class="sc-bar"><div class="sc-bar-fill" style="width:${a.overallAvg}%;background:${color}"></div></div>${sparkData.length>1?`<div style="margin:6px 0">${sparkSvg}</div>`:""}<div class="sc-flags">${flagBadges}</div></div>`;
   }).join(""));
 }
 function buildSparkPath(data){
@@ -1665,6 +1718,17 @@ async function generateAllPDFs(){
   }
 }
 
+function fitText(doc,text,maxW){
+  text=String(text==null?"":text);
+  if(doc.getTextWidth(text)<=maxW)return text;
+  let lo=0,hi=text.length;
+  while(lo<hi){
+    const mid=Math.ceil((lo+hi)/2);
+    const candidate=text.slice(0,mid)+"…";
+    if(doc.getTextWidth(candidate)<=maxW)lo=mid;else hi=mid-1;
+  }
+  return lo>0?text.slice(0,lo)+"…":"…";
+}
 function addPDFHeader(doc,title){
   const s=APP.setup;doc.setFillColor(67,97,238);doc.rect(0,0,210,18,"F");
   doc.setTextColor(255,255,255);doc.setFontSize(12);doc.setFont("helvetica","bold");doc.text("Student Insight",10,11);
@@ -1688,9 +1752,9 @@ function buildStudentPDF(doc,st){
   const avgColor=a.overallAvg>=80?[46,196,182]:a.overallAvg>=s.passThreshold?[67,97,238]:[242,92,84];
   doc.setFillColor(248,249,255);doc.roundedRect(8,y,W-16,26,2,2,"F");
   doc.setFont("helvetica","bold");doc.setFontSize(14);doc.setTextColor(26,29,46);
-  doc.text(st.name,13,y+10);
+  doc.text(fitText(doc,st.name,(W-37-4)-13),13,y+10);
   doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(90,96,122);
-  doc.text("ID: "+st.id+" · Parent: "+(st.parent||"—"),13,y+18);
+  doc.text(fitText(doc,"ID: "+st.id+" · Parent: "+(st.parent||"—"),(W-37-4)-13),13,y+18);
   // Grade badge (right side)
   doc.setFillColor(...avgColor);doc.roundedRect(W-37,y+3,28,20,3,3,"F");
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);
@@ -1720,7 +1784,7 @@ function buildStudentPDF(doc,st){
   subjects.forEach(([sub,avg])=>{
     if(y>255){doc.addPage();y=20;}
     doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(26,29,46);
-    doc.text(sub.length>20?sub.substring(0,19)+"…":sub,10,y+4);
+    doc.text(fitText(doc,sub,labelW-4),10,y+4);
     // Background bar
     doc.setFillColor(226,229,241);doc.roundedRect(labelW,y,barW,barH,1,1,"F");
     // Filled bar
@@ -1748,7 +1812,8 @@ function buildStudentPDF(doc,st){
     doc.setDrawColor(...tcolor);doc.setLineWidth(0.8);
     for(let i=1;i<pts.length;i++){doc.line(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]);}
     pts.forEach((p,i)=>{doc.setFillColor(...tcolor);doc.circle(p[0],p[1],1,"F");doc.setFontSize(6);doc.setTextColor(...tcolor);doc.text(valid[i]+"%",p[0],p[1]-2,{align:"center"});});
-    s.tests.forEach((t,i)=>{if(i<pts.length){doc.setFontSize(6);doc.setTextColor(155,164,192);doc.text(t.name.length>8?t.name.substring(0,8):t.name,pts[i][0],sparkY+sparkH-1,{align:"center"});}});
+    const segW=sparkW/valid.length;
+    s.tests.forEach((t,i)=>{if(i<pts.length){doc.setFontSize(6);doc.setTextColor(155,164,192);doc.text(fitText(doc,t.name,segW-2),pts[i][0],sparkY+sparkH-1,{align:"center"});}});
     y+=sparkH+6;
   }
   // ── FLAGS ──
@@ -1859,7 +1924,7 @@ function buildTeacherPDF(doc){
     const bW=W-70,bH=5,lW=46;
     subData.forEach(({sub,avg})=>{
       doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.setTextColor(26,29,46);
-      doc.text(sub.length>18?sub.slice(0,17)+"…":sub,10,y+4);
+      doc.text(fitText(doc,sub,lW-4),10,y+4);
       doc.setFillColor(226,229,241);doc.roundedRect(lW,y,bW,bH,1,1,"F");
       const bc=avg>=75?[46,196,182]:avg>=(s.passThreshold||35)?[67,97,238]:[242,92,84];
       doc.setFillColor(...bc);doc.roundedRect(lW,y,bW*(avg/100),bH,1,1,"F");
@@ -1893,9 +1958,11 @@ function buildTeacherPDF(doc){
     const ewc=(a.earlyWarningScore||0)>=50?[242,92,84]:(a.earlyWarningScore||0)>=25?[249,168,38]:[46,196,182];
     const fStr=st.flags&&st.flags.length?st.flags.map(f=>f.label).join(", "):"";
     cx=10;
-    [[String(a.rank||""),ac],[st.name.length>22?st.name.slice(0,21)+"…":st.name,[26,29,46]],[a.overallAvg+"%",ac],[a.grade||"",ac],
+    doc.setFont("helvetica","bold");doc.setFontSize(7);const fitName=fitText(doc,st.name,cols[1]-3);
+    doc.setFont("helvetica","normal");doc.setFontSize(7);const fitFlags=fitText(doc,fStr,cols[6]-3);
+    [[String(a.rank||""),ac],[fitName,[26,29,46]],[a.overallAvg+"%",ac],[a.grade||"",ac],
      [a.trend==="improving"?"Up":a.trend==="declining"?"Down":"Stable",tc],[String(a.earlyWarningScore||0),ewc],
-     [fStr.length>30?fStr.slice(0,29)+"…":fStr,[150,150,150]]
+     [fitFlags,[150,150,150]]
     ].forEach(([v,color],i)=>{
       doc.setFont("helvetica",i===1?"bold":"normal");doc.setFontSize(7);doc.setTextColor(...color);
       doc.text(String(v||"—"),cx,y+4);cx+=cols[i];
@@ -1957,17 +2024,17 @@ function buildMgmtPDF(doc){
   const tW=(W-20)/3;
   [[0,1,2],[3,4,5]].forEach((row,ri)=>{
     row.forEach((ki,ci)=>{
-      const k=kpis[ki],tx=10+ci*tW,ty=y+ri*20;
-      doc.setFillColor(255,255,255);doc.setDrawColor(226,229,241);doc.roundedRect(tx,ty,tW-4,17,2,2,"FD");
+      const k=kpis[ki],tx=10+ci*tW,ty=y+ri*22;
+      doc.setFillColor(255,255,255);doc.setDrawColor(226,229,241);doc.roundedRect(tx,ty,tW-4,19,2,2,"FD");
       doc.setFillColor(...k.c);doc.rect(tx,ty,tW-4,2.5,"F");
       doc.setFont("helvetica","normal");doc.setFontSize(6.5);doc.setTextColor(155,164,192);
       doc.text(k.l,tx+(tW-4)/2,ty+7,{align:"center"});
       doc.setFont("helvetica","bold");doc.setFontSize(12);doc.setTextColor(...k.c);
       doc.text(String(k.v),tx+(tW-4)/2,ty+14,{align:"center"});
-      if(k.sub){doc.setFont("helvetica","normal");doc.setFontSize(6);doc.setTextColor(155,164,192);doc.text(k.sub,tx+(tW-4)/2,ty+18,{align:"center"});}
+      if(k.sub){doc.setFont("helvetica","normal");doc.setFontSize(6);doc.setTextColor(155,164,192);doc.text(fitText(doc,k.sub,tW-6),tx+(tW-4)/2,ty+17,{align:"center"});}
     });
   });
-  y+=44;
+  y+=48;
 
   // ── SUBJECT PERFORMANCE (visual bars, side by side) ──
   if(s.subjects&&s.subjects.length){
@@ -1991,7 +2058,7 @@ function buildMgmtPDF(doc){
       doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(255,255,255);
       if(fillH>8)doc.text(avg+"%",bx+(bW-3)/2,y+bH-fillH+6,{align:"center"});
       doc.setFont("helvetica","normal");doc.setFontSize(6.5);doc.setTextColor(26,29,46);
-      doc.text(sub.length>10?sub.slice(0,9)+"…":sub,bx+(bW-3)/2,y+bH+5,{align:"center"});
+      doc.text(fitText(doc,sub,bW-1),bx+(bW-3)/2,y+bH+5,{align:"center"});
     });
     y+=bH+10;
   }
@@ -2031,7 +2098,7 @@ function buildMgmtPDF(doc){
       const a=ts.analysis||{};
       doc.setFillColor(230,249,247);doc.roundedRect(10,y,halfW,7,1,1,"F");
       doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(26,29,46);
-      doc.text("#"+a.rank+" "+ts.name.slice(0,20),13,y+5);
+      doc.text(fitText(doc,"#"+a.rank+" "+ts.name,halfW-22),13,y+5);
       doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(46,196,182);
       doc.text(a.overallAvg+"%",10+halfW-6,y+5,{align:"right"});
     }
@@ -2040,7 +2107,7 @@ function buildMgmtPDF(doc){
       const a=bs.analysis||{};
       doc.setFillColor(253,236,234);doc.roundedRect(14+halfW,y,halfW,7,1,1,"F");
       doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(26,29,46);
-      doc.text(bs.name.slice(0,20),17+halfW,y+5);
+      doc.text(fitText(doc,bs.name,halfW-22),17+halfW,y+5);
       doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(242,92,84);
       doc.text(a.overallAvg+"%",14+halfW+halfW-6,y+5,{align:"right"});
     }
