@@ -338,6 +338,9 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     </div>
   </div>
 
+  <!-- IMPORT STATUS (shown after import attempt — sits above the paths so it's the first thing you see) -->
+  <div id="home-import-status" style="display:none;margin-bottom:20px"></div>
+
   <!-- TWO PATHS -->
   <div class="grid-2" style="margin-bottom:24px;gap:16px">
 
@@ -380,9 +383,6 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
       </div>
     </div>
   </div>
-
-  <!-- IMPORT STATUS (shown after import attempt) -->
-  <div id="home-import-status" style="display:none;margin-bottom:20px"></div>
 
   <!-- PRIVACY PILLARS -->
   <div class="card" style="padding:20px">
@@ -990,6 +990,7 @@ function handleHomeImport(input){
   const statusEl=document.getElementById("home-import-status");
   statusEl.innerHTML=`<div class="card" style="padding:14px;border-color:var(--c-primary)"><div style="font-size:12.5px">⏳ Reading <b>${esc(fileName)}</b>...</div></div>`;
   statusEl.style.display="block";
+  statusEl.scrollIntoView({behavior:"smooth",block:"start"});
   input.value="";// reset early so same file triggers onchange again
 
   const reader=new FileReader();
@@ -1052,20 +1053,27 @@ function handleHomeImport(input){
           <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:${hasRequired?"var(--c-danger)":"var(--c-warn)"}">${hasRequired?"❌ Setup Incomplete":"⚠ Setup Warnings"} — ${errs.length} issue(s) found in SETUP tab</div>
           ${errHtml}
           <div style="margin-top:10px;font-size:12px;color:var(--c-text2)">${hasRequired?"Fix the required fields in your Excel SETUP tab and re-import.":"Warnings noted. Click below to continue."}</div>
-          ${!hasRequired?`<button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="afterImportSuccess()">Continue to Analysis →</button>`:""}
+          ${!hasRequired?`<button class="btn btn-primary btn-sm btn-glow" style="margin-top:10px" onclick="afterImportSuccess()">Continue to Analysis →</button>`:""}
           <button class="btn btn-secondary btn-sm" style="margin-top:10px;margin-left:8px" onclick="goStep('setup')">Edit Setup in App</button>
         </div>`;
         statusEl.style.display="block";
+        statusEl.scrollIntoView({behavior:"smooth",block:"start"});
         if(hasRequired)return;// stop here — required fields missing
       } else {
-        statusEl.innerHTML=`<div class="card" style="border-color:var(--c-success);padding:12px">
-          <span style="color:var(--c-success);font-weight:700">✓ Import successful</span> — <b>${esc(fileName)}</b> · ${Object.keys(APP.rawData).filter(k=>!k.startsWith("_arr_")).length} sheets read · Setup auto-loaded
-          <button class="btn btn-primary btn-sm" style="margin-left:12px" onclick="afterImportSuccess()">Run Analysis →</button>
+        statusEl.innerHTML=`<div class="card" style="border-color:var(--c-success);background:#effaf8;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
+          <div>
+            <div style="color:var(--c-success);font-weight:800;font-size:15px;margin-bottom:3px">✓ Import successful</div>
+            <div style="font-size:12.5px;color:var(--c-text2)"><b>${esc(fileName)}</b> · ${Object.keys(APP.rawData).filter(k=>!k.startsWith("_arr_")).length} sheets read · Setup auto-loaded. You're ready to analyse.</div>
+          </div>
+          <button class="btn btn-primary btn-glow" style="font-size:14px;padding:10px 22px;white-space:nowrap" onclick="afterImportSuccess()">🔬 Run Analysis →</button>
         </div>`;
         statusEl.style.display="block";
+        statusEl.scrollIntoView({behavior:"smooth",block:"start"});
       }
     }catch(err){
       statusEl.innerHTML=`<div class="card" style="border-color:var(--c-danger)"><b style="color:var(--c-danger)">❌ Import failed:</b> ${esc(err.message)}<br><span style="font-size:11.5px;color:var(--c-text2)">Make sure the file is a valid .xlsx or .xls file.</span></div>`;
+      statusEl.style.display="block";
+      statusEl.scrollIntoView({behavior:"smooth",block:"start"});
     }
   };
   reader.readAsArrayBuffer(file);
