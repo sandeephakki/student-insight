@@ -87,6 +87,13 @@ h1,h2,h3,h4{font-family:var(--font-display);line-height:1.25}
 .btn-success{background:var(--c-success);color:#fff}.btn-success:hover{background:#25a99d}
 .btn-sm{padding:5px 11px;font-size:12px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-glow{position:relative;animation:btnPulse 1.8s ease-in-out infinite}
+.btn-glow:hover{animation:none}
+@keyframes btnPulse{0%,100%{box-shadow:0 0 0 0 rgba(46,196,182,.45)}50%{box-shadow:0 0 0 9px rgba(46,196,182,0)}}
+.phase-actionbar{position:sticky;top:var(--content-top);z-index:60;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r);padding:12px 16px;margin-bottom:16px;box-shadow:var(--c-shadow);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.phase-actionbar .phase-actionbar-title{font-family:var(--font-display);font-size:14px;font-weight:700}
+.phase-actionbar .phase-actionbar-sub{font-size:11.5px;color:var(--c-text3);margin-top:1px}
+.phase-actionbar .phase-actionbar-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
 /* BADGES */
 .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700}
@@ -96,7 +103,7 @@ h1,h2,h3,h4{font-family:var(--font-display);line-height:1.25}
 .section-sub{font-size:12.5px;color:var(--c-text2);margin-bottom:16px;line-height:1.6}
 
 /* TOAST */
-#toast-wrap{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+#toast-wrap{position:fixed;top:calc(var(--content-top) + 12px);right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px}
 .toast{background:var(--c-text);color:#fff;padding:10px 16px;border-radius:var(--r-sm);font-size:13px;box-shadow:var(--c-shadow-md);max-width:340px}
 .toast.success{background:#1a7a6e}.toast.error{background:#c0392b}.toast.warn{background:#9a6200}
 
@@ -416,12 +423,12 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
 
 <!-- SETUP -->
 <div id="panel-setup" class="panel">
-  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-    <div><div class="section-title">⚙️ Setup</div><div class="section-sub" style="margin-bottom:0">Fill once — drives the template and all analysis.</div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+  <div class="phase-actionbar">
+    <div><div class="phase-actionbar-title">⚙️ Step 1 · Setup</div><div class="phase-actionbar-sub">Fill once — drives the template and all analysis.</div></div>
+    <div class="phase-actionbar-btns">
       <button class="btn btn-secondary btn-sm" onclick="saveSession()">💾 Save</button>
       <button class="btn btn-primary btn-sm" id="btn-download-template" onclick="generateTemplate()" disabled style="opacity:.45;cursor:not-allowed" title="Fill mandatory fields first">⬇ Download Template</button>
-      <button class="btn btn-secondary btn-sm" onclick="goStep('data')">Next: Upload Data →</button>
+      <button class="btn btn-secondary btn-sm" id="btn-setup-next" onclick="goStep('data')">Next: Upload Data →</button>
       <button class="btn btn-primary btn-sm" id="btn-setup-continue-analysis" onclick="afterImportSuccess()" style="display:none">Continue to Analysis →</button>
     </div>
   </div>
@@ -486,12 +493,12 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     </div>
   </div>
   <div id="setup-cta-card" class="card" style="background:var(--c-primary-soft);border-color:var(--c-primary);display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="font-size:22px">👆</div>
       <div>
-        <div style="font-weight:700;font-size:14px;margin-bottom:3px">📥 Ready! Download your Excel template</div>
+        <div style="font-weight:700;font-size:14px;margin-bottom:3px">Ready! Use <b>⬇ Download Template</b> at the top of this page</div>
         <div style="font-size:12.5px;color:var(--c-text2)">3 tabs: SETUP (auto-filled) · STUDENTS (add roster) · MARKS+CONTEXT (teacher fills marks offline)</div>
       </div>
-      <button class="btn btn-primary" onclick="generateTemplate()" style="white-space:nowrap">⬇ Download Template</button>
     </div>
   </div>
   <div id="setup-incomplete-card" class="card" style="border-color:var(--c-warn);background:#fffbf0">
@@ -504,8 +511,12 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
 
 <!-- DATA UPLOAD -->
 <div id="panel-data" class="panel">
-  <div class="section-title">📂 Upload Filled Excel</div>
-  <div class="section-sub">Upload the Excel file after the teacher has filled in the marks. Supported: .xlsx, .xls, .csv</div>
+  <div class="phase-actionbar">
+    <div><div class="phase-actionbar-title">📂 Step 2 · Upload Filled Excel</div><div class="phase-actionbar-sub">Upload the Excel file after the teacher has filled in the marks. Supported: .xlsx, .xls, .csv</div></div>
+    <div class="phase-actionbar-btns">
+      <button class="btn btn-primary btn-sm" id="btn-data-continue" onclick="goStep('ai')" disabled style="opacity:.45;cursor:not-allowed" title="Upload a file first">Next: Run Analysis →</button>
+    </div>
+  </div>
   <div class="card">
     <div class="drop-zone" id="drop-zone" onclick="triggerFileUpload()" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleFileDrop(event)">
       <div class="drop-zone-icon">📊</div>
@@ -518,7 +529,6 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     <div class="card-title"><span class="icon">✅</span> Data Loaded <span id="data-loaded-name" style="font-weight:400;font-size:12px;color:var(--c-text3)"></span></div>
     <div id="data-loaded-summary" style="font-size:13px;color:var(--c-text2);margin-bottom:12px"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-primary" onclick="goStep('ai')">🔬 Run Analysis →</button>
       <button class="btn btn-secondary" onclick="triggerFileUpload()">📂 Upload Different File</button>
     </div>
   </div>
@@ -534,22 +544,22 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
 
 <!-- AI ANALYSIS -->
 <div id="panel-ai" class="panel">
-  <div class="section-title">🤖 Analysis Engine</div>
-  <div class="section-sub">Select analyses to run. All processing is in your browser — no data leaves.</div>
+  <div class="phase-actionbar">
+    <div><div class="phase-actionbar-title">🤖 Step 3 · Analysis Engine</div><div class="phase-actionbar-sub">Select analyses to run. All processing is in your browser — no data leaves. <span id="ai-selected-count">0 features selected</span></div></div>
+    <div class="phase-actionbar-btns">
+      <button class="btn btn-secondary btn-sm" onclick="selectAllAI()">✔ Select All</button>
+      <button class="btn btn-secondary btn-sm" onclick="clearAllAI()">✕ Clear All</button>
+      <button class="btn btn-primary btn-glow" id="btn-analyse" onclick="runAnalysis()" style="min-width:160px">🔬 Run Analysis</button>
+    </div>
+  </div>
+  <div id="validation-warnings" style="display:none"></div>
+  <div id="ai-loader"><div class="loader-ring"></div><div class="loader-msg" id="ai-loader-msg">Initialising…</div><div style="max-width:320px;margin:0 auto"><div class="prog-bar"><div class="prog-fill" id="ai-prog" style="width:0%"></div></div><div style="text-align:center;font-size:11px;color:var(--c-text3);margin-top:5px" id="ai-prog-label">0%</div></div></div>
   <div style="display:flex;flex-direction:column;gap:16px">
     <div class="card"><div class="card-title"><span class="icon">📈</span> Performance Analysis</div><div class="ai-checkbox-grid" id="ai-perf-checks"></div></div>
     <div class="card"><div class="card-title"><span class="icon">⚠️</span> Early Warning &amp; Flags</div><div class="ai-checkbox-grid" id="ai-warn-checks"></div></div>
     <div class="card"><div class="card-title"><span class="icon">💬</span> AI Narrative Generation</div><div class="ai-checkbox-grid" id="ai-narr-checks"></div></div>
     <div class="card"><div class="card-title"><span class="icon">🧠</span> Wellbeing &amp; Psychosocial</div><div class="ai-checkbox-grid" id="ai-well-checks"></div></div>
     <div class="card"><div class="card-title"><span class="icon">📋</span> Management &amp; Institutional</div><div class="ai-checkbox-grid" id="ai-mgmt-checks"></div></div>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-primary" id="btn-analyse" onclick="runAnalysis()" style="min-width:160px">🔬 Run Analysis</button>
-      <button class="btn btn-secondary" onclick="selectAllAI()">✔ Select All</button>
-      <button class="btn btn-secondary" onclick="clearAllAI()">✕ Clear All</button>
-      <span style="font-size:12px;color:var(--c-text3)" id="ai-selected-count">0 features selected</span>
-    </div>
-    <div id="validation-warnings" style="display:none"></div>
-    <div id="ai-loader"><div class="loader-ring"></div><div class="loader-msg" id="ai-loader-msg">Initialising…</div><div style="max-width:320px;margin:0 auto"><div class="prog-bar"><div class="prog-fill" id="ai-prog" style="width:0%"></div></div><div style="text-align:center;font-size:11px;color:var(--c-text3);margin-top:5px" id="ai-prog-label">0%</div></div></div>
   </div>
 </div>
 
@@ -557,12 +567,12 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
 <div id="panel-dashboard" class="panel">
 
   <!-- LAYER 1: CLASS IDENTITY + KPI STRIP -->
-  <div class="db-header">
+  <div class="db-header phase-actionbar">
     <div>
       <div class="db-title" id="db-class-label">Class Dashboard</div>
       <div class="db-subtitle" id="db-meta-label"></div>
     </div>
-    <button class="btn btn-primary btn-sm" onclick="goStep('export')" style="flex-shrink:0">Export PDFs →</button>
+    <button class="btn btn-primary btn-sm btn-glow" onclick="goStep('export')" style="flex-shrink:0">Export PDFs →</button>
   </div>
   <div id="data-issue-banner" style="display:none;background:#fdecea;border:1px solid #f5c6c1;color:#8b1a1a;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px"></div>
   <div id="db-stats-bar" style="display:none;font-size:12px;color:var(--c-text2);background:var(--c-surface);padding:7px 14px;border-radius:var(--r-sm);border:1px solid var(--c-border);margin-bottom:10px"></div>
@@ -643,8 +653,12 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
 
 <!-- EXPORT -->
 <div id="panel-export" class="panel">
-  <div class="section-title">📄 Export PDF Reports</div>
-  <div class="section-sub">All PDFs generated in your browser. Nothing is sent anywhere.</div>
+  <div class="phase-actionbar">
+    <div><div class="phase-actionbar-title">📄 Step 5 · Export PDF Reports</div><div class="phase-actionbar-sub">All PDFs generated in your browser. Nothing is sent anywhere.</div></div>
+    <div class="phase-actionbar-btns">
+      <button class="btn btn-success btn-glow" id="btn-generate-pdfs" onclick="generateAllPDFs()" style="font-size:13.5px;padding:9px 18px">📦 Generate &amp; Download ZIP</button>
+    </div>
+  </div>
   <div style="display:flex;flex-direction:column;gap:16px">
     <div class="card">
       <div class="card-title"><span class="icon">📋</span> What Gets Generated</div>
@@ -665,13 +679,6 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
       </div>
     </div>
 
-    <div class="pdf-actions">
-      <div><div style="font-weight:600;font-size:14px">Ready to generate?</div><div style="font-size:12px;color:var(--c-text3);margin-top:2px">Entirely in your browser. No data sent anywhere.</div></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-
-        <button class="btn btn-success" onclick="generateAllPDFs()" style="font-size:14px;padding:10px 22px">📦 Generate &amp; Download ZIP</button>
-      </div>
-    </div>
     <div id="export-loader" style="display:none;text-align:center;padding:30px">
       <div class="loader-ring" style="width:40px;height:40px;margin:0 auto 12px"></div>
       <div class="loader-msg" id="export-loader-msg">Generating PDFs…</div>
@@ -971,6 +978,8 @@ function generateTemplate(){
   XLSX.utils.book_append_sheet(wb,wsMarks,"MARKS+CONTEXT");
   const fname=(instName+" "+APP.setup.className+" "+APP.setup.year).replace(/[^\w\s-]/g,"").replace(/\s+/g,"_")+".xlsx";
   XLSX.writeFile(wb,fname);toast("Template downloaded: "+fname,"success");unlockStep("data");
+  $("#btn-download-template").removeClass("btn-glow");
+  $("#btn-setup-next").addClass("btn-glow");
 }
 
 /* ════ HOME IMPORT — direct Excel import from home screen ════ */
@@ -1064,6 +1073,8 @@ function handleHomeImport(input){
 
 function afterImportSuccess(){
   unlockStep("data");unlockStep("ai");unlockStep("dashboard");unlockStep("export");
+  $("#btn-data-continue").prop("disabled",false).removeAttr("title").css({opacity:1,cursor:"pointer"}).addClass("btn-glow");
+  $("#data-loaded-card").show();$("#drop-zone").hide();
   goStep("ai");
   toast("Setup loaded. Select AI features and run analysis.","success");
 }
@@ -1096,6 +1107,8 @@ function renderHomePage(){
   document.querySelector('.step-item[data-step="home"]')?.classList.remove("locked");
   document.querySelector('.step-item[data-step="about"]')?.classList.remove("locked");
   document.querySelector('.step-item[data-step="samplefiles"]')?.classList.remove("locked");
+  $("#btn-data-continue").prop("disabled",true).attr("title","Upload a file first").css({opacity:.45,cursor:"not-allowed"}).removeClass("btn-glow");
+  $("#data-loaded-card").hide();$("#drop-zone").show();
 }
 
 /* ════ FILE UPLOAD ════ */
@@ -1159,6 +1172,7 @@ function parseWorkbook(data,ext,fname){
   $("#data-loaded-name").text("- "+fname);
   $("#data-loaded-summary").html(`<b>${wb.SheetNames.length} tabs</b> loaded &nbsp;·&nbsp; <b>${studSheet.length}</b> students &nbsp;·&nbsp; <b>${marksSheet.length}</b> mark rows`);
   $("#data-loaded-card").show();$("#drop-zone").hide();unlockStep("ai");saveSession();toast("File loaded.","success");
+  $("#btn-data-continue").prop("disabled",false).removeAttr("title").css({opacity:1,cursor:"pointer"}).addClass("btn-glow");
 }
 function autoInferSetup(){
   const setupSheet=APP.rawData["SETUP"]||[];if(!setupSheet.length)return;
@@ -1296,11 +1310,11 @@ async function runAnalysis(){
     const el=document.getElementById("validation-warnings");
     if(el){el.innerHTML=`<div class="card" style="border-color:var(--c-warn);margin-bottom:12px"><b style="color:var(--c-warn)">⚠ Data warnings (analysis will proceed)</b>`+_warnings.map(w=>`<div style="font-size:12px;margin-top:4px">● ${w.m}</div>`).join("")+`</div>`;el.style.display="block";}
   } else {const el=document.getElementById("validation-warnings");if(el)el.style.display="none";}
-  $("#ai-loader").show();$("#btn-analyse").prop("disabled",true);
+  $("#ai-loader").show();$("#btn-analyse").prop("disabled",true).removeClass("btn-glow");
   const steps=["Parsing student records…","Computing marks & percentages…","Running trend detection…","Calculating percentile ranks…","Detecting at-risk patterns…","Sentiment analysis on remarks…","Running stress & wellbeing scoring…","Generating AI narratives…","Predicting next test scores…","Finalising…"];
   for(let i=0;i<steps.length;i++){$("#ai-loader-msg").text(steps[i]);const pct=Math.round(((i+1)/steps.length)*100);$("#ai-prog").css("width",pct+"%");$("#ai-prog-label").text(pct+"%");await sleep(280+Math.random()*220);}
   parseStudents();computeAnalysis();
-  $("#ai-loader").hide();$("#btn-analyse").prop("disabled",false);
+  $("#ai-loader").hide();$("#btn-analyse").prop("disabled",false).addClass("btn-glow");
   if(APP.students.length){unlockStep("dashboard");unlockStep("export");}
   saveSession();toast("Analysis complete - "+APP.students.length+" students processed.","success");goStep("dashboard");
 }
@@ -1727,6 +1741,7 @@ async function generateAllPDFs(){
   const {jsPDF}=window.jspdf;
   const total=(doS?APP.students.length:0)+(doT?1:0)+(doM?1:0);let done=0;
   $("#export-loader").show();
+  $("#btn-generate-pdfs").prop("disabled",true).removeClass("btn-glow");
   function prog(msg,pct){$("#export-loader-msg").text(msg);$("#export-prog").css("width",pct+"%");}
   function safeName(n){return n.replace(/[^\w\s-]/g,"").replace(/\s+/g,"_");}
   const urlsToRevoke=[];
@@ -1753,6 +1768,7 @@ async function generateAllPDFs(){
     toast("Export failed: "+err.message,"error");
   }finally{
     $("#export-loader").hide();
+    $("#btn-generate-pdfs").prop("disabled",false).addClass("btn-glow");
     urlsToRevoke.forEach(u=>setTimeout(()=>URL.revokeObjectURL(u),5000));
   }
 }
@@ -2206,7 +2222,7 @@ function validateSetup(){
   if(!tests.length) missing.push("at least one Test");
 
   const valid=missing.length===0;
-  $("#btn-download-template").prop("disabled",!valid).css({opacity:valid?1:.45,cursor:valid?"pointer":"not-allowed"});
+  $("#btn-download-template").prop("disabled",!valid).css({opacity:valid?1:.45,cursor:valid?"pointer":"not-allowed"}).toggleClass("btn-glow",valid);
   if(valid){
     $("#setup-cta-card").show();
     $("#setup-incomplete-card").hide();
