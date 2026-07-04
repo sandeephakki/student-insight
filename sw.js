@@ -1,10 +1,10 @@
 /* ============================================================
-   Student Insight — Service Worker v1.0
+   Student Insight — Service Worker v9.0
    Caches the app shell for offline use.
    Cache is versioned — bump CACHE_VERSION on each deploy.
 ============================================================ */
 
-const CACHE_VERSION = 'sia-v8.1';
+const CACHE_VERSION = 'sia-v9.0';
 const CACHE_NAME    = CACHE_VERSION;
 
 // App shell assets to cache on install
@@ -15,6 +15,9 @@ const SHELL_ASSETS = [
 ];
 
 // CDN assets the app depends on (cache on first fetch)
+// Kept in sync with the CDN <script> tags in index.html:
+// jQuery 3.7.1, SheetJS (xlsx) 0.18.5, jsPDF 2.5.1, JSZip 3.10.1,
+// Chart.js 4.4.1, Google Fonts (Inter, DM Sans)
 const CDN_ORIGINS = [
   'https://cdnjs.cloudflare.com',
   'https://cdn.jsdelivr.net',
@@ -47,13 +50,8 @@ self.addEventListener('activate', event => {
   );
 });
 
-/* ── Fetch: network-first for API, cache-first for shell/CDN ── */
+/* ── Fetch: network-first for app shell, cache-first for CDN ── */
 self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
-
-  // Never intercept Apps Script calls — always live
-  if (url.hostname.includes('script.google.com')) return;
-
   // Never intercept chrome-extension or non-http
   if (!event.request.url.startsWith('http')) return;
 
@@ -76,6 +74,9 @@ self.addEventListener('fetch', event => {
   }
 
   // App shell — network first, fallback to cache
+  // (This is a stateless, in-browser-only app — no student data ever
+  // touches the network or this cache; see index.html's Project
+  // Intelligence Block §1 for the privacy model this mirrors.)
   event.respondWith(
     fetch(event.request)
       .then(response => {

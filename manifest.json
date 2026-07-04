@@ -1,7 +1,7 @@
 {
   "name": "Student Insight",
   "short_name": "SIA",
-  "description": "Privacy-first student analytics for schools. All AI runs in-browser. No data leaves your Google Sheet.",
+  "description": "Privacy-first, in-browser student analytics for schools. Import a class marks spreadsheet, run AI-assisted analysis locally, and export PDF reports — no accounts, no server, no data leaves your device.",
   "start_url": "/student-insight/",
   "scope": "/student-insight/",
   "display": "standalone",

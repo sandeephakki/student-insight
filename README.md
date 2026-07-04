@@ -2,7 +2,7 @@
 
 **Privacy-first · In-browser AI · Free forever**
 
-A PWA for schools to analyse student performance without sending any data to external servers. All AI runs in the browser. Student data stays in your Google Sheet — always.
+A PWA for schools to analyse student performance without sending any data to external servers. All analysis runs in the browser. The app is stateless — you import an Excel/CSV file of marks, work with it in the session, and export PDF report cards. No accounts, no backend database, and no student data is persisted anywhere outside your own device (page memory only — closing or refreshing the tab discards the session; see "Trust & Privacy" in the app's About panel).
 
 ---
 
@@ -17,12 +17,12 @@ A PWA for schools to analyse student performance without sending any data to ext
 
 ## How it works
 
-1. School admin creates a Google Sheet using the provided template
-2. Deploys an Apps Script Web App on the sheet (one-time setup, ~5 min)
-3. Teachers open the app URL, paste the Web App URL, enter their PIN
-4. Marks are entered → AI analysis runs in-browser → PDF reports generated
+1. Teacher sets up the class (institution, subjects, tests, scoring rules, alert thresholds) — or skips this and lets the app infer it from the uploaded workbook.
+2. Marks are imported from an Excel workbook with two sheets, `STUDENTS` and `MARKS+CONTEXT` (a downloadable template and four sample class-marks spreadsheets are available via "Download Template" / the "Sample Files" button).
+3. Analysis runs entirely in-browser across five categories the teacher can toggle: performance (averages, rank, trend, predictions), warnings (at-risk, sharp drops, plateaus), narrative summaries (parent summaries, study plans, intervention notes), wellbeing (stress/burnout/resilience indicators), and management-level class health.
+4. A tabbed dashboard (KPIs, student cards, heatmap, flags table, wellbeing panel, charts) and exportable PDF reports (per-student report card, teacher summary, management report) are generated and downloaded locally.
 
-No data ever leaves the school's Google Sheet. No servers. No tracking. No API keys.
+No data ever leaves the device. No servers. No tracking. No API keys. Nothing is saved between sessions unless you explicitly export a file.
 
 ---
 
@@ -31,7 +31,7 @@ No data ever leaves the school's Google Sheet. No servers. No tracking. No API k
 ```
 index.html        ← The entire app (single-file PWA)
 manifest.json     ← PWA install manifest
-sw.js             ← Service worker (offline caching)
+sw.js             ← Service worker (offline caching of the app shell + CDN libs)
 .github/
   workflows/
     deploy.yml    ← Auto-deploy to GitHub Pages on push to main
@@ -49,28 +49,23 @@ README.md         ← This file
 
 ---
 
-## Apps Script setup (one-time per school)
+## Sample files
 
-1. Open your school's Google Sheet
-2. **Extensions → Apps Script**
-3. Paste the Apps Script code (provided separately as `script_google_sheet`)
-4. **Deploy → New deployment**
-   - Type: **Web App**
-   - Execute as: **Me**
-   - Who has access: **Anyone**
-5. Copy the Web App URL
-6. Open the Student Insight app → paste the URL → Connect
+Four sample class-marks spreadsheets are hosted in the `samples/` folder of this repo and are linked from the "Sample Files" button next to About in the app. They're handy for trying the app out or as a template for formatting your own class data.
 
 ---
 
 ## Tech stack
 
-- Vanilla JS + jQuery (no build step, no Node, no bundler)
-- Google Sheets as database (via Apps Script Web App)
-- SHA-256 PIN auth (browser `crypto.subtle` — no plaintext ever stored)
-- PDF generation via jsPDF
-- Charts via Chart.js
-- PWA: manifest + service worker
+- Vanilla JS + jQuery 3.7.1 (no build step, no Node, no bundler)
+- Stateless in-browser data model (no backend, no database, no persisted storage)
+- Excel/CSV import & export via SheetJS (xlsx 0.18.5)
+- PDF generation via jsPDF 2.5.1 (with JSZip 3.10.1 as a supporting dependency)
+- Charts via Chart.js 4.4.1
+- Fonts: Google Fonts "Inter" + "DM Sans"
+- PWA: manifest + service worker (app shell cached for offline use)
+
+> **Known open item:** only the jQuery `<script>` tag is currently SRI-pinned; the SheetJS/jsPDF/JSZip/Chart.js CDN tags are not yet pinned with integrity hashes. Contributions welcome.
 
 ---
 
@@ -82,5 +77,5 @@ Hakki Public School, Bangalore — Class 6B, 2026
 
 ## Licence
 
-MIT — free to use, fork, and deploy. Attribution required.  
+MIT — free to use, fork, and deploy. Attribution required.
 Built by Sandeep Hakki as a social cause project.

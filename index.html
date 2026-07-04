@@ -1,4 +1,17 @@
 <!DOCTYPE html>
+<!--
+  Student Insight — Privacy-first, in-browser student analytics.
+  Copyright (c) 2026 [Sandeep Hakki]. All contributions and original code in
+  this file are authored by [Sandeep Hakki] unless otherwise noted.
+
+  Licensed under the MIT License — see LICENSE file in this repository.
+  You are free to use, copy, modify, and redistribute this software,
+  provided the original copyright notice and this license are retained.
+  This software is provided "AS IS", without warranty of any kind.
+
+  This project processes all data locally in the user's browser. No
+  student data is collected, transmitted, or stored by the author.
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -1151,6 +1164,11 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
 
 </div><!-- #main -->
 
+<!-- FOOTER CREDIT (copyright + attribution, kept small and unobtrusive) -->
+<footer style="text-align:center;font-size:11px;color:var(--c-text2, #888);padding:14px 8px 24px;opacity:0.7">
+  Student Insight &copy; 2026 [Sandeep Hakki] &middot; MIT Licensed &middot; Data stays in your browser, never uploaded.
+</footer>
+
 <!-- STUDENT MODAL -->
 <div id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-content"><div class="modal-box" id="modal-box"><span class="modal-close" role="button" tabindex="0" aria-label="Close dialog" onclick="closeModal()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();closeModal();}">✕</span><div id="modal-content"></div></div></div>
 
@@ -1241,7 +1259,16 @@ function collectSetupForm(){
   APP.setup.subjects=getSubjects();APP.setup.tests=[];
   $("#tests-list .test-row-wrap").each(function(){
     const name=$(this).find(".test-name-inp").val().trim();const date=$(this).find(".test-date-inp").val();
-    const maxMarks={};APP.setup.subjects.forEach((s,i)=>{maxMarks[s]=parseInt($(this).find(`.mm-inp[data-subj="${i}"]`).val())||100;});
+    // Finding #3: parseInt(v)||100 only catches 0/NaN/blank — a genuine
+    // negative value (e.g. -50) is truthy and passes straight through as the
+    // divisor for every percentage in this test. Clamp to a sane 1..10000
+    // range (same pattern as clampNum used elsewhere for Pass Threshold /
+    // Absent Alert / Sharp Drop) instead of leaving this the one unclamped
+    // numeric field in Setup.
+    const maxMarks={};APP.setup.subjects.forEach((s,i)=>{
+      const raw=parseInt($(this).find(`.mm-inp[data-subj="${i}"]`).val());
+      maxMarks[s]=(isNaN(raw)||raw<1)?100:Math.min(raw,10000);
+    });
     if(name)APP.setup.tests.push({name,date,maxMarks});
   });
 }
@@ -1266,9 +1293,16 @@ function generateTemplate(){
   if(!APP.setup.tests.length){toast("Add at least one test.","warn");return;}
   const wb=XLSX.utils.book_new();
   const {subjects,tests,instName,passThreshold,absentAlert,dropAlert}=APP.setup;
+  // Finding #5: imported sheets already strip a leading =/+/-/@ (treated as
+  // formula-injection risk) on the way IN, but free-text Setup fields were
+  // written straight into the generated template on the way OUT with no
+  // matching guard. Prefix such values with a leading apostrophe so Excel/
+  // Sheets/LibreOffice treats them as literal text, keeping the same
+  // sanitization guarantee on both ends of the pipeline.
+  const stripFormula=v=>{const s=String(v||"");return /^[=+\-@]/.test(s)?"'"+s:s;};
   /* SETUP tab */
-  const setupRows=[["INSTITUTION",""],["Institution Name",instName],["Type",APP.setup.instType||""],["Location",APP.setup.location||""],["Contact",APP.setup.contact||""],["CLASS",""],["Class / Batch",APP.setup.className],["Section",APP.setup.section||""],["Academic Year",APP.setup.year],["Class Teacher",APP.setup.teacher||""],["SUBJECTS",""]];
-  subjects.forEach((s,i)=>setupRows.push(["Subject "+(i+1),s]));
+  const setupRows=[["INSTITUTION",""],["Institution Name",stripFormula(instName)],["Type",stripFormula(APP.setup.instType||"")],["Location",stripFormula(APP.setup.location||"")],["Contact",stripFormula(APP.setup.contact||"")],["CLASS",""],["Class / Batch",stripFormula(APP.setup.className)],["Section",stripFormula(APP.setup.section||"")],["Academic Year",stripFormula(APP.setup.year)],["Class Teacher",stripFormula(APP.setup.teacher||"")],["SUBJECTS",""]];
+  subjects.forEach((s,i)=>setupRows.push(["Subject "+(i+1),stripFormula(s)]));
   setupRows.push(["TESTS",""]);
   tests.forEach((t,i)=>{setupRows.push(["Test "+(i+1)+" Name",t.name]);setupRows.push(["Test "+(i+1)+" Date",t.date||""]);subjects.forEach(s=>setupRows.push(["Max Marks - "+s+" (Test "+(i+1)+")",(t.maxMarks&&t.maxMarks[s])||100]));});
   setupRows.push(["Scoring Method",Object.keys(APP.setup.scoring).filter(k=>APP.setup.scoring[k]).join(", ")]);
@@ -1550,12 +1584,16 @@ function autoInferSetup(){
     const maxMarks={};
     // Format A: per-subject max marks stored separately
     const hasFormatA=subjects.some(s=>kv["Max Marks - "+s+" (Test "+t+")"]||kv["Max Marks — "+s+" (Test "+t+")"]);
+    // Finding #3: v?parseInt(v)||100:100 only catches 0/NaN/blank, letting a
+    // negative imported Max Marks (e.g. -50) through unclamped as the
+    // percentage denominator. Clamp to 1..10000, same as collectSetupForm.
+    const clampMaxMarks=n=>(isNaN(n)||n<1)?100:Math.min(n,10000);
     if(hasFormatA){
-      subjects.forEach(s=>{const v=kv["Max Marks - "+s+" (Test "+t+")"]||kv["Max Marks — "+s+" (Test "+t+")"]||null;maxMarks[s]=v?parseInt(v)||100:100;});
+      subjects.forEach(s=>{const v=kv["Max Marks - "+s+" (Test "+t+")"]||kv["Max Marks — "+s+" (Test "+t+")"]||null;maxMarks[s]=clampMaxMarks(v?parseInt(v):NaN);});
     } else {
       // Format B: one global max for all subjects, found in same row as test name
       const testRow=rawRows.find(r=>String(r[0]||"").trim()==="Test "+t&&String(r[1]||"").trim()===name);
-      const globalMax=testRow&&testRow[2]==="Max Marks"&&testRow[3]?parseInt(testRow[3])||100:100;
+      const globalMax=clampMaxMarks(testRow&&testRow[2]==="Max Marks"&&testRow[3]?parseInt(testRow[3]):NaN);
       subjects.forEach(s=>{maxMarks[s]=globalMax;});
     }
     tests.push({name,date:kv["Test "+t+" Date"]||"",maxMarks});
@@ -1833,7 +1871,19 @@ function parseStudents(){
   const studentData={};
   markSheet.forEach(row=>{
     const rawId=String(row["Student ID"]||"").trim();const key=normId(rawId);const nm=String(row["Student Name"]||row["Full Name"]||"").trim();
-    if(!key)return;if(!studentData[key])studentData[key]={id:(studentMap[key]&&studentMap[key].id)||rawId,name:nm||(studentMap[key]&&studentMap[key].name)||rawId,testData:{}};
+    if(!key){
+      // Row has no Student ID — before dropping it, check whether it actually
+      // has any data in it (raw row array covers every column, not just the
+      // first test), so a blank-ID row with real marks doesn't just vanish
+      // with zero trace. (Finding #2)
+      const hasAnyMark=(row.__raw&&row.__raw.some(v=>v!==null&&v!==undefined&&String(v).trim()!==""))||nm!=="";
+      if(hasAnyMark){
+        APP.dataIssues.push({studentId:"(blank)",studentName:nm||"(unnamed)",
+          test:"—",subject:"—",message:"row has data but no Student ID — entire row was skipped, not counted in analysis"});
+      }
+      return;
+    }
+    if(!studentData[key])studentData[key]={id:(studentMap[key]&&studentMap[key].id)||rawId,name:nm||(studentMap[key]&&studentMap[key].name)||rawId,testData:{}};
     tests.forEach(t=>{
       if(!studentData[key].testData[t.name])studentData[key].testData[t.name]={marks:{},absents:0,remark:""};
       subjects.forEach(s=>{
@@ -1868,7 +1918,19 @@ function parseStudents(){
       });
       const abKey=posMap&&posMap[t.name]?posMap[t.name]["__absent"]:undefined;
       const ab=abKey!==undefined?(row.__raw?row.__raw[abKey]:undefined):getVal(row,t.name,"Absent Days");
-      if(ab!==null&&ab!=="")studentData[key].testData[t.name].absents=parseInt(ab)||0;
+      if(ab!==null&&ab!==""){
+        // Finding #4: parseInt(ab)||0 only catches 0/NaN, letting a genuine
+        // negative value (e.g. -5) through unclamped, which can push
+        // totalAbsent and stressScore below zero. Reject negatives back to 0
+        // and flag it so the teacher sees the correction instead of a
+        // confusing negative stress score.
+        const abn=parseInt(ab);
+        if(!isNaN(abn)&&abn<0){
+          APP.dataIssues.push({studentId:rawId,studentName:studentData[key].name||rawId,test:t.name,subject:"—",
+            message:`entered ${abn} for Absent Days — negative values aren't valid, treated as 0`});
+        }
+        studentData[key].testData[t.name].absents=(!isNaN(abn)&&abn>0)?abn:0;
+      }
       const rmKey=posMap&&posMap[t.name]?posMap[t.name]["__remark"]:undefined;
       const rm=rmKey!==undefined?(row.__raw?row.__raw[rmKey]:undefined):getVal(row,t.name,"Remark");
       if(rm!==null&&rm!=="")studentData[key].testData[t.name].remark=String(rm);
@@ -2768,6 +2830,16 @@ function switchDbTab(name, el){
 /* ════ KEYBOARD ════ */
 $(document).on("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key==="s"){e.preventDefault();saveSession();}if(e.key==="Escape")closeModal();});
 $("#modal-overlay").on("click",function(e){if($(e.target).is("#modal-overlay"))closeModal();});
+
+/* ════ GLOBAL DRAG/DROP GUARD (Finding #1) ════
+   Prevents the browser's default "navigate to dropped file" behavior anywhere
+   outside the actual drop-zone, so a slightly-missed drag-and-drop is a no-op
+   instead of silently destroying the whole in-progress session. */
+["dragover","drop"].forEach(evt=>{
+  document.addEventListener(evt,e=>{
+    if(!e.target.closest("#drop-zone"))e.preventDefault();
+  });
+});
 
 /* ════ SERVICE WORKER ════ */
 if("serviceWorker" in navigator&&location.protocol!=="file:"){const swPath=location.pathname.includes("/student-insight/")?"/student-insight/sw.js":"/sw.js";navigator.serviceWorker.register(swPath).catch(()=>{});}
