@@ -15,10 +15,21 @@
   times. For genuinely air-gapped deployments, vendor these files locally
   (download once, serve from /vendor/) and add Subresource Integrity (SRI)
   hashes once pinned to a specific build.
+
+  SRI STATUS: jQuery below is pinned (hash cross-checked against two
+  independent public references for 3.7.1). xlsx/jsPDF/JSZip/Chart.js are
+  NOT yet pinned — a confidently-verified hash for these exact pinned
+  versions wasn't available at review time, and a wrong/guessed SRI hash is
+  worse than none (it silently blocks the script from loading at all,
+  breaking the whole app). Before shipping to a security-sensitive or
+  offline deployment: fetch each file's official hash via cdnjs.com's own
+  "Copy Script Tag" button for that exact version (it includes the correct
+  integrity attribute), or vendor the files locally per the note above.
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- TODO: pin SRI for xlsx, jspdf, jszip and Chart.js — see note above -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -938,9 +949,21 @@ function collectSetupForm(){
   APP.setup.location=$("#inst-location").val().trim();APP.setup.contact=$("#inst-contact").val().trim();
   APP.setup.className=$("#class-name").val().trim();APP.setup.section=$("#class-section").val().trim();
   APP.setup.year=$("#class-year").val().trim();APP.setup.teacher=$("#class-teacher").val().trim();
-  APP.setup.passThreshold=parseInt($("#pass-threshold").val())||35;
-  APP.setup.absentAlert=parseInt($("#absent-alert").val())||3;
-  APP.setup.dropAlert=parseInt($("#drop-alert").val())||20;
+  // clampNum: the HTML min/max attributes on these <input type="number">
+  // fields are visual hints only — most browsers don't strictly enforce
+  // them on typed or pasted values — so a pasted "-20" or "500" would
+  // otherwise sail straight through into a nonsensical pass threshold.
+  // Clamp here, and reflect the corrected value back into the field so
+  // what's displayed never silently diverges from what's actually used.
+  const clampNum=(sel,min,max,fallback)=>{
+    const raw=parseInt($(sel).val());
+    const v=isNaN(raw)?fallback:Math.min(max,Math.max(min,raw));
+    if(v!==raw)$(sel).val(v);
+    return v;
+  };
+  APP.setup.passThreshold=clampNum("#pass-threshold",0,100,35);
+  APP.setup.absentAlert=clampNum("#absent-alert",0,365,3);
+  APP.setup.dropAlert=clampNum("#drop-alert",0,100,20);
   APP.setup.scoring={marks:$("#sc-marks").is(":checked"),pct:$("#sc-pct").is(":checked"),grade:$("#sc-grade").is(":checked"),pf:$("#sc-pf").is(":checked")};
   APP.setup.subjects=getSubjects();APP.setup.tests=[];
   $("#tests-list .test-row-wrap").each(function(){
@@ -996,12 +1019,105 @@ function generateTemplate(){
   $("#btn-setup-next").addClass("btn-glow");
 }
 
-/* ════ HOME IMPORT — direct Excel import from home screen ════ */
+/* ════ SHARED FILE VALIDATION ════
+   Used by both upload entry points (Home quick-import and the Step 2
+   drop-zone) so file-size and extension guards can't silently apply to
+   only one of them. */
+function validateUploadFile(f,allowedExts){
+  if(!f)return "No file selected.";
+  if(f.size>50*1024*1024)return "File too large (max 50MB).";
+  const ext=(f.name.split(".").pop()||"").toLowerCase();
+  if(!allowedExts.includes(ext))return "Unsupported file. Use "+allowedExts.map(e=>"."+e).join(", ");
+  return null;
+}
+
+/* ════ SHARED WORKBOOK → APP.rawData PARSER ════
+   Single source of truth for turning a parsed SheetJS workbook into
+   APP.rawData. This used to be duplicated independently in the Home
+   quick-import path and the Step 2 drop-zone path, and the two had
+   drifted apart:
+    - A fix for grouped/repeated subject-header columns (e.g. "GS Paper 1"
+      appearing once per test block) only landed in the Home path. Plain
+      object keys can never hold the same header name twice, so without
+      capturing the raw positional row (__raw) + raw header array
+      (_hdr_<sheet>), every earlier test's marks silently collapsed to
+      just the last test's values.
+    - Formula-injection stripping (blanking any cell value starting with
+      "=") was only applied to every sheet in the Home path; the Step 2
+      path only stripped it from SETUP, leaving Teacher Remark / mark
+      cells imported via Step 2 unsanitised.
+   Both entry points now call this one function so a fix here always
+   applies everywhere. */
+function parseWorkbookSheets(wb){
+  APP.rawData={};
+  wb.SheetNames.forEach(name=>{
+    const ws=wb.Sheets[name];
+    const rawArr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+    const normName=name.replace(/[^A-Za-z0-9]/g,"_").toUpperCase();
+
+    // SETUP is a label/value sheet (col A = label, col B = value), not a
+    // table with a header row — running it through header-row detection
+    // below would swallow the "Institution Name" row as a phantom header
+    // and silently drop it from the data. Parse it positionally instead.
+    if(name.toUpperCase().trim()==="SETUP"){
+      const rows=rawArr
+        .filter(row=>row&&row[0]!==null&&row[0]!==undefined&&String(row[0]).trim()!=="")
+        .map(row=>row.map(v=>(typeof v==="string"&&v.trim().startsWith("="))?null:(v===null||v===undefined?"":v)));
+      APP.rawData[name]=rows;
+      APP.rawData["_arr_"+name]=rawArr;
+      APP.rawData[normName]=rows;
+      return;
+    }
+
+    // Find real header row (most non-null cells, with a bonus for known keywords)
+    let headerIdx=0,bestScore=0;
+    const hints=["student id","full name","institution name","subject 1","key","colour"];
+    for(let i=0;i<Math.min(rawArr.length,8);i++){
+      const row=rawArr[i]||[];const nonNull=row.filter(v=>v!==null&&v!=="").length;
+      const hintHit=hints.some(h=>row.map(v=>String(v||"").toLowerCase()).join("|").includes(h))?15:0;
+      if(nonNull+hintHit>bestScore){bestScore=nonNull+hintHit;headerIdx=i;}
+    }
+    const hdr=(rawArr[headerIdx]||[]).map(h=>h===null||h===undefined?null:String(h).replace(/—/g,"-").replace(/[\n\r]+/g," ").replace(/\s+/g," ").trim());
+    const rows=[];
+    for(let r=headerIdx+1;r<rawArr.length;r++){
+      const row=rawArr[r];if(!row||row.every(v=>v===null||v===undefined||v===""))continue;
+      const obj={};
+      hdr.forEach((h,i)=>{if(!h)return;let v=row[i];if(typeof v==="string"&&v.trim().startsWith("="))v=null;obj[h]=(v===null||v===undefined)?"":v;});
+      // Templates can repeat the same header (e.g. a subject name) once per
+      // test block. Plain object keys can only hold the LAST such value,
+      // silently losing every earlier test's marks. Stash the untouched
+      // (but still formula-stripped) positional row alongside the object
+      // (non-enumerable so it doesn't leak into Object.keys()/JSON use
+      // elsewhere) so downstream grouped-header parsing can recover every
+      // occurrence by column position.
+      const rawRowStripped=row.map(v=>(typeof v==="string"&&v.trim().startsWith("="))?null:v);
+      Object.defineProperty(obj,"__raw",{value:rawRowStripped,enumerable:false,configurable:true});
+      rows.push(obj);
+    }
+    APP.rawData[name]=rows;
+    APP.rawData["_arr_"+name]=rawArr;
+    APP.rawData["_hdr_"+name]=hdr;
+    APP.rawData[normName]=rows;
+  });
+}
+
+/* ════ HOME IMPORT — direct Excel import from home screen ════
+   Only .xlsx/.xls (matching the file input's accept attribute) — CSV
+   support is deliberately kept to the Step 2 drop-zone only, since this
+   quick-import path is meant to mirror "select the filled-in template
+   you downloaded", which is always an Excel file. */
 function handleHomeImport(input){
   const file=input.files[0];if(!file)return;
-  // Reset immediately so same file can be selected again on next attempt
   const fileName=file.name;
   const statusEl=document.getElementById("home-import-status");
+  const fileErr=validateUploadFile(file,["xlsx","xls"]);
+  if(fileErr){
+    statusEl.innerHTML=`<div class="card" style="border-color:var(--c-danger)"><b style="color:var(--c-danger)">❌ ${esc(fileErr)}</b></div>`;
+    statusEl.style.display="block";scrollToEl(statusEl);
+    input.value="";
+    return;
+  }
+  // Reset immediately so same file can be selected again on next attempt
   statusEl.innerHTML=`<div class="card" style="padding:14px;border-color:var(--c-primary)"><div style="font-size:12.5px">⏳ Reading <b>${esc(fileName)}</b>...</div></div>`;
   statusEl.style.display="block";
   // No scroll here — this message is transient and gets replaced within
@@ -1013,49 +1129,7 @@ function handleHomeImport(input){
   reader.onload=e=>{
     try{
       const wb=XLSX.read(e.target.result,{type:"array"});
-      APP.rawData={};
-      wb.SheetNames.forEach(name=>{
-        const ws=wb.Sheets[name];
-        const rawArr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-        // SETUP is a label/value sheet (col A = label, col B = value), not a
-        // table with a header row — running it through header-row detection
-        // below would swallow the "Institution Name" row as a phantom header
-        // and silently drop it from the data. Parse it positionally instead.
-        if(name.toUpperCase().trim()==="SETUP"){
-          const rows=rawArr
-            .filter(row=>row&&row[0]!==null&&row[0]!==undefined&&String(row[0]).trim()!=="")
-            .map(row=>row.map(v=>(typeof v==="string"&&v.trim().startsWith("="))?null:(v===null||v===undefined?"":v)));
-          APP.rawData[name]=rows;
-          APP.rawData["_arr_"+name]=rawArr;
-          return;
-        }
-        // Find real header row (most non-null cells)
-        let headerIdx=0,bestScore=0;
-        const hints=["student id","full name","institution name","subject 1","key","colour"];
-        for(let i=0;i<Math.min(rawArr.length,6);i++){
-          const row=rawArr[i]||[];const nonNull=row.filter(v=>v!==null&&v!=="").length;
-          const hintHit=hints.some(h=>row.map(v=>String(v||"").toLowerCase()).join("|").includes(h))?15:0;
-          if(nonNull+hintHit>bestScore){bestScore=nonNull+hintHit;headerIdx=i;}
-        }
-        const hdr=(rawArr[headerIdx]||[]).map(h=>h===null||h===undefined?null:String(h).replace(/[\n\r]+/g," ").trim());
-        const rows=[];
-        for(let r=headerIdx+1;r<rawArr.length;r++){
-          const row=rawArr[r];if(!row||row.every(v=>v===null||v===undefined||v===""))continue;
-          const obj={};
-          hdr.forEach((h,i)=>{if(!h)return;let v=row[i];if(typeof v==="string"&&v.trim().startsWith("="))v=null;obj[h]=(v===null||v===undefined)?"":v;});
-          // Templates can repeat the same header (e.g. a subject name) once per
-          // test block. Plain object keys can only hold the LAST such value,
-          // silently losing every earlier test's marks. Stash the untouched
-          // positional row alongside the object (non-enumerable so it doesn't
-          // leak into Object.keys()/JSON use elsewhere) so downstream grouped-
-          // header parsing can recover every occurrence by column position.
-          Object.defineProperty(obj,"__raw",{value:row,enumerable:false,configurable:true});
-          rows.push(obj);
-        }
-        APP.rawData[name]=rows;
-        APP.rawData["_arr_"+name]=rawArr;
-        APP.rawData["_hdr_"+name]=hdr;
-      });
+      parseWorkbookSheets(wb);
 
       // Auto-read SETUP tab
       autoInferSetup();
@@ -1113,6 +1187,14 @@ function validateSetupData(){
   if(!s.tests||!s.tests.length){errs.push({required:true,msg:"No tests/assessments found. Add 'Test 1 Name'... rows to SETUP tab"});}
   if(!s.teacher){errs.push({required:false,msg:"Class Teacher name not set (optional but recommended)"});}
   if(!s.passThreshold){errs.push({required:false,msg:"Pass Threshold % not set — defaulting to 35%"});}
+  // Duplicate subject/test names (case-insensitive) silently corrupt
+  // per-subject aggregation downstream since it's keyed by name — flag
+  // as a warning rather than blocking, since the import can still proceed.
+  const findDupes=list=>{const seen=new Set(),dupes=new Set();(list||[]).forEach(v=>{const k=String(v).toLowerCase();if(seen.has(k))dupes.add(v);seen.add(k);});return[...dupes];};
+  const dupeSubjects=findDupes(s.subjects);
+  const dupeTests=findDupes((s.tests||[]).map(t=>t.name));
+  if(dupeSubjects.length)errs.push({required:false,msg:"Duplicate subject name(s) in SETUP tab: "+dupeSubjects.join(", ")+" — their data will overwrite each other"});
+  if(dupeTests.length)errs.push({required:false,msg:"Duplicate test name(s) in SETUP tab: "+dupeTests.join(", ")+" — their data will overwrite each other"});
   // Check that tests have subjects with max marks
   (s.tests||[]).forEach((t,i)=>{
     const missing=(s.subjects||[]).filter(sub=>!t.maxMarks||!t.maxMarks[sub]);
@@ -1139,62 +1221,21 @@ function renderHomePage(){
   $("#home-import-status").hide().empty();
 }
 
-/* ════ FILE UPLOAD ════ */
+/* ════ FILE UPLOAD (Step 2 drop-zone) ════ */
 function triggerFileUpload(){$("#file-input").click();}
 function handleFileSelect(inp){const f=inp.files[0];if(!f)return;processFile(f);}
 function handleFileDrop(e){e.preventDefault();$("#drop-zone").removeClass("drag-over");const f=e.dataTransfer.files[0];if(!f)return;processFile(f);}
 function processFile(f){
-  if(f.size>50*1024*1024){toast("File too large (max 50MB).","error");return;}
+  const fileErr=validateUploadFile(f,["xlsx","xls","csv"]);
+  if(fileErr){toast(fileErr,"error");return;}
   const ext=f.name.split(".").pop().toLowerCase();
-  if(!["xlsx","xls","csv"].includes(ext)){toast("Unsupported file. Use .xlsx, .xls or .csv","error");return;}
   const r=new FileReader();
   r.onload=e=>{try{parseWorkbook(e.target.result,ext,f.name);}catch(err){toast("Error reading file: "+err.message,"error");}};
   if(ext==="csv")r.readAsText(f);else r.readAsArrayBuffer(f);
 }
 function parseWorkbook(data,ext,fname){
-  let wb;
-  if(ext==="csv")wb=XLSX.read(data,{type:"string"});
-  else wb=XLSX.read(new Uint8Array(data),{type:"array"});
-  APP.rawData={};
-  wb.SheetNames.forEach(name=>{
-    const ws=wb.Sheets[name];
-    // SETUP is a label/value sheet (col A = label, col B = value), not a
-    // table with a header row. Running it through header-row detection
-    // below treats the "Institution Name" row itself as the header and
-    // drops it from the data — parse it positionally instead.
-    if(name.toUpperCase().trim()==="SETUP"){
-      const rawArr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-      const cleaned=rawArr
-        .filter(row=>row&&row[0]!==null&&row[0]!==undefined&&String(row[0]).trim()!=="")
-        .map(row=>row.map(v=>(typeof v==="string"&&v.trim().startsWith("="))?null:(v===null||v===undefined?"":v)));
-      APP.rawData[name]=cleaned;
-      APP.rawData[name.toUpperCase().replace(/[^A-Z0-9]/g,"_")]=cleaned;
-      return;
-    }
-    let range=XLSX.utils.decode_range(ws["!ref"]||"A1"),headerRow=0;
-    // Find actual header row — look for "Student ID" or "Institution Name" in col A
-    for(let r=0;r<=Math.min(8,range.e.r);r++){
-      const cell=ws[XLSX.utils.encode_cell({r,c:0})];
-      const val=cell?String(cell.v||"").toLowerCase().trim():"";
-      if(val==="student id"||val==="institution name"||val==="subject 1"){headerRow=r;break;}
-      // Fallback: any row with "student" or "name" that isn't a title/emoji row
-      if((val.includes("student")||val.includes("name"))&&!val.includes("📝")&&!val.includes("👩")&&!val.includes("📋")){headerRow=r;break;}
-    }
-    const rows=XLSX.utils.sheet_to_json(ws,{range:headerRow,defval:""});
-    const cleaned=rows.map(row=>{
-      const nr={};
-      Object.keys(row).forEach(k=>{
-        // Normalize: em dash → hyphen, clean whitespace and newlines
-        const ck=k.replace(/—/g,"-").replace(/[\n\r]/g," ").replace(/\s+/g," ").trim();
-        nr[ck]=row[k];
-      });
-      return nr;
-    });
-    APP.rawData[name]=cleaned;
-    APP.rawData[name.toUpperCase().replace(/[^A-Z0-9]/g,"_")]=cleaned;
-    // Also store with normalized name (MARKS+CONTEXT → MARKS_CONTEXT)
-    APP.rawData[name.replace(/[^A-Za-z0-9]/g,"_").toUpperCase()]=cleaned;
-  });
+  const wb=ext==="csv"?XLSX.read(data,{type:"string"}):XLSX.read(new Uint8Array(data),{type:"array"});
+  parseWorkbookSheets(wb);
   autoInferSetup();
   const studSheet=APP.rawData["STUDENTS"]||[],markKey=Object.keys(APP.rawData).find(k=>k.includes("MARK"))||"",marksSheet=APP.rawData["MARKS+CONTEXT"]||APP.rawData["MARKS_CONTEXT"]||APP.rawData[markKey]||[];
   $("#data-loaded-name").text("- "+fname);
@@ -1217,9 +1258,10 @@ function autoInferSetup(){
   // Absent alert: "Absent Alert (days)" variant — also resolve before use
   if(kv["Absent Alert (days)"]&&!kv["Absent Alert Days"])kv["Absent Alert Days"]=kv["Absent Alert (days)"];
   if(kv["Class Teacher"])APP.setup.teacher=kv["Class Teacher"];
-  if(kv["Pass Threshold %"])APP.setup.passThreshold=parseInt(kv["Pass Threshold %"])||35;
-  if(kv["Absent Alert Days"])APP.setup.absentAlert=parseInt(kv["Absent Alert Days"])||3;
-  if(kv["Sharp Drop Alert %"])APP.setup.dropAlert=parseInt(kv["Sharp Drop Alert %"])||20;
+  const clampImportedNum=(raw,min,max,fallback)=>{const n=parseInt(raw);return isNaN(n)?fallback:Math.min(max,Math.max(min,n));};
+  if(kv["Pass Threshold %"])APP.setup.passThreshold=clampImportedNum(kv["Pass Threshold %"],0,100,35);
+  if(kv["Absent Alert Days"])APP.setup.absentAlert=clampImportedNum(kv["Absent Alert Days"],0,365,3);
+  if(kv["Sharp Drop Alert %"])APP.setup.dropAlert=clampImportedNum(kv["Sharp Drop Alert %"],0,100,20);
   const subjects=[];let i=1;while(kv["Subject "+i]){subjects.push(kv["Subject "+i]);i++;}
   if(subjects.length)APP.setup.subjects=subjects;
 
@@ -1338,6 +1380,17 @@ async function runAnalysis(){
     const el=document.getElementById("validation-warnings");
     if(el){el.innerHTML=`<div class="card" style="border-color:var(--c-warn);margin-bottom:12px"><b style="color:var(--c-warn)">⚠ Data warnings (analysis will proceed)</b>`+_warnings.map(w=>`<div style="font-size:12px;margin-top:4px">● ${w.m}</div>`).join("")+`</div>`;el.style.display="block";}
   } else {const el=document.getElementById("validation-warnings");if(el)el.style.display="none";}
+  // Nothing else stops a workbook with thousands of rows from freezing the
+  // tab — computeAnalysis() and renderStudentCards() both run synchronously
+  // over every student. Estimate the row count up front (before the heavier
+  // parse/compute work below) and give the teacher a heads-up, since this
+  // app's stated target environment is often lower-end classroom hardware.
+  const estStudentRows=(APP.rawData["STUDENTS"]||[]).length;
+  if(estStudentRows>1500){
+    if(!confirm(`This file looks like it has ${estStudentRows}+ student rows. Analysing a class this large may take a while and could freeze the tab on slower computers. Continue anyway?`))return;
+  } else if(estStudentRows>300){
+    toast(`Large class detected (~${estStudentRows} students) — analysis may take longer than usual.`,"warn");
+  }
   $("#ai-loader").show();
   $("#btn-analyse").prop("disabled",true).removeClass("btn-glow");
   $("#panel-ai .phase-actionbar-btns .btn-secondary").prop("disabled",true).css("opacity",.5);
@@ -1365,14 +1418,19 @@ function validateData(){
   const markKey=Object.keys(APP.rawData).find(k=>k.includes("MARK"))||"";
   const marks=APP.rawData["MARKS+CONTEXT"]||APP.rawData["MARKS_CONTEXT"]||APP.rawData[markKey]||[];
   const students=APP.rawData["STUDENTS"]||[];
-  const ids=marks.map(r=>String(r["Student ID"]||"").trim()).filter(Boolean);
+  // Trim + case-fold before comparing — a teacher typing "ASP001" in one
+  // tab and "asp001" in another is a very plausible slip, and treating
+  // them as different students both under-counts real duplicates and
+  // over-reports false "orphan" warnings for what's actually one student.
+  const normId=v=>String(v||"").trim().toUpperCase();
+  const ids=marks.map(r=>normId(r["Student ID"])).filter(Boolean);
   // Duplicate IDs
   const dups=[...new Set(ids.filter((id,i)=>ids.indexOf(id)!==i))];
   if(dups.length)w.push({e:1,m:"Duplicate Student IDs: "+dups.join(", ")});
   // No marks
   if(!ids.length)w.push({e:1,m:"No student rows found in MARKS+CONTEXT. Upload a filled Excel."});
   // Students missing from STUDENTS tab
-  const stuIds=new Set(students.map(r=>String(r["Student ID"]||r["ID"]||"").trim()));
+  const stuIds=new Set(students.map(r=>normId(r["Student ID"]||r["ID"])));
   if(stuIds.size){const orphans=ids.filter(id=>!stuIds.has(id));if(orphans.length)w.push({e:0,m:orphans.length+" student(s) in MARKS+CONTEXT not found in STUDENTS tab — student details will be limited."});}
   return w;
 }
@@ -1402,6 +1460,10 @@ function scrollToEl(el){
 /* ════ PARSE STUDENTS ════ */
 function parseStudents(){
   const {subjects,tests}=APP.setup;
+  // Reset here (start of an analysis run) rather than in computeAnalysis,
+  // so the invalid/negative-mark issues detected below survive into the
+  // banner instead of being wiped out by computeAnalysis's own reset.
+  APP.dataIssues=[];
   const markKey=Object.keys(APP.rawData).find(k=>k.includes("MARK")&&k.includes("CONTEXT"))||Object.keys(APP.rawData).find(k=>k.includes("MARK"))||"";
   const markSheetName=APP.rawData["MARKS+CONTEXT"]?"MARKS+CONTEXT":(APP.rawData["MARKS_CONTEXT"]?"MARKS_CONTEXT":markKey);
   const markSheet=APP.rawData[markSheetName]||[];
@@ -1459,45 +1521,103 @@ function parseStudents(){
   }
   return null;
 }
+  // Mirrors getVal()'s lookup precedence but returns the cell's untouched
+  // original content instead of the numeric-coerced result, so callers can
+  // tell the difference between "cell was blank" and "cell had something in
+  // it that didn't cleanly parse as a number" — getVal alone collapses both
+  // to the same outcome (nothing stored), silently.
+  function getRawVal(row,testName,short,full){
+    if(posMap&&posMap[testName]&&posMap[testName][short]!==undefined){
+      const raw=row.__raw;
+      const pv=raw?raw[posMap[testName][short]]:undefined;
+      if(pv!==undefined&&pv!==null&&pv!=="")return pv;
+    }
+    const keys=[testName+" - "+short,testName+" — "+short,testName+"-"+short,testName+"_"+short,full,short];
+    for(const k of keys){
+      if(k===undefined||k===null)continue;
+      const kn=k.replace(/—/g,"-").replace(/[\n\r]/g," ").replace(/\s+/g," ").trim();
+      const v=row[k]!==undefined?row[k]:(row[kn]!==undefined?row[kn]:undefined);
+      if(v!==undefined&&v!==null&&v!=="")return v;
+    }
+    return null;
+  }
+  // Join key is normalized (trim + uppercase) so "ASP001" and "asp001"
+  // across the two sheets are correctly treated as the same student
+  // instead of silently becoming two separate, incomplete records. The
+  // originally-entered casing is preserved for display via .id below.
+  const normId=v=>String(v||"").trim().toUpperCase();
   const studentMap={};
   studentSheet.forEach(r=>{
-    const id=String(r["Student ID"]||r["ID"]||"").trim();
+    const rawId=String(r["Student ID"]||r["ID"]||"").trim();
+    const key=normId(rawId);
     const name=String(r["Full Name"]||r["Name"]||r["Student Name"]||"").trim();
     const skipWords=["excellent","good (","average (","below pass"];
-    if((id||name)&&!skipWords.some(w=>name.toLowerCase().includes(w))&&!id.toLowerCase().startsWith("student"))
-      studentMap[id]={id,name,gender:r["Gender"]||"",dob:r["Date of Birth"]||"",
+    if((key||name)&&!skipWords.some(w=>name.toLowerCase().includes(w))&&!key.toLowerCase().startsWith("student"))
+      studentMap[key]={id:rawId,name,gender:r["Gender"]||"",dob:r["Date of Birth"]||"",
         parent:r["Parent / Guardian Name"]||r["Parent Name"]||"",
         contact:r["Parent Contact"]||r["Contact"]||"",address:r["Address"]||""};
   });
   const studentData={};
   markSheet.forEach(row=>{
-    const id=String(row["Student ID"]||"").trim();const nm=String(row["Student Name"]||row["Full Name"]||"").trim();
-    if(!id)return;if(!studentData[id])studentData[id]={id,name:nm||(studentMap[id]&&studentMap[id].name)||id,testData:{}};
+    const rawId=String(row["Student ID"]||"").trim();const key=normId(rawId);const nm=String(row["Student Name"]||row["Full Name"]||"").trim();
+    if(!key)return;if(!studentData[key])studentData[key]={id:(studentMap[key]&&studentMap[key].id)||rawId,name:nm||(studentMap[key]&&studentMap[key].name)||rawId,testData:{}};
     tests.forEach(t=>{
-      if(!studentData[id].testData[t.name])studentData[id].testData[t.name]={marks:{},absents:0,remark:""};
-      subjects.forEach(s=>{const m=getVal(row,t.name,s);if(m!==null&&typeof m==="number")studentData[id].testData[t.name].marks[s]=m;});
+      if(!studentData[key].testData[t.name])studentData[key].testData[t.name]={marks:{},absents:0,remark:""};
+      subjects.forEach(s=>{
+        const raw=getRawVal(row,t.name,s);
+        if(raw===null||raw===undefined)return;// genuinely blank cell — nothing to flag
+        const cleaned=String(raw).trim();
+        const stripped=cleaned.replace(/[^0-9.-]/g,"");
+        const n=parseFloat(stripped);
+        const studentLabel=studentData[key].name||rawId;
+        if(isNaN(n)){
+          // Entirely non-numeric (e.g. "AB", "N/A", "Absent", "-") — today this
+          // was silently treated as no mark entered. Now it's flagged so the
+          // teacher knows the cell needs attention, instead of it just vanishing.
+          APP.dataIssues.push({studentId:rawId,studentName:studentLabel,test:t.name,subject:s,
+            message:`entered "${raw}" — not a valid number, mark ignored`});
+          return;
+        }
+        if(stripped!==cleaned){
+          // Digits were recovered by stripping stray characters (e.g. "89A" → 89,
+          // "O0" → 0). The number below still gets used (best effort), but the
+          // teacher is told the source cell wasn't clean, since a typo like this
+          // can silently turn into a materially different (and wrong) score.
+          APP.dataIssues.push({studentId:rawId,studentName:studentLabel,test:t.name,subject:s,
+            message:`entered "${raw}" — contained non-numeric characters, read as ${n}`});
+        }
+        if(n<0){
+          APP.dataIssues.push({studentId:rawId,studentName:studentLabel,test:t.name,subject:s,
+            message:`entered ${n} — negative marks aren't valid, mark ignored`});
+          return;
+        }
+        studentData[key].testData[t.name].marks[s]=n;
+      });
       const abKey=posMap&&posMap[t.name]?posMap[t.name]["__absent"]:undefined;
       const ab=abKey!==undefined?(row.__raw?row.__raw[abKey]:undefined):getVal(row,t.name,"Absent Days");
-      if(ab!==null&&ab!=="")studentData[id].testData[t.name].absents=parseInt(ab)||0;
+      if(ab!==null&&ab!=="")studentData[key].testData[t.name].absents=parseInt(ab)||0;
       const rmKey=posMap&&posMap[t.name]?posMap[t.name]["__remark"]:undefined;
       const rm=rmKey!==undefined?(row.__raw?row.__raw[rmKey]:undefined):getVal(row,t.name,"Remark");
-      if(rm!==null&&rm!=="")studentData[id].testData[t.name].remark=String(rm);
+      if(rm!==null&&rm!=="")studentData[key].testData[t.name].remark=String(rm);
     });
   });
-  Object.keys(studentMap).forEach(id=>{if(!studentData[id])studentData[id]={id,name:studentMap[id].name,testData:{}};Object.assign(studentData[id],studentMap[id]);});
+  Object.keys(studentMap).forEach(key=>{if(!studentData[key])studentData[key]={id:studentMap[key].id,name:studentMap[key].name,testData:{}};Object.assign(studentData[key],studentMap[key]);});
   APP.students=Object.values(studentData);
 }
 
 /* ════ COMPUTE ANALYSIS ════ */
 function computeAnalysis(){
   const {subjects,tests,passThreshold,absentAlert,dropAlert}=APP.setup;
-  APP.dataIssues=[];
+  // Not reset here — parseStudents() (which always runs immediately before
+  // this) already reset it at the true start of the analysis run, and owns
+  // the invalid/negative-mark issues it detects. Resetting again here would
+  // silently wipe those out before this loop even runs.
   APP.students.forEach(st=>{
     st.analysis={};const testAvgs=[];let cumMarks=0,cumMax=0;
     tests.forEach((t)=>{
       const td=st.testData[t.name]||{marks:{},absents:0,remark:""};
       let total=0,maxTotal=0,scored=0;
-      subjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){const mv=parseFloat(m)||0;if(mv>mx)APP.dataIssues.push({studentId:st.id,studentName:st.name,test:t.name,subject:s,entered:mv,max:mx});total+=mv;maxTotal+=mx;scored++;}else maxTotal+=mx;});
+      subjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){const mv=parseFloat(m)||0;if(mv>mx)APP.dataIssues.push({studentId:st.id,studentName:st.name,test:t.name,subject:s,message:`entered ${mv}, exceeds max of ${mx} — will inflate this test's percentage`});total+=mv;maxTotal+=mx;scored++;}else maxTotal+=mx;});
       testAvgs.push(scored?Math.round((total/maxTotal)*100):null);
       if(scored){cumMarks+=total;cumMax+=maxTotal;}
     });
@@ -1560,6 +1680,15 @@ function computeAnalysis(){
     st.analysis.healthScore=Math.round((hs_acad*0.4)+(hs_cons*0.2)+(hs_trend*0.2)+(hs_eng*0.2));
     st.analysis.healthBand=st.analysis.healthScore>=80?"Excellent":st.analysis.healthScore>=65?"Good":st.analysis.healthScore>=50?"Average":st.analysis.healthScore>=35?"Below Average":"Needs Support";
 
+    // ── DATA QUALITY ── (computed before explainedWarnings below so a
+    // flag pushed here still picks up its explanation text)
+    const filledSubjects=subjects.filter(s=>tests.some(t=>st.testData[t.name]&&st.testData[t.name].marks[s]!=null&&st.testData[t.name].marks[s]!==""));
+    st.analysis.missingSubjects=subjects.filter(s=>!filledSubjects.includes(s));
+    st.analysis.hasDataGaps=st.analysis.missingSubjects.length>0||(valid.length<tests.length);
+    // This was computed but never surfaced anywhere in the UI — a student
+    // missing marks for an entire subject had no visible indicator at all.
+    if(st.analysis.missingSubjects.length)st.flags.push({type:"data-gap",label:"⚠ Missing: "+st.analysis.missingSubjects.join(", "),color:"#8e7cc3"});
+
     // ── EXPLAINABLE WARNINGS ──
     st.analysis.explainedWarnings=st.flags.map(f=>{
       const fn=st.name.split(" ")[0];
@@ -1572,17 +1701,22 @@ function computeAnalysis(){
         "burnout":`${fn} started strong (${valid[0]}%) but has declined by ${Math.round(valid[0]-valid[valid.length-1])}%. This pattern suggests burnout — consider reducing pressure and restoring motivation.`,
         "plateau":`Scores remain flat (within ${Math.round(Math.max(...valid)-Math.min(...valid))}%) across ${valid.length} tests. Stagnation suggests the current teaching approach may need variation.`,
         "resilient":`${fn} recovered well after a performance dip — a strong resilience indicator.`,
+        "data-gap":`No marks were found for ${st.analysis.missingSubjects.join(", ")} across any test. Confirm whether ${fn} genuinely didn't sit these, or whether the source sheet is missing entries.`,
       };
       return{...f,reason:reasons[f.type]||f.label};
     });
-
-    // ── DATA QUALITY ──
-    const filledSubjects=subjects.filter(s=>tests.some(t=>st.testData[t.name]&&st.testData[t.name].marks[s]!=null&&st.testData[t.name].marks[s]!==""));
-    st.analysis.missingSubjects=subjects.filter(s=>!filledSubjects.includes(s));
-    st.analysis.hasDataGaps=st.analysis.missingSubjects.length>0||(valid.length<tests.length);
   });
   APP.students.sort((a,b)=>b.analysis.overallAvg-a.analysis.overallAvg);
-  APP.students.forEach((st,i)=>{st.analysis.rank=i+1;});
+  // Standard competition ranking ("1224" ranking): students tied on
+  // overallAvg share the same rank, and the next distinct score's rank
+  // skips ahead by the number of students tied above it. Previously this
+  // was just `i+1`, so two students with an identical average got
+  // different ranks purely based on incidental sort order — statistically
+  // wrong and looks arbitrary/unfair when a teacher or parent compares
+  // two equal scores.
+  APP.students.forEach((st,i)=>{
+    st.analysis.rank=(i>0&&st.analysis.overallAvg===APP.students[i-1].analysis.overallAvg)?APP.students[i-1].analysis.rank:i+1;
+  });
   const trueTop=APP.students.length?APP.students[0].analysis.overallAvg:0;
   APP.students.forEach(st=>{st.analysis.topperGap=Math.max(0,trueTop-st.analysis.overallAvg);});
   computePercentiles();
@@ -1631,9 +1765,9 @@ function renderDataIssueBanner(){
   const el=document.getElementById("data-issue-banner");
   if(!el)return;
   if(!issues.length){el.style.display="none";return;}
-  const rows=issues.slice(0,6).map(i=>`${esc(i.studentName)} — ${esc(i.subject)} (${esc(i.test)}): entered ${i.entered}, max is ${i.max}`).join("<br>");
-  const more=issues.length>6?`<br>+${issues.length-6} more`:"";
-  el.innerHTML=`<b>⚠ Data entry error${issues.length>1?"s":""} detected (${issues.length}):</b> marks entered exceed the maximum for that test/subject, which will inflate the affected student's percentage above 100%. Please correct the source sheet and re-import.<br>${rows}${more}`;
+  const rows=issues.slice(0,8).map(i=>`${esc(i.studentName)} — ${esc(i.subject)} (${esc(i.test)}): ${esc(i.message)}`).join("<br>");
+  const more=issues.length>8?`<br>+${issues.length-8} more`:"";
+  el.innerHTML=`<b>⚠ Data quality issue${issues.length>1?"s":""} found (${issues.length}):</b> some mark cells couldn't be trusted as-is — see below. Please correct the source sheet and re-import.<br>${rows}${more}`;
   el.style.display="block";
 }
 function renderDashboard(){
@@ -1680,7 +1814,7 @@ function renderStudentCards(){
     const a=st.analysis,color=a.overallAvg>=85?"var(--c-success)":a.overallAvg>=60?"var(--c-primary)":a.overallAvg>=APP.setup.passThreshold?"var(--c-warn)":"var(--c-danger)";
     const sparkData=a.testAvgs.filter(v=>v!==null);const sparkSvg=buildSparkPath(sparkData);
     const flagBadges=st.flags.slice(0,3).map(f=>`<span class="badge" style="background:${f.color}22;color:${f.color};border:1px solid ${f.color}44">${f.label}</span>`).join("");
-    return `<div class="student-card" onclick="openStudentModal('${esc(st.id)}')"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px"><div style="min-width:0;flex:1" title="${esc(st.name)}"><div class="sc-name">${esc(st.name)}</div><div class="sc-id">${esc(st.id)} · Rank #${a.rank}</div></div><div style="text-align:right;flex-shrink:0"><div class="sc-avg" style="color:${color}">${a.overallAvg}%</div><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:11px;color:var(--c-text3)">${a.grade}</span>${a.healthScore!=null?`<span style="font-size:9px;padding:1px 5px;border-radius:99px;font-weight:700;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'};color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥${a.healthScore}</span>`:''}</div></div></div><div class="sc-bar"><div class="sc-bar-fill" style="width:${a.overallAvg}%;background:${color}"></div></div>${sparkData.length>1?`<div style="margin:6px 0">${sparkSvg}</div>`:""}<div class="sc-flags">${flagBadges}</div></div>`;
+    return `<div class="student-card" data-student-id="${esc(st.id)}"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px"><div style="min-width:0;flex:1" title="${esc(st.name)}"><div class="sc-name">${esc(st.name)}</div><div class="sc-id">${esc(st.id)} · Rank #${a.rank}</div></div><div style="text-align:right;flex-shrink:0"><div class="sc-avg" style="color:${color}">${a.overallAvg}%</div><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:11px;color:var(--c-text3)">${a.grade}</span>${a.healthScore!=null?`<span style="font-size:9px;padding:1px 5px;border-radius:99px;font-weight:700;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'};color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥${a.healthScore}</span>`:''}</div></div></div><div class="sc-bar"><div class="sc-bar-fill" style="width:${a.overallAvg}%;background:${color}"></div></div>${sparkData.length>1?`<div style="margin:6px 0">${sparkSvg}</div>`:""}<div class="sc-flags">${flagBadges}</div></div>`;
   }).join(""));
 }
 function buildSparkPath(data){
@@ -1733,7 +1867,20 @@ function filterStudents(){renderStudentCards();renderHeatmap();}
 function setFilter(f,el){APP.filter=f;$(".filter-btn").removeClass("active");$(el).addClass("active");filterStudents();}
 function sortStudents(s){APP.sort=s;renderStudentCards();}
 
-/* ════ STUDENT MODAL ════ */
+/* ════ STUDENT MODAL ════
+   Delegated on #student-grid (stable container, survives re-renders)
+   rather than an inline onclick="...('${esc(st.id)}')" — string-
+   interpolating any value into a quoted HTML attribute is fragile
+   because esc() only encodes & < > " and NOT a single quote, so a
+   Student ID containing one (a plausible real name like "O'Brien-01",
+   or a deliberately crafted one) could break out of the attribute and
+   inject arbitrary onclick JS. Reading the ID back off the DOM's
+   data-student-id attribute sidesteps that whole class of bug: the
+   browser HTML parser decodes entities into the attribute value safely,
+   and nothing gets re-concatenated into executable JS. */
+$(document).on("click",".student-card",function(){
+  openStudentModal($(this).attr("data-student-id"));
+});
 function openStudentModal(id){
   const st=APP.students.find(s=>s.id===id);if(!st)return;
   const a=st.analysis,{subjects,tests}=APP.setup;
@@ -2277,12 +2424,22 @@ function validateSetup(){
   $("#err-class-year").toggle(!year);
   if(!year) $("#class-year").css("border-color","var(--c-danger)"); else $("#class-year").css("border-color","");
 
+  // Duplicate names corrupt per-subject/per-test aggregation downstream —
+  // e.g. two subjects named "Maths" and "maths" would silently overwrite
+  // each other in subjectAvgs, since it's keyed by name. Case-insensitive
+  // check since that's the realistic way teachers create an accidental dupe.
+  const findDupes=list=>{const seen=new Set(),dupes=new Set();list.forEach(v=>{const k=v.toLowerCase();if(seen.has(k))dupes.add(v);seen.add(k);});return[...dupes];};
+  const dupeSubjects=findDupes(subjects);
+  const dupeTests=findDupes(tests);
+
   const missing=[];
   if(!instName) missing.push("Institution Name");
   if(!className) missing.push("Class / Batch");
   if(!year) missing.push("Academic Year");
   if(!subjects.length) missing.push("at least one Subject");
   if(!tests.length) missing.push("at least one Test");
+  if(dupeSubjects.length) missing.push("duplicate Subject name(s): "+dupeSubjects.join(", "));
+  if(dupeTests.length) missing.push("duplicate Test name(s): "+dupeTests.join(", "));
 
   const valid=missing.length===0;
   $("#btn-download-template").prop("disabled",!valid).css({opacity:valid?1:.45,cursor:valid?"pointer":"not-allowed"}).toggleClass("btn-glow",valid);
