@@ -26,6 +26,279 @@
   "Copy Script Tag" button for that exact version (it includes the correct
   integrity attribute), or vendor the files locally per the note above.
 -->
+<!--
+════════════════════════════════════════════════════════════════════════
+ STUDENT INSIGHT — PROJECT INTELLIGENCE BLOCK (PIB)                v1.0
+ (Master index — update this block on every version bump, per the same
+ convention used in Spend-na's index.html)
+════════════════════════════════════════════════════════════════════════
+
+0. WHAT THIS APP IS
+   A single-file, stateless, in-browser PWA for teachers/institutions to
+   turn a filled Excel workbook of student marks into: a live analytics
+   dashboard, per-student AI-style narrative reports, and exportable PDFs
+   (student report cards, teacher summary, management report). No backend,
+   no accounts, no persistence of student data — see §1.
+
+1. PRIVACY / STATELESS MODEL (by design, not an oversight)
+   - Student data lives ONLY in page memory (the APP object, §3) for the
+     duration of the session. Nothing is written to localStorage or a
+     server. On every load, INIT explicitly wipes any legacy keys
+     ("sia_sessions","sia_auth","sia_gs_url") — see bottom of file.
+   - saveSession() (search "SAVE (stateless") does NOT persist anything;
+     it's a toast telling the teacher "your Excel file IS the save; use
+     Export for reports." Ctrl+S is bound to this same toast.
+   - Consequence for future work: closing/refreshing the tab loses all
+     analysis. Anything like "remember last session" would be a deliberate
+     reversal of the stated privacy model — flag it if requested.
+
+2. TECH STACK (all via CDN, no build step, no bundler)
+   - jQuery 3.7.1        — DOM/events (SRI-pinned; see note above this block)
+   - SheetJS "xlsx" 0.18.5 (xlsx.full.min.js) — reads/writes .xlsx workbooks
+   - jsPDF 2.5.1 (UMD)   — client-side PDF generation (report cards etc.)
+   - JSZip 3.10.1        — dependency used by jsPDF/xlsx for zip handling
+   - Chart.js 4.4.1      — dashboard charts (bar/line/doughnut in Analytics tab)
+   - No React/Vue/build step. Fonts: Google Fonts "Inter" + "DM Sans".
+   - SRI hashes: only jQuery is pinned today. xlsx/jsPDF/JSZip/Chart.js are
+     NOT pinned (see comment above) — a real TODO, not resolved.
+   - Service worker: registered near EOF, path is env-aware
+     (location.pathname.includes("/student-insight/") ? that subpath : root).
+   - manifest.json is attached dynamically via JS (skipped entirely when
+     protocol is "file:", i.e. opened directly from disk without a server).
+
+3. CORE APP STATE — the `APP` global object (search "const APP=")
+   APP = {
+     setup:        { instName, instType, location, contact, className,
+                     section, year, teacher,
+                     scoring:{marks,pct,grade,pf},           // display toggles
+                     passThreshold, absentAlert, dropAlert,  // numeric alert rules
+                     subjects:[string], tests:[{name,date,maxMarks?}] },
+     rawData:      null | { "STUDENTS":[...], "MARKS+CONTEXT":[...],
+                             "_hdr_<SHEETNAME>":[...] }  // raw header row(s),
+                             // see §5 grouped-header note — populated at import
+     students:     [],       // populated by parseStudents()+computeAnalysis()
+     classStats:   null,     // populated by computeClassStats()
+     filter:       "all",    // dashboard filter chip state
+     sort:         "rank",   // dashboard sort state
+     aiFeatures:   Set(),    // selected AI_FEATURES ids (Step 3 checkboxes)
+     dataIssues:   []        // populated during parseStudents(); non-numeric
+                             // cell values etc. — feeds renderDataIssueBanner()
+   }
+   startNewSession() / goStep('home') reset APP.setup/students/rawData/
+   classStats back to the same blank shape — keep both in sync if the
+   shape of APP.setup or APP.students ever changes.
+
+   Per-student record shape (built in parseStudents(), extended heavily
+   in computeAnalysis() — search "function computeAnalysis"):
+     { id, name, gender?, dob?, parent?, contact?, address?,
+       testData: { [testName]: { marks:{ [subject]: number }, absents, remark } },
+       analysis: { overallAvg, testAvgs:[...], grade, trend,
+                   percentile, rank, topperGap,
+                   subjectAvgs:{}, strongSubject, weakSubject,
+                   stressScore, wellbeingFlag, healthScore, healthBand,
+                   consistencyScore, growthRate, cumulativeAvg,
+                   burnoutRisk, resilient, engagementIndex,
+                   plateau, earlyWarningScore, competitiveReadiness,
+                   predictedNext, missingSubjects, hasDataGaps,
+                   explainedWarnings:[{...flag, reason}],
+                   parentSummary, motivation, studyPlan, intervention,
+                   strengthsLetter },
+       flags: [{type,label,color}]   // badges shown on student cards
+     }
+
+4. NAVIGATION / STEP FLOW (see #stepper markup + goStep(), ~line 899)
+   home → setup(1) → data(2, "Upload Data") → ai(3, "Analyse") →
+   dashboard(4) → export(5, "Export PDFs")
+   Plus two always-unlocked utility tabs: about, samplefiles (modal — see
+   showSampleFiles(), the four downloadable Excel templates feature).
+   Steps 1–5 start `.locked` and are unlocked progressively via
+   unlockStep(s) once their prerequisite completes (e.g. validateSetup()
+   unlocking Step 2's CTA, runAnalysis() unlocking dashboard+export).
+   Each panel is a `.panel` div toggled `.active` by goStep(); IMPORTANT —
+   interactive elements inside panels rely on `data-step` attributes for
+   the locking mechanism (this was the source of a real button-locking bug
+   fixed previously: missing data-step left a button permanently disabled).
+
+5. DATA IMPORT PIPELINE (Step 1 Setup → Step 2 Upload)
+   generateTemplate() (~line 989): builds a downloadable .xlsx scaffold
+   from the current Setup form (institution/class/subjects/tests) with
+   sheets STUDENTS and MARKS+CONTEXT, using SheetJS.
+   Upload flow: handleFileSelect/handleFileDrop → processFile() →
+   parseWorkbook() → parseWorkbookSheets() (~line 1051), which:
+     - Reads all sheets into APP.rawData keyed by sheet name.
+     - ALSO stores the raw header row verbatim (with duplicate column
+       names intact) as APP.rawData["_hdr_"+sheetName] — this exists
+       specifically because Object.keys() on a parsed row object can
+       never show duplicate keys, which silently broke "grouped header"
+       detection (subject columns repeated once per test, e.g. "Maths"
+       appearing under every test block). See parseStudents()'s
+       isGrouped/posMap logic (~line 1478) which reads column *positions*
+       from this raw header row to disambiguate identically-named columns
+       per test, bypassing the row object's last-value-wins collapsing.
+   autoInferSetup() (~line 1246): if Setup wasn't filled manually, infers
+   institution/subjects/tests directly from the uploaded workbook headers.
+   validateSetup() (~line 2412): duplicate subject/test name detection is
+   case-insensitive (a teacher typing "Maths" and "maths" would otherwise
+   silently corrupt subjectAvgs, which is keyed by name) — also drives the
+   inline field-error UI and the enabling of the "Download Template" CTA.
+   validateData() (~line 1416): pre-analysis structural checks — duplicate
+   Student IDs (case/space-normalized), orphan mark rows not present in
+   STUDENTS sheet, empty MARKS+CONTEXT. Blocking (`e:1`) vs advisory
+   (`e:0`) warnings surface via #validation-warnings before runAnalysis()
+   proceeds.
+
+6. ANALYSIS PIPELINE (Step 3 "Analyse")
+   runAnalysis() (~line 1360) is the orchestrator:
+     1. Ensures Setup is populated (collectSetupForm() or autoInferSetup()).
+     2. Defaults to selectAllAI() if no AI feature checkboxes were chosen.
+     3. Runs validateData(); blocks on errors, shows advisory warnings.
+     4. Perf guard: workbooks estimated >1500 student rows prompt a
+        confirm() dialog (freeze risk on low-end classroom hardware is an
+        explicit, documented target-environment concern — see comment at
+        that line); >300 rows shows a non-blocking "may take longer" toast.
+        NOTE: computeAnalysis()/renderStudentCards() are still fully
+        synchronous over every student — this guard is a warning, not a
+        real fix for large classes. A true fix would need chunking/
+        requestAnimationFrame batching or a Web Worker.
+     5. Plays a fake staged-progress loader (10 canned "steps", each
+        ~280–500ms via sleep()) purely for UX — the real work
+        (parseStudents(); computeAnalysis();) happens synchronously
+        right after the loop, not interleaved with it.
+     6. Unlocks dashboard+export, calls saveSession() (the no-op
+        toast — see §1), navigates to dashboard.
+   computeAnalysis() (~line 1609) is where nearly every AI_FEATURES metric
+   in §7 is actually computed per student — grade bands, trend (±5% diff
+   first/last test), sharp-drop (dropAlert threshold between consecutive
+   tests), volatility (stdev>15), stress score (absences*5 + trend/
+   threshold penalties), consistency (100 - 2*stdev), burnout (was ≥70%,
+   dropped ≥15pts), resilience (recovered ≥8pts after a ≥10pt drop),
+   engagement index, health score (weighted blend: 40% academic / 20%
+   consistency / 20% trend / 20% engagement), plateau (range ≤8% across
+   ≥3 tests), early-warning composite score, missing-subject data-gap
+   flags, and finally `explainedWarnings` — a plain-English `reason`
+   string generated per flag type (search "EXPLAINABLE WARNINGS") for
+   parent/teacher-facing narrative use.
+   Ranking (~"Standard competition ranking" comment): ties share a rank
+   and the next rank skips ahead by the tie count ("1224" ranking) —
+   deliberately NOT plain i+1, which was flagged as statistically unfair
+   in a prior review.
+
+7. AI_FEATURES CONFIG (~line 1296) — declarative feature catalogue
+   Five categories, each an array of {id,label,sub}, independently
+   togglable via the Step 3 checkbox grid (renderAICheckboxes/toggleAI):
+     perf  — avg, pct, rank, grade, trend, prediction, percentile,
+             subject_strength, consistency, growth_rate, topper_gap,
+             cumulative
+     warn  — at_risk, sharp_drop, chronic_absent, volatile,
+             multiple_fails, class_difficulty, plateau, early_warning,
+             peer_outlier, subject_collapse
+     narr  — parent_summary, motivation, study_plan, intervention,
+             strengths_letter, competitive_readiness, teacher_remarks_ai,
+             progress_narrative
+     well  — stress_score, anxiety_flag, wellbeing_summary, burnout_risk,
+             resilience_score, engagement_index
+     mgmt  — class_health, subject_audit, intervention_priority,
+             test_difficulty, year_projection, diversity_analysis
+   IMPORTANT — this list is aspirational/UI-facing, not 1:1 with what's
+   implemented: many ids here (e.g. chronic_absent, multiple_fails,
+   class_difficulty, peer_outlier, subject_collapse, anxiety_flag,
+   wellbeing_summary, teacher_remarks_ai, progress_narrative,
+   subject_audit, intervention_priority, test_difficulty,
+   year_projection, diversity_analysis) do NOT currently gate any logic
+   in computeAnalysis() — the checkboxes exist and toggle APP.aiFeatures,
+   but most computed metrics run unconditionally regardless of selection.
+   Before adding a new "AI feature" checkbox, decide whether it should be
+   config-gated for real or just documentation of a fixed always-on
+   metric — check computeAnalysis() for whether APP.aiFeatures is even
+   read (currently it isn't, inside that function).
+
+8. DASHBOARD (Step 4) — renderDashboard() (~line 1773) and friends
+   - Tabbed via switchDbTab()/.db-tab / .db-tab-panel; the Analytics tab's
+     Chart.js charts are built lazily on first visit (window._chartsBuilt
+     guard) and destroyCharts() always tears down previous instances
+     before renderCharts() rebuilds, so no duplicate chart leaks.
+   - renderKPIs / renderStudentCards / renderHeatmap / renderFlagsTable /
+     renderWellbeingPanel each read from APP.students + APP.classStats.
+   - getFilteredStudents()/filterStudents()/setFilter()/sortStudents()
+     drive the card grid; APP.filter and APP.sort are the single source
+     of truth — always re-render through these rather than touching the
+     DOM directly when adding new filter/sort options.
+   - openStudentModal(id) is the per-student detail view; closeModal()/
+     _modalFocusTrap()/dbTabKeyNav() handle basic a11y (Escape to close,
+     focus trap, arrow-key tab navigation) for #modal-overlay generally
+     (also reused by the Sample Files modal, showSampleFiles()).
+
+9. PDF EXPORT (Step 5) — jsPDF, no server rendering
+   - buildStudentPDF(doc,st)  (~line 2004) — one student's report card.
+   - buildTeacherPDF(doc)     (~line 2148) — class-wide teacher summary.
+   - buildMgmtPDF(doc)        (~line 2260) — management/institution report,
+     ends with a fixed footer band ("Student Insight — Free & Open Source
+     | Privacy-First | Confidential" + "MANAGEMENT CONFIDENTIAL").
+   - fitText(doc,text,maxW) / addPDFHeader(doc,title) are shared layout
+     helpers used across all three builders — change fonts/branding here
+     once rather than in each build*PDF function.
+   - All three assume APP.students/APP.classStats are already populated
+     (i.e. Step 3 has run) — none of them re-run analysis themselves.
+
+10. VALIDATION / ERROR SURFACES (don't remove silently — each exists to
+    catch a previously-real bug)
+    - validateSetup(): inline field errors (#err-inst-name etc.), duplicate
+      subject/test detection (case-insensitive), gates
+      #btn-download-template enable/disable + glow, and toggles between
+      #setup-cta-card / #setup-incomplete-card.
+    - validateData(): duplicate Student IDs, orphaned mark rows, empty
+      MARKS+CONTEXT sheet — see §5.
+    - parseStudents()'s APP.dataIssues (~"Grouped-header detection" and
+      the isNaN(n) branch just after): flags cells that had *something*
+      non-blank but non-numeric (e.g. "AB", "N/A", "-") distinctly from
+      genuinely empty cells — surfaced via renderDataIssueBanner() and
+      also as a "⚠ Data Error" flag per affected student in computeAnalysis().
+    - Known unresolved security items from the last code review (mirrors
+      the Spend-na-style review convention): unpinned SRI hashes for
+      xlsx/jsPDF/JSZip/Chart.js (see top-of-file note); esc() (~line 2410)
+      is the HTML-escaping helper — use it for ANY user-entered string
+      (student names, remarks, institution name, etc.) interpolated into
+      innerHTML/template strings anywhere in the app; toast() (~line 2456)
+      itself interpolates `msg` unescaped into innerHTML — never pass
+      unsanitized user/workbook-derived text into toast() without escaping
+      it first.
+
+11. ABOUT PANEL / TRUST ACCORDION
+    toggleTrust(id) (~line 2462) drives a 6-pill accordion (#trust-detail,
+    .trust-body/.trust-pill, ids t1..t6) explaining the privacy model to
+    end users. The About panel also embeds Sandy's LinkedIn profile
+    (https://in.linkedin.com/in/sandeep-s-hakki-83174022) — keep this
+    link in sync if the profile URL ever changes.
+
+12. SAMPLE FILES MODAL
+    showSampleFiles() (~line 1904) renders a modal with four downloadable
+    Excel templates (uses the same SheetJS pipeline as generateTemplate())
+    — reuses #modal-overlay/closeModal() infra from §8/§10.
+
+13. ENV BADGE
+    initEnvBadge() (~line 2457): shows a "LOCAL" or "QA" pill (#env-badge)
+    based on hostname matching "localhost"/"127."/"sandeephakki-qa" — purely
+    cosmetic, has no effect on app behavior/gating.
+
+14. THINGS TO CHECK BEFORE MODIFYING
+    - Changing APP.setup/APP.students shape? Update BOTH reset sites
+      (startNewSession() and the goStep('home') reset in renderHomePage()
+      — they currently duplicate the same literal object; consider
+      factoring to a single `emptySetup()` helper to avoid drift).
+    - Adding a new AI_FEATURES entry? Decide if it's cosmetic-only or
+      needs real gating in computeAnalysis() (see §7 caveat).
+    - Adding new mark-sheet columns? Update parseWorkbookSheets()'s
+      _hdr_ capture AND parseStudents()'s getVal/getRawVal key-variant
+      list (hyphen/em-dash/underscore separators) so both grouped- and
+      flat-header workbooks resolve the new column correctly.
+    - Touching PDF layout? Update fitText/addPDFHeader once; all three
+      build*PDF functions depend on them.
+    - Never persist student data to localStorage/server without an
+      explicit, deliberate product decision to abandon the stateless
+      privacy model (§1) — this is a core stated feature, not an
+      omission.
+════════════════════════════════════════════════════════════════════════
+-->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
