@@ -1,17 +1,4 @@
 <!DOCTYPE html>
-<!--
-  Student Insight — Privacy-first, in-browser student analytics.
-  Copyright (c) 2026 [Sandeep Hakki]. All contributions and original code in
-  this file are authored by [Sandeep Hakki] unless otherwise noted.
-
-  Licensed under the MIT License — see LICENSE file in this repository.
-  You are free to use, copy, modify, and redistribute this software,
-  provided the original copyright notice and this license are retained.
-  This software is provided "AS IS", without warranty of any kind.
-
-  This project processes all data locally in the user's browser. No
-  student data is collected, transmitted, or stored by the author.
--->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -371,6 +358,31 @@ h1,h2,h3,h4{font-family:var(--font-display);line-height:1.25}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .grid-4{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 
+/* FAQ */
+.faq-audience{display:flex;align-items:center;gap:9px;margin:26px 0 12px}
+.faq-audience:first-child{margin-top:0}
+.faq-audience .icon-badge{width:30px;height:30px;border-radius:9px;background:var(--c-primary-soft);display:flex;align-items:center;justify-content:center;font-size:15px;flex:0 0 30px}
+.faq-audience .txt{font-family:var(--font-display);font-weight:700;font-size:14.5px;color:var(--c-text)}
+.faq-audience .cnt{font-size:11px;color:var(--c-text3);font-weight:600;background:var(--c-surface2);border-radius:99px;padding:2px 9px;margin-left:2px}
+.faq-list{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+.faq-item{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r);overflow:hidden;transition:var(--transition)}
+.faq-item[open]{border-color:var(--c-primary);box-shadow:0 2px 10px rgba(67,97,238,.08)}
+.faq-item summary{list-style:none;cursor:pointer;padding:13px 16px;display:flex;align-items:flex-start;gap:10px;font-size:13px;font-weight:600;color:var(--c-text)}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary .faq-q-mark{flex:0 0 20px;height:20px;border-radius:50%;background:var(--c-surface2);color:var(--c-text2);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.faq-item[open] summary .faq-q-mark{background:var(--c-primary);color:#fff}
+.faq-item summary .faq-chevron{margin-left:auto;flex:0 0 16px;color:var(--c-text3);font-size:12px;transition:transform .2s}
+.faq-item[open] summary .faq-chevron{transform:rotate(180deg);color:var(--c-primary)}
+.faq-item .faq-a{padding:0 16px 16px 46px;font-size:12.8px;line-height:1.85;color:var(--c-text2)}
+.faq-item .faq-a strong{color:var(--c-text)}
+.faq-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:2px 8px;border-radius:99px;margin-left:8px;flex:0 0 auto}
+.faq-tag.serious{background:#fde8e8;color:#c53030}
+.faq-tag.practical{background:#e6f7f5;color:#0e7c7b}
+.faq-tag.silly{background:#fff3d6;color:#a56b00}
+.faq-search{width:100%;padding:11px 14px;border:1.5px solid var(--c-border);border-radius:var(--r);font-size:13px;margin-bottom:22px;background:var(--c-surface)}
+.faq-search:focus{outline:none;border-color:var(--c-primary)}
+.faq-empty{text-align:center;padding:40px 20px;color:var(--c-text3);font-size:13px;display:none}
+
 /* FORMS */
 .form-group{margin-bottom:12px}
 .form-group label{display:block;font-size:11px;font-weight:700;color:var(--c-text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
@@ -624,6 +636,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
   <div style="flex:1"></div>
   <div class="step-item" data-step="about" onclick="goStep('about')" style="border-left:1px solid var(--c-border);margin-left:8px"><div class="step-num" style="background:none;border:none;font-size:15px">ℹ️</div><span>About</span></div>
   <div class="step-item" data-step="samplefiles" onclick="showSampleFiles()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showSampleFiles();}" aria-label="Sample Files"><div class="step-num" style="background:none;border:none;font-size:15px">📄</div><span>Sample Files</span></div>
+  <div class="step-item" data-step="faq" onclick="goStep('faq')"><div class="step-num" style="background:none;border:none;font-size:15px">❓</div><span>FAQ</span></div>
 </nav>
 
 <div id="main">
@@ -1162,12 +1175,140 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
   </div>
 </div>
 
-</div><!-- #main -->
+<!-- ════ PANEL: FAQ ════ -->
+<div id="panel-faq" class="panel">
+  <div style="max-width:860px;margin:0 auto">
 
-<!-- FOOTER CREDIT (copyright + attribution, kept small and unobtrusive) -->
-<footer style="text-align:center;font-size:11px;color:var(--c-text2, #888);padding:14px 8px 24px;opacity:0.7">
-  Student Insight &copy; 2026 [Sandeep Hakki] &middot; MIT Licensed &middot; Data stays in your browser, never uploaded.
-</footer>
+    <div style="background:linear-gradient(135deg,#0f2041 0%,#1e3a5f 50%,#1a5c50 100%);border-radius:16px;padding:44px 40px;margin-bottom:24px;color:#fff;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-50px;right:-50px;width:240px;height:240px;background:rgba(255,255,255,.04);border-radius:50%"></div>
+      <div style="position:relative;z-index:1">
+        <div class="about-hero-eyebrow">❓ Frequently Asked Questions</div>
+        <h1 style="font-family:var(--font-display);font-size:26px;font-weight:800;line-height:1.3;margin-bottom:10px">Real questions from real school visits —<br>answered <span style="color:#2ec4b6">honestly, not persuasively.</span></h1>
+        <p style="font-size:13px;color:rgba(255,255,255,.75);line-height:1.8;max-width:640px">These are the actual questions principals, coordinators, IT staff and teachers ask when this tool is proposed to them — from serious procurement concerns down to the nitpicky ones. Every answer below reflects exactly what the app does today. Where something isn't built yet, that's stated plainly rather than glossed over.</p>
+      </div>
+    </div>
+
+    <input type="text" id="faq-search" class="faq-search" placeholder="🔍 Search questions — e.g. 'data', 'offline', 'cost', 'save'..." oninput="filterFAQ(this.value)">
+    <div class="faq-empty" id="faq-empty">No questions match your search. Try a different word.</div>
+
+    <div id="faq-root">
+
+    <!-- PRINCIPAL -->
+    <div class="faq-audience"><div class="icon-badge">🎓</div><div class="txt">From the Principal</div><div class="cnt">Money, liability, reputation</div></div>
+    <div class="faq-list">
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Is this free forever, or a trial that starts charging later?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">It's free. There's no backend, no server cost, no subscription infrastructure — it's a single HTML file hosted on GitHub Pages, which is free hosting. There's nothing for me to "start charging" for later because there's no ongoing cost on my end to recover.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>What's the catch — what are you getting out of this?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No catch in the commercial sense. I built it because I wanted a tool like this to exist and be genuinely private. There's no data collection, no ads, no lead-gen — it's a personal project, not a funded product.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Who else is using this? Can you name another school?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Right now, honestly — I can't point you to another school using it yet. You'd be among the first. I won't pretend otherwise.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>If a grade comes out wrong on a report card, who's responsible?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">The calculations are transparent formulas (averages, trends, rankings) applied to the numbers entered — there's no hidden AI making judgment calls. If a number is wrong, it's traceable to either the source data or a bug I need to fix. Every report should be reviewed by a teacher before it goes out, the same as anything drafted by a junior staff member.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Do you have a registered company?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No. This is an independent personal project, not a registered vendor. If procurement requires a registered entity, this can't satisfy that today.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>What happens if you stop maintaining this next year?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Your data isn't stored anywhere by the app — it lives in your Excel files. Even if maintenance stopped entirely, no historical records would be lost; only future analysis via this specific tool would stop. That's a direct benefit of the stateless design.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Does this replace our school ERP?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No — it doesn't handle attendance, fees, or admissions. It's narrowly for turning marks into analysis and report cards, as an add-on for one specific job, not a replacement for a school management system.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Did you build this alone? Are you even a teacher?<span class="faq-tag silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Yes, alone, and no, not a teacher. This was built as a developer solving a well-defined problem — marks in, insight and report cards out — not as someone claiming pedagogical authority.</div></details>
+    </div>
+
+    <!-- VP / COORDINATOR -->
+    <div class="faq-audience"><div class="icon-badge">🧭</div><div class="txt">From the VP / Academic Coordinator</div><div class="cnt">Process & control</div></div>
+    <div class="faq-list">
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Does this integrate with our existing student database?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No integration — you upload an Excel file each time. If your ERP can export marks to Excel, that export can be fed into this. There's no live sync.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Our teachers struggle with Excel — will they manage?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">The app generates a ready-made Excel template based on your subjects and tests, so teachers fill a structured sheet rather than building one from scratch. That said, a teacher uncomfortable with Excel entirely will still need to do that filling-in step — this doesn't remove Excel from the workflow.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Who trains the teachers on this?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">There's no training program or support team — it's a single developer and the app itself. The Sample Files section has downloadable examples to reduce guesswork, but there's no live onboarding available at scale today.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Can a coordinator see all teachers' data, and teachers only their own?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">There's no login or accounts at all, so there's no "coordinator view vs teacher view." Anyone with the uploaded file and the app open sees everything in that session. Access control is entirely organizational (who has the file), not enforced by the app.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Does it catch teacher data-entry mistakes?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Partially — before analysis runs, it checks for duplicate student IDs, marks rows referencing students who don't exist, and non-numeric entries in a marks cell (like "Absent" typed where a number was expected). It flags these; it doesn't guess the correct value for you.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Does it handle CBSE/ICSE/State board grading differences?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Grading bands and thresholds (pass marks, drop alerts) are configurable per class in Setup, so it's flexible on numbers. It hasn't been specifically validated against every board's exact convention — worth a direct conversation about your system before relying on it as a perfect fit.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>What about students with different elective subject combinations?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No — subjects are set once at the class level in Setup and applied uniformly. If students take different subject combinations, this isn't built for that today.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Can I customize the report card layout?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Not as a visual template editor — the layout is fixed in the code. What is customizable is the content: institution name, class, subjects, tests, and thresholds.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Does it work if our internet is down?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Once the page and its libraries have loaded, core steps (reading Excel, computing, generating PDF) run in-browser, so a brief mid-session drop likely doesn't interrupt them. But it needs internet to load the app and its libraries initially — it isn't designed or tested as a true offline tool.</div></details>
+    </div>
+
+    <!-- IT -->
+    <div class="faq-audience"><div class="icon-badge">🖥️</div><div class="txt">From the IT-in-charge</div><div class="cnt">Hosting & data location</div></div>
+    <div class="faq-list">
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Where exactly is our data stored?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Nowhere, by design. The app doesn't save student data to any server, database, or even the browser's local storage — it exists only in the browser tab's memory while in use, and disappears when the tab closes. The uploaded Excel file is the only persistent copy, and it stays wherever it already was.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Is this hosted on a government-approved server?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">It's hosted on GitHub Pages, a standard public web-hosting service — not on any government-empanelled cloud.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>You said no login — so how do you stop misuse?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">There's no authentication layer. Access control is entirely on the school's side (who has the link, who has the Excel file). This tool doesn't provide role-based access.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Installed app, or does it run in a browser?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Browser only — it's a website, not an install from a store. It is technically a PWA (progressive web app), so it can be "Added to Home Screen" for an app-like icon, but it's still a web page underneath.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Is this on the Play Store / App Store?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No, only via the web link.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Can we host this on our own school website instead?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">The code is a single HTML file, so it can technically be hosted anywhere that serves static files, including a school's own web server — but that's not currently packaged or officially supported as a distributable install.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>What if our ISP blocks GitHub Pages?<span class="faq-tag silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Then the app won't load. There's no fallback hosting today.</div></details>
+    </div>
+
+    <!-- TEACHER -->
+    <div class="faq-audience"><div class="icon-badge">👩‍🏫</div><div class="txt">From a Regular Teacher</div><div class="cnt">The actual daily user</div></div>
+    <div class="faq-list">
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>How much time will this actually save me?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">There's no validated number from a formal time-and-motion study against manual report-card creation. What's concrete: it removes the manual calculation and PDF-formatting steps once marks are in the template — the real time saved depends on the current process being replaced.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Can I edit the AI-generated remarks, or are they locked?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Currently they go into the PDF as-is — there's no in-app editing step. Wording changes would need to happen before export or on the PDF afterward using other tools.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>How does it handle a student absent for a whole test?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">There's an absence field per test that factors into some calculations (like the stress score, which weighs absence frequency). The exact effect on overall averages is worth verifying on a real example with your data before relying on it — better to check than assume.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Can I save my work and come back tomorrow?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a"><strong>No — this is the most important limitation to know upfront.</strong> Closing the tab loses everything in that session. The source Excel file is safe, but any in-progress Setup or analysis is not saved. Re-upload and re-run analysis each time you return. This is a deliberate tradeoff for the "nothing stored anywhere" privacy model, not a bug.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Why do I need an app for something I can do in Excel myself?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Fair challenge — averages and rankings could be computed with Excel formulas directly. What this adds is packaging: automatic report card layout, consolidated flags/wellbeing indicators, and PDF generation, without building and maintaining your own formulas and formatting every term.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Will this replace my judgment as a teacher?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No — every flag comes with a plain-language reason (e.g. a specific score drop between two named tests), meant to surface things to look at, not decide for you. Any flag can be disagreed with.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Could the AI say something insensitive about a student?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">The "AI" here is rule-based text generated from formulas — not a language model improvising sentences — so it won't say anything unexpected outside its fixed templates. It hasn't been independently reviewed by an educator for tone, so feedback on anything that reads badly is genuinely welcome.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Can I do this on my phone, or only a laptop?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">It runs in a mobile browser, but working with Excel uploads and multi-column setup forms is realistically more comfortable on a laptop — not recommended for the setup/data-entry steps on a phone.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Can I fix a mistake by re-uploading, or do I start over?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Re-uploading a corrected file re-runs the analysis fresh. Restarting the whole Setup step is only needed if the mistake was in Setup itself.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Will parents see this directly?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No built-in parent portal — export the PDF and share it however report cards are already shared (print, email, WhatsApp, etc.).</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Does it support regional-language names with special characters?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Non-Latin scripts and special characters in name fields haven't been specifically tested — worth verifying directly rather than assuming it works cleanly.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Does it print directly, or save PDF first?<span class="faq-tag silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">It generates a downloadable PDF; printing happens through your normal printer/PDF viewer — no direct "print" button skipping that step.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Can I put my school's logo on the report card?<span class="faq-tag silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Not currently — there's no image/logo upload feature in the app today.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Is there a WhatsApp group for support?<span class="faq-tag silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No — support is directly from the developer if something's broken, not a dedicated team.</div></details>
+    </div>
+
+    <!-- PARENT -->
+    <div class="faq-audience"><div class="icon-badge">👨‍👩‍👧</div><div class="txt">Parent-Facing Concerns</div><div class="cnt">What the principal anticipates</div></div>
+    <div class="faq-list">
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Why does it say my child is at "burnout risk"?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Every flag includes a specific, factual explanation — like a defined score drop between two named tests — rather than a vague label. That reasoning can be shown to a parent directly, not just an unexplained flag.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Is this leaking data to an ad company?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No — there are no ads, no analytics tracking of student data, and nothing is transmitted off the device during use. This isn't a promise on faith — it's a direct consequence of there being no server for data to go to in the first place.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Is this like a "free VPN" that secretly sells your data?<span class="faq-tag silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No — those business models make money by collecting and selling data. This app has no mechanism to collect data in the first place, so there's nothing to sell.</div></details>
+    </div>
+
+    <!-- FINANCE -->
+    <div class="faq-audience"><div class="icon-badge">💰</div><div class="txt">From the Finance / Admin Office</div><div class="cnt">Budget & paperwork</div></div>
+    <div class="faq-list">
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Will there be a per-student or per-teacher fee later?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Not planned — there's no infrastructure cost driving a future need to charge. "Never" isn't a guarantee that can be made absolutely, but there's no roadmap toward monetization today.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Do we need to sign an MOU or agreement?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No formal agreement exists today — this isn't an enterprise product with a sales/legal process behind it.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Is there a paid version with more features?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No — there is one version.</div></details>
+    </div>
+
+    <!-- NITPICKY -->
+    <div class="faq-audience"><div class="icon-badge">🔎</div><div class="txt">The Nitpicky (But Real) Ones</div><div class="cnt">You'll actually hear these</div></div>
+    <div class="faq-list">
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Does it work on Internet Explorer?<span class="faq-tag silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Almost certainly not reliably — it depends on modern browser features and is built and tested against browsers like Chrome, Edge, and Firefox, not legacy IE.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Can it detect if a teacher marked a student unfairly?<span class="faq-tag silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No — it only analyzes the numbers it's given. It has no way to know whether those numbers were assigned fairly in the first place.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Why "Insight" — does it predict the future?<span class="faq-tag silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">There is a "predicted next score" metric based on simple trend extrapolation from past scores — closer to "if this trend continues" than any real forecasting model.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>If two teachers open it at once, will it get confused?<span class="faq-tag silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No — each browser tab or session is completely independent; there's no shared server state to conflict over.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>What's the AI's error rate?<span class="faq-tag practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">There's no trained model with an ML-style error rate — every number is a deterministic formula. The more accurate framing: the calculations are exactly as accurate as the data entered and the formulas used, which can be verified by hand on any single student.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>Is this connected to ChatGPT — is my data going to OpenAI?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">No — there's no external AI API call anywhere in the app. All "AI-style" outputs are generated locally from formulas in the browser.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span>What if I close the tab by mistake?<span class="faq-tag serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Everything in that session is gone. This is worth knowing upfront rather than discovering mid-report-card-season — see "Can I save my work and come back tomorrow?" above.</div></details>
+    </div>
+
+    <!-- GLOSSARY -->
+    <div class="faq-audience"><div class="icon-badge">📖</div><div class="txt">Terms & Abbreviations Used in the App</div><div class="cnt">What every label actually means</div></div>
+    <div class="faq-list">
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Median<span class="faq-tag practical">Statistics</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">The <strong>middle score</strong> if every student were lined up from lowest to highest — half the class scored above it, half below. Unlike a plain average, one or two extreme scores can't pull the median up or down.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>SD <span style="font-weight:400;color:var(--c-text3)">(Standard Deviation)</span><span class="faq-tag practical">Statistics</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a"><strong>Full form: Standard Deviation.</strong> A measure of how spread out the scores are around the average. A small SD means most students scored close together; a large SD (e.g. ±22) means there's a big gap between the strongest and weakest students in the class.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Q1 <span style="font-weight:400;color:var(--c-text3)">(First Quartile)</span><span class="faq-tag practical">Statistics</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a"><strong>Full form: First Quartile.</strong> The score below which the bottom 25% of the class falls. If Q1 is 48%, a quarter of the class scored 48% or less.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Q3 <span style="font-weight:400;color:var(--c-text3)">(Third Quartile)</span><span class="faq-tag practical">Statistics</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a"><strong>Full form: Third Quartile.</strong> The opposite end from Q1 — 25% of the class scored at or above this number.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Percentile<span class="faq-tag practical">Statistics</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Shows how a student compares to classmates — e.g. "78th percentile" means this student scored better than 78% of the class. <strong>This is not the same as a percentage score</strong> — a student can be at the 78th percentile with a 60% score, if the rest of the class scored even lower. Easy to misread, worth clarifying with parents.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Rank &amp; Tie Handling<span class="faq-tag practical">App logic</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Uses standard "competition ranking": if two students tie for 1st place, both are shown as Rank 1, and the next student is Rank 3 — not Rank 2. This matches how real exam results are conventionally reported, so a "skipped" rank number is expected, not a bug.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Health Score / Health Band<span class="faq-tag silly">App-defined</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Not a standard statistical or medical term — it's a single 0–100 number this app calculates by blending four things: 40% how well the student is scoring, 20% how consistent they are, 20% whether they're trending up or down, and 20% an engagement estimate. Those weightings are a design choice made for this app, not a scientifically standardized formula.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Consistency Score<span class="faq-tag silly">App-defined</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">How steady a student's scores are from test to test. A high consistency score means they don't swing wildly between a great test and a bad one — it's mathematically the inverse of how "spread out" their individual scores are.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Growth Rate<span class="faq-tag silly">App-defined</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">How fast a student's scores are moving up or down over time, shown as a percentage with a + or – sign.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Engagement Index<span class="faq-tag silly">App-defined</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">The app's estimate of how "involved" a student seems, inferred indirectly from attendance and score-trend data. <strong>Important to clarify:</strong> this is a proxy, not a direct measurement — the app cannot actually observe classroom participation or attention.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Plateau Detection<span class="faq-tag silly">App-defined</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Flags a student whose scores haven't moved up or down much across 3 or more tests in a row. It means "flat," not necessarily "failing" — a high-scoring student can plateau too.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Early Warning Score<span class="faq-tag silly">App-defined</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">A single combined risk number built from several other signals together (score drops, volatility, absences), meant to surface students needing attention even before any one signal alone looks alarming.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Burnout Risk<span class="faq-tag silly">App-defined</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Flags a student who was previously scoring well and then dropped sharply. It describes a score pattern associated with burnout — it is not a clinical or psychological diagnosis.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Resilience Score<span class="faq-tag silly">App-defined</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">The positive counterpart to Burnout Risk — flags a student who bounced back well after a bad test.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Volatility / Volatile<span class="faq-tag silly">App-defined</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">Same idea as SD above, but applied to one individual student instead of the whole class — do their scores bounce around a lot from test to test?</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>Stress Score / Wellbeing Flag<span class="faq-tag silly">App-defined</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a">A number combining how often a student is absent with penalties for declining performance trends. Meant as an indicator to look into, not a certified wellbeing assessment.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>PWA <span style="font-weight:400;color:var(--c-text3)">(Progressive Web App)</span><span class="faq-tag practical">Technical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a"><strong>Full form: Progressive Web App.</strong> A website built to feel more like an installed app — it can be "Added to Home Screen" for an icon, but it's still a web page running in the browser underneath, not a Play Store / App Store install.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>MOU <span style="font-weight:400;color:var(--c-text3)">(Memorandum of Understanding)</span><span class="faq-tag practical">Admin</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a"><strong>Full form: Memorandum of Understanding.</strong> A formal agreement document sometimes required before a school adopts outside software — not currently used for this app, since there's no vendor relationship behind it.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>ERP <span style="font-weight:400;color:var(--c-text3)">(Enterprise Resource Planning)</span><span class="faq-tag practical">Admin</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a"><strong>Full form: Enterprise Resource Planning.</strong> The umbrella term for a school's main management software (attendance, fees, admissions, etc.). This app is not an ERP — it's a narrow add-on for marks analysis and report cards only.</div></details>
+      <details class="faq-item"><summary><span class="faq-q-mark">Aa</span><span>CBSE / ICSE<span class="faq-tag practical">Admin</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a"><strong>Full form:</strong> Central Board of Secondary Education / Indian Certificate of Secondary Education — the two major Indian school-board systems, each with its own grading conventions the app's thresholds may need to be checked against.</div></details>
+    </div>
+
+    </div><!-- #faq-root -->
+  </div>
+</div>
+
+</div><!-- #main -->
 
 <!-- STUDENT MODAL -->
 <div id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-content"><div class="modal-box" id="modal-box"><span class="modal-close" role="button" tabindex="0" aria-label="Close dialog" onclick="closeModal()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();closeModal();}">✕</span><div id="modal-content"></div></div></div>
@@ -1214,6 +1355,40 @@ function markDirty(){_unsaved=true;$("#unsaved-dot").addClass("visible");}
 function markClean(){_unsaved=false;$("#unsaved-dot").removeClass("visible");}
 function unlockStep(s){$("[data-step='"+s+"']").removeClass("locked");}
 
+/* ════ FAQ SEARCH ════ */
+function filterFAQ(q){
+  q=q.trim().toLowerCase();
+  let anyVisible=false;
+  document.querySelectorAll("#faq-root .faq-audience").forEach(function(h){h.style.display="";});
+  document.querySelectorAll("#faq-root .faq-list").forEach(function(list){
+    let groupHasMatch=false;
+    list.querySelectorAll(".faq-item").forEach(function(item){
+      const txt=item.textContent.toLowerCase();
+      const match=!q||txt.indexOf(q)!==-1;
+      item.style.display=match?"":"none";
+      if(match){groupHasMatch=true;anyVisible=true;if(q)item.open=true;else item.open=false;}
+    });
+    const heading=list.previousElementSibling;
+    if(heading&&heading.classList.contains("faq-audience"))heading.style.display=groupHasMatch?"":"none";
+  });
+  document.getElementById("faq-empty").style.display=anyVisible?"none":"block";
+}
+function initFAQAccordion(){
+  const items=document.querySelectorAll("#faq-root .faq-item");
+  items.forEach(function(item){
+    item.addEventListener("toggle",function(){
+      if(item.open){
+        items.forEach(function(other){
+          if(other!==item)other.open=false;
+        });
+        item.scrollIntoView({behavior:"smooth",block:"nearest"});
+      }
+    });
+  });
+}
+document.addEventListener("DOMContentLoaded",initFAQAccordion);
+initFAQAccordion();
+
 /* ════ SETUP FORM ════ */
 function addSubject(name=""){
   subjectCount++;
@@ -1259,16 +1434,7 @@ function collectSetupForm(){
   APP.setup.subjects=getSubjects();APP.setup.tests=[];
   $("#tests-list .test-row-wrap").each(function(){
     const name=$(this).find(".test-name-inp").val().trim();const date=$(this).find(".test-date-inp").val();
-    // Finding #3: parseInt(v)||100 only catches 0/NaN/blank — a genuine
-    // negative value (e.g. -50) is truthy and passes straight through as the
-    // divisor for every percentage in this test. Clamp to a sane 1..10000
-    // range (same pattern as clampNum used elsewhere for Pass Threshold /
-    // Absent Alert / Sharp Drop) instead of leaving this the one unclamped
-    // numeric field in Setup.
-    const maxMarks={};APP.setup.subjects.forEach((s,i)=>{
-      const raw=parseInt($(this).find(`.mm-inp[data-subj="${i}"]`).val());
-      maxMarks[s]=(isNaN(raw)||raw<1)?100:Math.min(raw,10000);
-    });
+    const maxMarks={};APP.setup.subjects.forEach((s,i)=>{maxMarks[s]=parseInt($(this).find(`.mm-inp[data-subj="${i}"]`).val())||100;});
     if(name)APP.setup.tests.push({name,date,maxMarks});
   });
 }
@@ -1293,16 +1459,9 @@ function generateTemplate(){
   if(!APP.setup.tests.length){toast("Add at least one test.","warn");return;}
   const wb=XLSX.utils.book_new();
   const {subjects,tests,instName,passThreshold,absentAlert,dropAlert}=APP.setup;
-  // Finding #5: imported sheets already strip a leading =/+/-/@ (treated as
-  // formula-injection risk) on the way IN, but free-text Setup fields were
-  // written straight into the generated template on the way OUT with no
-  // matching guard. Prefix such values with a leading apostrophe so Excel/
-  // Sheets/LibreOffice treats them as literal text, keeping the same
-  // sanitization guarantee on both ends of the pipeline.
-  const stripFormula=v=>{const s=String(v||"");return /^[=+\-@]/.test(s)?"'"+s:s;};
   /* SETUP tab */
-  const setupRows=[["INSTITUTION",""],["Institution Name",stripFormula(instName)],["Type",stripFormula(APP.setup.instType||"")],["Location",stripFormula(APP.setup.location||"")],["Contact",stripFormula(APP.setup.contact||"")],["CLASS",""],["Class / Batch",stripFormula(APP.setup.className)],["Section",stripFormula(APP.setup.section||"")],["Academic Year",stripFormula(APP.setup.year)],["Class Teacher",stripFormula(APP.setup.teacher||"")],["SUBJECTS",""]];
-  subjects.forEach((s,i)=>setupRows.push(["Subject "+(i+1),stripFormula(s)]));
+  const setupRows=[["INSTITUTION",""],["Institution Name",instName],["Type",APP.setup.instType||""],["Location",APP.setup.location||""],["Contact",APP.setup.contact||""],["CLASS",""],["Class / Batch",APP.setup.className],["Section",APP.setup.section||""],["Academic Year",APP.setup.year],["Class Teacher",APP.setup.teacher||""],["SUBJECTS",""]];
+  subjects.forEach((s,i)=>setupRows.push(["Subject "+(i+1),s]));
   setupRows.push(["TESTS",""]);
   tests.forEach((t,i)=>{setupRows.push(["Test "+(i+1)+" Name",t.name]);setupRows.push(["Test "+(i+1)+" Date",t.date||""]);subjects.forEach(s=>setupRows.push(["Max Marks - "+s+" (Test "+(i+1)+")",(t.maxMarks&&t.maxMarks[s])||100]));});
   setupRows.push(["Scoring Method",Object.keys(APP.setup.scoring).filter(k=>APP.setup.scoring[k]).join(", ")]);
@@ -1520,6 +1679,7 @@ function renderHomePage(){
   document.querySelector('.step-item[data-step="home"]')?.classList.remove("locked");
   document.querySelector('.step-item[data-step="about"]')?.classList.remove("locked");
   document.querySelector('.step-item[data-step="samplefiles"]')?.classList.remove("locked");
+  document.querySelector('.step-item[data-step="faq"]')?.classList.remove("locked");
   $("#btn-data-continue").prop("disabled",true).attr("title","Upload a file first").css({opacity:.45,cursor:"not-allowed"}).removeClass("btn-glow");
   $("#data-loaded-card").hide();$("#drop-zone").show();
   // Clear any leftover import result card (success/warning/error) from a
@@ -1584,16 +1744,12 @@ function autoInferSetup(){
     const maxMarks={};
     // Format A: per-subject max marks stored separately
     const hasFormatA=subjects.some(s=>kv["Max Marks - "+s+" (Test "+t+")"]||kv["Max Marks — "+s+" (Test "+t+")"]);
-    // Finding #3: v?parseInt(v)||100:100 only catches 0/NaN/blank, letting a
-    // negative imported Max Marks (e.g. -50) through unclamped as the
-    // percentage denominator. Clamp to 1..10000, same as collectSetupForm.
-    const clampMaxMarks=n=>(isNaN(n)||n<1)?100:Math.min(n,10000);
     if(hasFormatA){
-      subjects.forEach(s=>{const v=kv["Max Marks - "+s+" (Test "+t+")"]||kv["Max Marks — "+s+" (Test "+t+")"]||null;maxMarks[s]=clampMaxMarks(v?parseInt(v):NaN);});
+      subjects.forEach(s=>{const v=kv["Max Marks - "+s+" (Test "+t+")"]||kv["Max Marks — "+s+" (Test "+t+")"]||null;maxMarks[s]=v?parseInt(v)||100:100;});
     } else {
       // Format B: one global max for all subjects, found in same row as test name
       const testRow=rawRows.find(r=>String(r[0]||"").trim()==="Test "+t&&String(r[1]||"").trim()===name);
-      const globalMax=clampMaxMarks(testRow&&testRow[2]==="Max Marks"&&testRow[3]?parseInt(testRow[3]):NaN);
+      const globalMax=testRow&&testRow[2]==="Max Marks"&&testRow[3]?parseInt(testRow[3])||100:100;
       subjects.forEach(s=>{maxMarks[s]=globalMax;});
     }
     tests.push({name,date:kv["Test "+t+" Date"]||"",maxMarks});
@@ -1871,19 +2027,7 @@ function parseStudents(){
   const studentData={};
   markSheet.forEach(row=>{
     const rawId=String(row["Student ID"]||"").trim();const key=normId(rawId);const nm=String(row["Student Name"]||row["Full Name"]||"").trim();
-    if(!key){
-      // Row has no Student ID — before dropping it, check whether it actually
-      // has any data in it (raw row array covers every column, not just the
-      // first test), so a blank-ID row with real marks doesn't just vanish
-      // with zero trace. (Finding #2)
-      const hasAnyMark=(row.__raw&&row.__raw.some(v=>v!==null&&v!==undefined&&String(v).trim()!==""))||nm!=="";
-      if(hasAnyMark){
-        APP.dataIssues.push({studentId:"(blank)",studentName:nm||"(unnamed)",
-          test:"—",subject:"—",message:"row has data but no Student ID — entire row was skipped, not counted in analysis"});
-      }
-      return;
-    }
-    if(!studentData[key])studentData[key]={id:(studentMap[key]&&studentMap[key].id)||rawId,name:nm||(studentMap[key]&&studentMap[key].name)||rawId,testData:{}};
+    if(!key)return;if(!studentData[key])studentData[key]={id:(studentMap[key]&&studentMap[key].id)||rawId,name:nm||(studentMap[key]&&studentMap[key].name)||rawId,testData:{}};
     tests.forEach(t=>{
       if(!studentData[key].testData[t.name])studentData[key].testData[t.name]={marks:{},absents:0,remark:""};
       subjects.forEach(s=>{
@@ -1918,19 +2062,7 @@ function parseStudents(){
       });
       const abKey=posMap&&posMap[t.name]?posMap[t.name]["__absent"]:undefined;
       const ab=abKey!==undefined?(row.__raw?row.__raw[abKey]:undefined):getVal(row,t.name,"Absent Days");
-      if(ab!==null&&ab!==""){
-        // Finding #4: parseInt(ab)||0 only catches 0/NaN, letting a genuine
-        // negative value (e.g. -5) through unclamped, which can push
-        // totalAbsent and stressScore below zero. Reject negatives back to 0
-        // and flag it so the teacher sees the correction instead of a
-        // confusing negative stress score.
-        const abn=parseInt(ab);
-        if(!isNaN(abn)&&abn<0){
-          APP.dataIssues.push({studentId:rawId,studentName:studentData[key].name||rawId,test:t.name,subject:"—",
-            message:`entered ${abn} for Absent Days — negative values aren't valid, treated as 0`});
-        }
-        studentData[key].testData[t.name].absents=(!isNaN(abn)&&abn>0)?abn:0;
-      }
+      if(ab!==null&&ab!=="")studentData[key].testData[t.name].absents=parseInt(ab)||0;
       const rmKey=posMap&&posMap[t.name]?posMap[t.name]["__remark"]:undefined;
       const rm=rmKey!==undefined?(row.__raw?row.__raw[rmKey]:undefined):getVal(row,t.name,"Remark");
       if(rm!==null&&rm!=="")studentData[key].testData[t.name].remark=String(rm);
@@ -2831,16 +2963,6 @@ function switchDbTab(name, el){
 $(document).on("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key==="s"){e.preventDefault();saveSession();}if(e.key==="Escape")closeModal();});
 $("#modal-overlay").on("click",function(e){if($(e.target).is("#modal-overlay"))closeModal();});
 
-/* ════ GLOBAL DRAG/DROP GUARD (Finding #1) ════
-   Prevents the browser's default "navigate to dropped file" behavior anywhere
-   outside the actual drop-zone, so a slightly-missed drag-and-drop is a no-op
-   instead of silently destroying the whole in-progress session. */
-["dragover","drop"].forEach(evt=>{
-  document.addEventListener(evt,e=>{
-    if(!e.target.closest("#drop-zone"))e.preventDefault();
-  });
-});
-
 /* ════ SERVICE WORKER ════ */
 if("serviceWorker" in navigator&&location.protocol!=="file:"){const swPath=location.pathname.includes("/student-insight/")?"/student-insight/sw.js":"/sw.js";navigator.serviceWorker.register(swPath).catch(()=>{});}
 
@@ -2849,8 +2971,7 @@ $(function(){
   if(location.protocol!=="file:"){const ml=document.createElement("link");ml.rel="manifest";ml.href="manifest.json";document.head.appendChild(ml);}
   // Stateless design: wipe any previously stored session data on load
   try{localStorage.removeItem("sia_sessions");localStorage.removeItem("sia_auth");localStorage.removeItem("sia_gs_url");}catch(e){}
-  Object.values(AI_FEATURES).flat().forEach(f=>APP.aiFeatures.add(f.id)); // default: all features on, silently — no toast on load
-  renderAICheckboxes();initEnvBadge();
+  renderAICheckboxes();selectAllAI();initEnvBadge();
   goStep("home"); // always shows clean home
 });
 </script>
