@@ -28,7 +28,7 @@
 -->
 <!--
 ════════════════════════════════════════════════════════════════════════
- STUDENT INSIGHT — PROJECT INTELLIGENCE BLOCK (PIB)                v1.0
+ STUDENT INSIGHT — PROJECT INTELLIGENCE BLOCK (PIB)                v1.1
  (Master index — update this block on every version bump, per the same
  convention used in Spend-na's index.html)
 ════════════════════════════════════════════════════════════════════════
@@ -59,7 +59,7 @@
      supports writing cell styles (font/fill/border on the `s` property),
      which stock SheetJS Community only supports reading, not writing.
      Used to bold/shade the SETUP + MARKS+CONTEXT header rows in
-     generateTemplate() (~line 1470). Drop-in API-compatible with plain
+     generateTemplate() (~line 1590). Drop-in API-compatible with plain
      SheetJS otherwise — reading uploaded workbooks is unaffected.
    - jsPDF 2.5.1 (UMD)   — client-side PDF generation (report cards etc.)
    - JSZip 3.10.1        — dependency used by jsPDF/xlsx for zip handling
@@ -72,7 +72,7 @@
    - manifest.json is attached dynamically via JS (skipped entirely when
      protocol is "file:", i.e. opened directly from disk without a server).
 
-3. CORE APP STATE — the `APP` global object (search "const APP=")
+3. CORE APP STATE — the `APP` global object (search "const APP=", ~line 1447)
    APP = {
      setup:        { instName, instType, location, contact, className,
                      section, year, teacher,
@@ -85,7 +85,9 @@
                              "_hdr_<SHEETNAME>":[...] }  // raw header row(s),
                              // see §5 grouped-header note — populated at import
      students:     [],       // populated by parseStudents()+computeAnalysis()
-     classStats:   null,     // populated by computeClassStats()
+     classStats:   null,     // populated by computeClassStats() — ALWAYS set
+                             // (to {} if there are 0 valid students), never
+                             // left as a stale value from a prior run (v1.1 fix)
      genderAnalysis: null,   // populated by computeGenderAnalysis() — school-level
                              // gender-gap stats (Male/Female avg + per-subject),
                              // only computed when 'diversity_analysis' AI feature
@@ -94,12 +96,20 @@
      filter:       "all",    // dashboard filter chip state
      sort:         "rank",   // dashboard sort state
      aiFeatures:   Set(),    // selected AI_FEATURES ids (Step 3 checkboxes)
-     dataIssues:   []        // populated during parseStudents(); non-numeric
-                             // cell values etc. — feeds renderDataIssueBanner()
+     dataIssues:   []        // populated during parseStudents() AND
+                             // computeAnalysis(); covers non-numeric cells,
+                             // negative marks, AND (v1.1) marks that exceed
+                             // a subject's configured max — feeds
+                             // renderDataIssueBanner() (now fully scrollable,
+                             // not truncated) AND gates Export entirely via
+                             // updateExportGate() (§4/§10, added in v1.1):
+                             // Export stays disabled+locked end-to-end while
+                             // this array is non-empty.
    }
    startNewSession() / goStep('home') reset APP.setup/students/rawData/
    classStats back to the same blank shape — keep both in sync if the
-   shape of APP.setup or APP.students ever changes.
+   shape of APP.setup or APP.students ever changes. Both reset sites also
+   clear #session-name-badge (v1.1 fix — see §4).
 
    Per-student record shape (built in parseStudents(), extended heavily
    in computeAnalysis() — search "function computeAnalysis"):
@@ -119,7 +129,7 @@
        flags: [{type,label,color}]   // badges shown on student cards
      }
 
-4. NAVIGATION / STEP FLOW (see #stepper markup + goStep(), ~line 899)
+4. NAVIGATION / STEP FLOW (see #stepper markup + goStep(), ~line 1451)
    home → setup(1) → data(2, "Upload Data") → ai(3, "Analyse") →
    dashboard(4) → export(5, "Export PDFs")
    Plus two always-unlocked utility tabs: about, samplefiles (modal — see
@@ -132,13 +142,35 @@
    the locking mechanism (this was the source of a real button-locking bug
    fixed previously: missing data-step left a button permanently disabled).
 
+   EXPORT GATE (v1.1 — added on top of the plain unlockStep mechanism):
+   unlockStep("export") only controls whether the step is *reachable in
+   principle* (not permanently disabled). updateExportGate() (~line 2529)
+   is the actual correctness gate on top of that: it disables
+   #btn-generate-pdfs, the dashboard's #btn-goto-export-dash quick button,
+   and re-adds `.locked` to the Export step in the sidebar, ALL driven by a
+   single check — `APP.dataIssues.length>0` — no matter how or when that
+   became true. Called from all 3 places Export could become reachable:
+   afterImportSuccess() (~line 1815), end of runAnalysis() (~line 2027),
+   and every renderDashboard() (~line 2519). generateAllPDFs() (~line 2709)
+   also hard-guards the same condition itself, so even a stale/bypassed
+   button state can't actually produce an export.
+   Previously (pre-v1.1): Export unlocked unconditionally after import and
+   after analysis, regardless of unresolved data-quality issues — a
+   teacher could export PDFs built from silently-inflated percentages.
+
+   SESSION-NAME BADGE (v1.1 fix): #session-name-badge (top-right pill,
+   e.g. "Apex IAS Academy") is set in autoInferSetup() but was previously
+   never cleared — renderHomePage()/startNewSession() reset APP.setup and
+   the stepper but left the old institution name showing. Both now call
+   `$("#session-name-badge").hide().text("")` alongside their state reset.
+
 5. DATA IMPORT PIPELINE (Step 1 Setup → Step 2 Upload)
-   generateTemplate() (~line 989): builds a downloadable .xlsx scaffold
+   generateTemplate() (~line 1590): builds a downloadable .xlsx scaffold
    from the current Setup form (institution/class/subjects/tests) with
    sheets SETUP and MARKS+CONTEXT (Student ID/Full Name/Gender + marks
    all on the one sheet), using SheetJS.
    Upload flow: handleFileSelect/handleFileDrop → processFile() →
-   parseWorkbook() → parseWorkbookSheets() (~line 1051), which:
+   parseWorkbook() → parseWorkbookSheets() (~line 1680), which:
      - Reads all sheets into APP.rawData keyed by sheet name.
      - ALSO stores the raw header row verbatim (with duplicate column
        names intact) as APP.rawData["_hdr_"+sheetName] — this exists
@@ -146,22 +178,22 @@
        never show duplicate keys, which silently broke "grouped header"
        detection (subject columns repeated once per test, e.g. "Maths"
        appearing under every test block). See parseStudents()'s
-       isGrouped/posMap logic (~line 1478) which reads column *positions*
+       isGrouped/posMap logic (~line 2147) which reads column *positions*
        from this raw header row to disambiguate identically-named columns
        per test, bypassing the row object's last-value-wins collapsing.
-   autoInferSetup() (~line 1246): if Setup wasn't filled manually, infers
+   autoInferSetup() (~line 1913): if Setup wasn't filled manually, infers
    institution/subjects/tests directly from the uploaded workbook headers.
-   validateSetup() (~line 2412): duplicate subject/test name detection is
+   validateSetup() (~line 3227): duplicate subject/test name detection is
    case-insensitive (a teacher typing "Maths" and "maths" would otherwise
    silently corrupt subjectAvgs, which is keyed by name) — also drives the
    inline field-error UI and the enabling of the "Download Template" CTA.
-   validateData() (~line 1416): pre-analysis structural checks — duplicate
+   validateData() (~line 2085): pre-analysis structural checks — duplicate
    Student IDs (case/space-normalized), rows missing a Full Name, empty
    MARKS+CONTEXT. Blocking (`e:1`) vs advisory (`e:0`) warnings surface
    via #validation-warnings before runAnalysis() proceeds.
 
 6. ANALYSIS PIPELINE (Step 3 "Analyse")
-   runAnalysis() (~line 1360) is the orchestrator:
+   runAnalysis() (~line 2027) is the orchestrator:
      1. Ensures Setup is populated (collectSetupForm() or autoInferSetup()).
      2. Defaults to selectAllAI() if no AI feature checkboxes were chosen.
      3. Runs validateData(); blocks on errors, shows advisory warnings.
@@ -177,9 +209,10 @@
         ~280–500ms via sleep()) purely for UX — the real work
         (parseStudents(); computeAnalysis();) happens synchronously
         right after the loop, not interleaved with it.
-     6. Unlocks dashboard+export, calls saveSession() (the no-op
-        toast — see §1), navigates to dashboard.
-   computeAnalysis() (~line 1609) is where nearly every AI_FEATURES metric
+     6. Unlocks dashboard+export, calls updateExportGate() (v1.1 — see §4,
+        may immediately re-lock export if dataIssues exist), calls
+        saveSession() (the no-op toast — see §1), navigates to dashboard.
+   computeAnalysis() (~line 2291) is where nearly every AI_FEATURES metric
    in §7 is actually computed per student — grade bands, trend (±5% diff
    first/last test), sharp-drop (dropAlert threshold between consecutive
    tests), volatility (stdev>15), stress score (absences*5 + trend/
@@ -195,8 +228,21 @@
    and the next rank skips ahead by the tie count ("1224" ranking) —
    deliberately NOT plain i+1, which was flagged as statistically unfair
    in a prior review.
+   MARK-OVERFLOW CAP (v1.1 fix): a mark entered above its subject's max
+   (e.g. 176 against a max of 100) is still flagged into APP.dataIssues
+   with its full, real entered value (for transparency + the Export gate,
+   §4), but its *contribution* to total/maxTotal — and to per-subject
+   averages — is now capped at the subject max (`Math.min(mv,mx)` /
+   `Math.min(100,m/mx*100)`). Previously the raw uncapped value was
+   summed, so overallAvg/testAvgs/subjectAvgs could display >100% on the
+   Dashboard even before the teacher had a chance to fix the source file.
+   GROWTH-RATE CLAMP (v1.1 fix): growthRate is a relative-growth ratio
+   `(last-first)/max(first,1)*100`. When `first` is near zero (e.g. a
+   0% from an absence marked as 0, followed by any real score), this
+   ratio explodes — a 0%→50% jump computed as +5000%. Clamped to
+   [-300,300]; normal cases (e.g. 70%→90% = +29%) are unaffected.
 
-7. AI_FEATURES CONFIG (~line 1296) — declarative feature catalogue
+7. AI_FEATURES CONFIG (~line 1963) — declarative feature catalogue
    Five categories, each an array of {id,label,sub}, independently
    togglable via the Step 3 checkbox grid (renderAICheckboxes/toggleAI):
      perf  — avg, pct, rank, grade, trend, prediction, percentile,
@@ -231,13 +277,23 @@
    metric — check computeAnalysis() for whether APP.aiFeatures is even
    read (currently it isn't, inside that function).
 
-8. DASHBOARD (Step 4) — renderDashboard() (~line 1773) and friends
+8. DASHBOARD (Step 4) — renderDashboard() (~line 2519) and friends
    - Tabbed via switchDbTab()/.db-tab / .db-tab-panel; the Analytics tab's
      Chart.js charts are built lazily on first visit (window._chartsBuilt
      guard) and destroyCharts() always tears down previous instances
      before renderCharts() rebuilds, so no duplicate chart leaks.
    - renderKPIs / renderStudentCards / renderHeatmap / renderFlagsTable /
      renderWellbeingPanel each read from APP.students + APP.classStats.
+   - renderDataIssueBanner() (~line 2510, v1.1): shows EVERY entry in
+     APP.dataIssues inside a scrollable `max-height:220px;overflow-y:auto`
+     container — previously truncated to the first 8 with an inert
+     "+N more" text tail, so most issues on a real class-sized file were
+     simply unreadable. Also now states plainly that Export is disabled
+     until the listed issues are fixed (ties to §4's export gate).
+   - updateExportGate() (~line 2529, v1.1): see §4 — called at the top of
+     every renderDashboard(), so the gate state is always re-derived from
+     the current APP.dataIssues rather than trusted to stay correct from
+     an earlier call.
    - getFilteredStudents()/filterStudents()/setFilter()/sortStudents()
      drive the card grid; APP.filter and APP.sort are the single source
      of truth — always re-render through these rather than touching the
@@ -248,9 +304,9 @@
      (also reused by the Sample Files modal, showSampleFiles()).
 
 9. PDF EXPORT (Step 5) — jsPDF, no server rendering
-   - buildStudentPDF(doc,st)  (~line 2004) — one student's report card.
-   - buildTeacherPDF(doc)     (~line 2148) — class-wide teacher summary.
-   - buildMgmtPDF(doc)        (~line 2260) — management/institution report,
+   - buildStudentPDF(doc,st)  (~line 2767) — one student's report card.
+   - buildTeacherPDF(doc)     (~line 2919) — class-wide teacher summary.
+   - buildMgmtPDF(doc)        (~line 3036) — management/institution report,
      ends with a fixed footer band ("Student Insight — Free & Open Source
      | Privacy-First | Confidential" + "MANAGEMENT CONFIDENTIAL").
    - fitText(doc,text,maxW) / addPDFHeader(doc,title) are shared layout
@@ -258,6 +314,11 @@
      once rather than in each build*PDF function.
    - All three assume APP.students/APP.classStats are already populated
      (i.e. Step 3 has run) — none of them re-run analysis themselves.
+   - generateAllPDFs() (~line 2709) is the entry point (the "Generate &
+     Download ZIP" button): guards on 0 students AND (v1.1) on
+     APP.dataIssues.length>0 — the latter is a defense-in-depth backstop
+     in case the button's disabled state (§4) is ever bypassed or stale;
+     it toasts and redirects to the Dashboard instead of exporting.
 
 10. VALIDATION / ERROR SURFACES (don't remove silently — each exists to
     catch a previously-real bug)
@@ -269,33 +330,42 @@
       MARKS+CONTEXT sheet — see §5.
     - parseStudents()'s APP.dataIssues (~"Grouped-header detection" and
       the isNaN(n) branch just after): flags cells that had *something*
-      non-blank but non-numeric (e.g. "AB", "N/A", "-") distinctly from
-      genuinely empty cells — surfaced via renderDataIssueBanner() and
-      also as a "⚠ Data Error" flag per affected student in computeAnalysis().
+      non-blank but non-numeric (e.g. "AB", "N/A", "-"), and separately
+      flags negative marks — both distinctly from genuinely empty cells.
+    - computeAnalysis()'s APP.dataIssues push (v1.1 context): flags any
+      mark that numerically exceeds its subject's configured max —
+      surfaced via renderDataIssueBanner() (now fully scrollable, §8) and
+      as a "⚠ Data Error" flag per affected student.
+    - EXPORT GATE (v1.1, §4): the single most important validation
+      consequence — as long as APP.dataIssues is non-empty for ANY
+      reason above, Export (button + step + generateAllPDFs() itself) is
+      fully blocked, not just visually warned about. Do not add a new
+      "silent" data-quality check without deciding whether it should also
+      feed into this same array/gate.
     - Known unresolved security items from the last code review (mirrors
       the Spend-na-style review convention): unpinned SRI hashes for
-      xlsx/jsPDF/JSZip/Chart.js (see top-of-file note); esc() (~line 2410)
+      xlsx/jsPDF/JSZip/Chart.js (see top-of-file note); esc() (~line 3225)
       is the HTML-escaping helper — use it for ANY user-entered string
       (student names, remarks, institution name, etc.) interpolated into
-      innerHTML/template strings anywhere in the app; toast() (~line 2456)
+      innerHTML/template strings anywhere in the app; toast() (~line 3271)
       itself interpolates `msg` unescaped into innerHTML — never pass
       unsanitized user/workbook-derived text into toast() without escaping
       it first.
 
 11. ABOUT PANEL / TRUST ACCORDION
-    toggleTrust(id) (~line 2462) drives a 6-pill accordion (#trust-detail,
+    toggleTrust(id) (~line 3277) drives a 6-pill accordion (#trust-detail,
     .trust-body/.trust-pill, ids t1..t6) explaining the privacy model to
     end users. The About panel also embeds Sandy's LinkedIn profile
     (https://in.linkedin.com/in/sandeep-s-hakki-83174022) — keep this
     link in sync if the profile URL ever changes.
 
 12. SAMPLE FILES MODAL
-    showSampleFiles() (~line 1904) renders a modal with four downloadable
+    showSampleFiles() (~line 2666) renders a modal with four downloadable
     Excel templates (uses the same SheetJS pipeline as generateTemplate())
     — reuses #modal-overlay/closeModal() infra from §8/§10.
 
 13. ENV BADGE
-    initEnvBadge() (~line 2457): shows a "LOCAL" or "QA" pill (#env-badge)
+    initEnvBadge() (~line 3272): shows a "LOCAL" or "QA" pill (#env-badge)
     based on hostname matching "localhost"/"127."/"sandeephakki-qa" — purely
     cosmetic, has no effect on app behavior/gating.
 
@@ -303,7 +373,8 @@
     - Changing APP.setup/APP.students shape? Update BOTH reset sites
       (startNewSession() and the goStep('home') reset in renderHomePage()
       — they currently duplicate the same literal object; consider
-      factoring to a single `emptySetup()` helper to avoid drift).
+      factoring to a single `emptySetup()` helper to avoid drift). Both
+      also clear #session-name-badge (v1.1) — keep that in sync too.
     - Adding a new AI_FEATURES entry? Decide if it's cosmetic-only or
       needs real gating in computeAnalysis() (see §7 caveat).
     - Adding new mark-sheet columns? Update parseWorkbookSheets()'s
@@ -312,10 +383,38 @@
       flat-header workbooks resolve the new column correctly.
     - Touching PDF layout? Update fitText/addPDFHeader once; all three
       build*PDF functions depend on them.
+    - Adding a new data-quality check anywhere in the pipeline? Push it
+      into APP.dataIssues (not a separate array) so it automatically:
+      (a) shows in the scrollable Dashboard banner, (b) blocks Export via
+      updateExportGate()/generateAllPDFs()'s guard, (c) contributes to a
+      student's "⚠ Data Error" flag. See §4/§8/§9/§10 (all v1.1).
     - Never persist student data to localStorage/server without an
       explicit, deliberate product decision to abandon the stateless
       privacy model (§1) — this is a core stated feature, not an
       omission.
+
+15. CHANGELOG
+    v1.1 (this session) — regression pass + fixes, all inline in this
+    same file/script block (no external files added or referenced):
+      1. Mark-overflow cap: a mark exceeding its subject's max no longer
+         inflates overallAvg/testAvgs/subjectAvgs past 100% (§6).
+      2. Export gate: Export (button + step + generateAllPDFs() itself)
+         is now fully blocked end-to-end whenever APP.dataIssues is
+         non-empty, via the new updateExportGate() (§4/§8/§9/§10).
+      3. Data-issue banner made fully scrollable, showing every issue
+         instead of truncating to 8 with an inert "+N more" (§8).
+      4. #session-name-badge now cleared on Home / New Project, instead
+         of persisting the previous institution's name (§4).
+      5. Growth-Rate clamp: relative-growth formula no longer produces
+         nonsensical values (e.g. +5000%) when a student's first valid
+         score is near zero (§6).
+      Also: computeClassStats() now always explicitly sets APP.classStats
+      (to {} rather than an un-stored return value) when there are 0
+      valid students, so a later render can't silently reuse a stale
+      value from a previous session.
+    v1.0 — prior baseline (grouped-header detection, formula-injection
+      stripping, competition ranking, gender-gap privacy floor, and the
+      other fixes already described inline in §5–§10 above).
 ════════════════════════════════════════════════════════════════════════
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
