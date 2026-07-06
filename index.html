@@ -54,7 +54,13 @@
 
 2. TECH STACK (all via CDN, no build step, no bundler)
    - jQuery 3.7.1        — DOM/events (SRI-pinned; see note above this block)
-   - SheetJS "xlsx" 0.18.5 (xlsx.full.min.js) — reads/writes .xlsx workbooks
+   - "xlsx-js-style" 1.2.0 (xlsx.bundle.js) — same SheetJS 0.18.5 core as
+     before (reads/writes .xlsx workbooks), but this fork additionally
+     supports writing cell styles (font/fill/border on the `s` property),
+     which stock SheetJS Community only supports reading, not writing.
+     Used to bold/shade the SETUP + MARKS+CONTEXT header rows in
+     generateTemplate() (~line 1470). Drop-in API-compatible with plain
+     SheetJS otherwise — reading uploaded workbooks is unaffected.
    - jsPDF 2.5.1 (UMD)   — client-side PDF generation (report cards etc.)
    - JSZip 3.10.1        — dependency used by jsPDF/xlsx for zip handling
    - Chart.js 4.4.1      — dashboard charts (bar/line/doughnut in Analytics tab)
@@ -73,11 +79,18 @@
                      scoring:{marks,pct,grade,pf},           // display toggles
                      passThreshold, absentAlert, dropAlert,  // numeric alert rules
                      subjects:[string], tests:[{name,date,maxMarks?}] },
-     rawData:      null | { "STUDENTS":[...], "MARKS+CONTEXT":[...],
+     rawData:      null | { "MARKS+CONTEXT":[...],   // Student ID, Full Name,
+                             // Gender + marks all on one sheet (STUDENTS
+                             // sheet was merged into this in July 2026)
                              "_hdr_<SHEETNAME>":[...] }  // raw header row(s),
                              // see §5 grouped-header note — populated at import
      students:     [],       // populated by parseStudents()+computeAnalysis()
      classStats:   null,     // populated by computeClassStats()
+     genderAnalysis: null,   // populated by computeGenderAnalysis() — school-level
+                             // gender-gap stats (Male/Female avg + per-subject),
+                             // only computed when 'diversity_analysis' AI feature
+                             // is selected; null/unavailable if <2 groups have
+                             // MIN_GENDER_GROUP_SIZE+ students (privacy floor)
      filter:       "all",    // dashboard filter chip state
      sort:         "rank",   // dashboard sort state
      aiFeatures:   Set(),    // selected AI_FEATURES ids (Step 3 checkboxes)
@@ -122,7 +135,8 @@
 5. DATA IMPORT PIPELINE (Step 1 Setup → Step 2 Upload)
    generateTemplate() (~line 989): builds a downloadable .xlsx scaffold
    from the current Setup form (institution/class/subjects/tests) with
-   sheets STUDENTS and MARKS+CONTEXT, using SheetJS.
+   sheets SETUP and MARKS+CONTEXT (Student ID/Full Name/Gender + marks
+   all on the one sheet), using SheetJS.
    Upload flow: handleFileSelect/handleFileDrop → processFile() →
    parseWorkbook() → parseWorkbookSheets() (~line 1051), which:
      - Reads all sheets into APP.rawData keyed by sheet name.
@@ -142,10 +156,9 @@
    silently corrupt subjectAvgs, which is keyed by name) — also drives the
    inline field-error UI and the enabling of the "Download Template" CTA.
    validateData() (~line 1416): pre-analysis structural checks — duplicate
-   Student IDs (case/space-normalized), orphan mark rows not present in
-   STUDENTS sheet, empty MARKS+CONTEXT. Blocking (`e:1`) vs advisory
-   (`e:0`) warnings surface via #validation-warnings before runAnalysis()
-   proceeds.
+   Student IDs (case/space-normalized), rows missing a Full Name, empty
+   MARKS+CONTEXT. Blocking (`e:1`) vs advisory (`e:0`) warnings surface
+   via #validation-warnings before runAnalysis() proceeds.
 
 6. ANALYSIS PIPELINE (Step 3 "Analyse")
    runAnalysis() (~line 1360) is the orchestrator:
@@ -204,9 +217,15 @@
    class_difficulty, peer_outlier, subject_collapse, anxiety_flag,
    wellbeing_summary, teacher_remarks_ai, progress_narrative,
    subject_audit, intervention_priority, test_difficulty,
-   year_projection, diversity_analysis) do NOT currently gate any logic
+   year_projection) do NOT currently gate any logic
    in computeAnalysis() — the checkboxes exist and toggle APP.aiFeatures,
    but most computed metrics run unconditionally regardless of selection.
+   diversity_analysis is a genuine exception: it's computed by
+   computeGenderAnalysis() (called from runAnalysis(), after
+   computeAnalysis()) only when APP.aiFeatures.has('diversity_analysis')
+   is true, and only rendered in the Management Report PDF — deliberately
+   NOT in the per-student PDF, since a gender breakdown is a school-level
+   metric with no business appearing on an individual child's report.
    Before adding a new "AI feature" checkbox, decide whether it should be
    config-gated for real or just documentation of a fixed always-on
    metric — check computeAnalysis() for whether APP.aiFeatures is even
@@ -303,7 +322,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- TODO: pin SRI for xlsx, jspdf, jszip and Chart.js — see note above -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -660,7 +679,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
   <div id="home-import-status" style="display:none;margin-bottom:14px"></div>
 
   <!-- TWO PATHS -->
-  <div class="grid-2" style="margin-bottom:16px;gap:14px">
+  <div class="grid-2" id="home-paths-grid" style="margin-bottom:16px;gap:14px">
 
     <!-- PATH A: New Project -->
     <div class="card" style="padding:16px 18px;cursor:pointer;border:2px solid transparent;transition:var(--transition)" id="home-card-new"
@@ -695,7 +714,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
         📤 Import Excel (.xlsx)
       </div>
       <div style="margin-top:8px;font-size:10.5px;color:var(--c-text3)">
-        Requires a 3-tab Excel workbook: SETUP · STUDENTS · MARKS+CONTEXT. CSV is not supported here — use the "Upload Data" step if you only have a marks CSV.
+        Requires a 2-tab Excel workbook: SETUP · MARKS+CONTEXT. CSV is not supported here — use the "Upload Data" step if you only have a marks CSV.
       </div>
     </div>
   </div>
@@ -813,7 +832,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
       <div style="font-size:22px">👆</div>
       <div>
         <div style="font-weight:700;font-size:14px;margin-bottom:3px">Ready! Use <b>⬇ Download Template</b> at the top of this page</div>
-        <div style="font-size:12.5px;color:var(--c-text2)">3 tabs: SETUP (auto-filled) · STUDENTS (add roster) · MARKS+CONTEXT (teacher fills marks offline)</div>
+        <div style="font-size:12.5px;color:var(--c-text2)">2 tabs: SETUP (auto-filled) · MARKS+CONTEXT (add roster + marks, teacher fills offline)</div>
       </div>
     </div>
   </div>
@@ -852,8 +871,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     <div class="card-title"><span class="icon">💡</span> How to fill the template</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;font-size:12.5px">
       <div style="padding:10px;background:var(--c-surface2);border-radius:var(--r-sm)"><div style="font-weight:700;margin-bottom:4px">SETUP tab</div><div style="color:var(--c-text2)">Pre-filled from your setup. Do not edit.</div></div>
-      <div style="padding:10px;background:var(--c-surface2);border-radius:var(--r-sm)"><div style="font-weight:700;margin-bottom:4px">STUDENTS tab</div><div style="color:var(--c-text2)">Add one row per student: ID, Name, Gender, DOB, Parent contact.</div></div>
-      <div style="padding:10px;background:var(--c-surface2);border-radius:var(--r-sm)"><div style="font-weight:700;margin-bottom:4px">MARKS+CONTEXT tab</div><div style="color:var(--c-text2)">Teacher fills: marks per subject per test, absent days, remark.</div></div>
+      <div style="padding:10px;background:var(--c-surface2);border-radius:var(--r-sm)"><div style="font-weight:700;margin-bottom:4px">MARKS+CONTEXT tab</div><div style="color:var(--c-text2)">One row per student: ID, Full Name, Gender, then marks per subject per test, absent days, remark.</div></div>
     </div>
   </div>
 </div>
@@ -897,7 +915,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
       <div class="db-title" id="db-class-label">Class Dashboard</div>
       <div class="db-subtitle" id="db-meta-label"></div>
     </div>
-    <button class="btn btn-primary btn-sm btn-glow" onclick="goStep('export')" style="flex-shrink:0">Export PDFs →</button>
+    <button class="btn btn-primary btn-sm btn-glow" id="btn-goto-export-dash" onclick="goStep('export')" style="flex-shrink:0">Export PDFs →</button>
   </div>
   <div id="data-issue-banner" style="display:none;background:#fdecea;border:1px solid #f5c6c1;color:#8b1a1a;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px"></div>
   <div id="db-stats-bar" style="display:none;font-size:12px;color:var(--c-text2);background:var(--c-surface);padding:7px 14px;border-radius:var(--r-sm);border:1px solid var(--c-border);margin-bottom:10px"></div>
@@ -1327,7 +1345,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
 <script>
 
 /* ════ APP STATE ════ */
-const APP={setup:{instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]},rawData:null,students:[],classStats:null,filter:"all",sort:"rank",aiFeatures:new Set()};
+const APP={setup:{instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]},rawData:null,students:[],classStats:null,genderAnalysis:null,filter:"all",sort:"rank",aiFeatures:new Set()};
 let _charts={},subjectCount=0,testCount=0,_unsaved=false;
 
 /* ════ NAV ════ */
@@ -1346,8 +1364,9 @@ function goStep(step){
 function startNewSession(){
   /* "New Project" — reset everything, go to Setup form */
   APP.setup={instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]};
-  APP.students=[];APP.rawData=null;APP.classStats=null;subjectCount=0;testCount=0;
+  APP.students=[];APP.rawData=null;APP.classStats=null;APP.genderAnalysis=null;subjectCount=0;testCount=0;
   $("#subjects-list").empty();$("#tests-list").empty();
+  $("#session-name-badge").hide().text("");
   unlockStep("setup");goStep("setup");
 }
 function deleteSession(){/* removed — no stored sessions */}
@@ -1455,6 +1474,20 @@ function fillSetupForm(s){
 }
 
 /* ════ EXCEL TEMPLATE GENERATION ════ */
+// Style constants for generateTemplate() — requires xlsx-js-style (see
+// top-of-file library note) since stock SheetJS Community can only READ
+// cell styles, not write them.
+const TPL_STYLE={
+  header:{font:{bold:true,sz:11,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"1F3864"}},
+    alignment:{vertical:"center",horizontal:"center",wrapText:true},
+    border:{top:{style:"thin",color:{rgb:"1F3864"}},bottom:{style:"thin",color:{rgb:"1F3864"}},
+      left:{style:"thin",color:{rgb:"1F3864"}},right:{style:"thin",color:{rgb:"1F3864"}}}},
+  section:{font:{bold:true,sz:11,color:{rgb:"1F3864"}},fill:{fgColor:{rgb:"D9E2F3"}},
+    alignment:{vertical:"center"}},
+  label:{font:{color:{rgb:"333333"}},alignment:{vertical:"center"}},
+  sample:{font:{color:{rgb:"888888"},italic:true},alignment:{vertical:"center"}}
+};
+function colLetter(n){let s="";n++;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
 function generateTemplate(){
   collectSetupForm();
   if(!APP.setup.instName){toast("Fill Institution Name first.","warn");return;}
@@ -1462,25 +1495,53 @@ function generateTemplate(){
   if(!APP.setup.tests.length){toast("Add at least one test.","warn");return;}
   const wb=XLSX.utils.book_new();
   const {subjects,tests,instName,passThreshold,absentAlert,dropAlert}=APP.setup;
-  /* SETUP tab */
+  /* SETUP tab — bold, shaded section-divider rows (INSTITUTION/CLASS/
+     SUBJECTS/TESTS) so the sheet reads like a form instead of a flat,
+     undifferentiated list of pairs. No literal header row is added here:
+     SETUP is parsed positionally on import (col A = label, col B = value,
+     see parseWorkbookSheets) so an extra "Field"/"Value" row would get
+     read back in as real (bogus) data instead of being recognized as a
+     header. */
   const setupRows=[["INSTITUTION",""],["Institution Name",instName],["Type",APP.setup.instType||""],["Location",APP.setup.location||""],["Contact",APP.setup.contact||""],["CLASS",""],["Class / Batch",APP.setup.className],["Section",APP.setup.section||""],["Academic Year",APP.setup.year],["Class Teacher",APP.setup.teacher||""],["SUBJECTS",""]];
   subjects.forEach((s,i)=>setupRows.push(["Subject "+(i+1),s]));
   setupRows.push(["TESTS",""]);
   tests.forEach((t,i)=>{setupRows.push(["Test "+(i+1)+" Name",t.name]);setupRows.push(["Test "+(i+1)+" Date",t.date||""]);subjects.forEach(s=>setupRows.push(["Max Marks - "+s+" (Test "+(i+1)+")",(t.maxMarks&&t.maxMarks[s])||100]));});
   setupRows.push(["Scoring Method",Object.keys(APP.setup.scoring).filter(k=>APP.setup.scoring[k]).join(", ")]);
   setupRows.push(["Pass Threshold %",passThreshold],["Absent Alert Days",absentAlert],["Sharp Drop Alert %",dropAlert]);
-  const wsSetup=XLSX.utils.aoa_to_sheet(setupRows);wsSetup["!cols"]=[{wch:34},{wch:28}];
+  const SECTION_LABELS=new Set(["INSTITUTION","CLASS","SUBJECTS","TESTS"]);
+  const wsSetup=XLSX.utils.aoa_to_sheet(setupRows);
+  wsSetup["!cols"]=[{wch:34},{wch:28}];
+  wsSetup["!rows"]=setupRows.map(()=>({hpt:20}));
+  // Freeze row 1 (the first "INSTITUTION" section row) so it stays
+  // visible as a visual anchor while scrolling through the long TESTS
+  // block further down.
+  wsSetup["!views"]=[{state:"frozen",ySplit:1,topLeftCell:"A2",activePane:"bottomLeft"}];
+  setupRows.forEach((row,r)=>{
+    const isSection=SECTION_LABELS.has(row[0]);
+    ["A","B"].forEach(col=>{
+      const addr=col+(r+1),cell=wsSetup[addr];if(!cell)return;
+      cell.s=isSection?TPL_STYLE.section:TPL_STYLE.label;
+    });
+  });
   XLSX.utils.book_append_sheet(wb,wsSetup,"SETUP");
-  /* STUDENTS tab */
-  const studHdr=["Student ID","Full Name","Gender","Date of Birth","Parent / Guardian Name","Parent Contact"];
-  const studRows=[studHdr];for(let i=1;i<=5;i++)studRows.push(["STU00"+i,"","","","",""]);
-  const wsStudents=XLSX.utils.aoa_to_sheet(studRows);wsStudents["!cols"]=[{wch:12},{wch:24},{wch:10},{wch:14},{wch:26},{wch:18}];
-  XLSX.utils.book_append_sheet(wb,wsStudents,"STUDENTS");
-  /* MARKS+CONTEXT tab */
-  const markHdr=["Student ID","Student Name"];
+  /* MARKS+CONTEXT tab — now also carries the roster fields (Full Name,
+     Gender) that used to live on a separate STUDENTS tab. Parent/Guardian
+     Name is intentionally dropped — no longer collected. Student ID/Full
+     Name/Gender (columns A-C) and the header row are frozen so they stay
+     in view while scrolling through the test columns to the right. */
+  const markHdr=["Student ID","Full Name","Gender"];
   tests.forEach(t=>{subjects.forEach(s=>markHdr.push(t.name+" - "+s+" Marks"));markHdr.push(t.name+" - Absent Days");markHdr.push(t.name+" - Remark");});
-  const markRows=[markHdr];for(let i=1;i<=5;i++)markRows.push(["STU00"+i,"",...Array(markHdr.length-2).fill("")]);
-  const wsMarks=XLSX.utils.aoa_to_sheet(markRows);wsMarks["!cols"]=markHdr.map((_,i)=>({wch:i<2?16:14}));
+  const markRows=[markHdr];for(let i=1;i<=5;i++)markRows.push(["STU00"+i,"","",...Array(markHdr.length-3).fill("")]);
+  const wsMarks=XLSX.utils.aoa_to_sheet(markRows);
+  wsMarks["!cols"]=markHdr.map((_,i)=>({wch:i<3?16:19}));
+  wsMarks["!rows"]=markRows.map((_,r)=>({hpt:r===0?60:20}));
+  // Freeze header row (ySplit:1) + first 3 columns (xSplit:3) so Student
+  // ID/Full Name/Gender don't scroll out of view — this is the "movement"
+  // fix: without a freeze pane, those columns and the header row scroll
+  // away exactly like any other cell once there are many test columns.
+  wsMarks["!views"]=[{state:"frozen",xSplit:3,ySplit:1,topLeftCell:colLetter(3)+"2",activePane:"bottomRight"}];
+  markHdr.forEach((_,c)=>{const addr=colLetter(c)+"1",cell=wsMarks[addr];if(cell)cell.s=TPL_STYLE.header;});
+  for(let r=1;r<markRows.length;r++)for(let c=0;c<3;c++){const addr=colLetter(c)+(r+1),cell=wsMarks[addr];if(cell)cell.s=TPL_STYLE.sample;}
   XLSX.utils.book_append_sheet(wb,wsMarks,"MARKS+CONTEXT");
   const fname=(instName+" "+APP.setup.className+" "+APP.setup.year).replace(/[^\w\s-]/g,"").replace(/\s+/g,"_")+".xlsx";
   XLSX.writeFile(wb,fname);toast("Template downloaded: "+fname,"success");unlockStep("data");
@@ -1614,20 +1675,34 @@ function handleHomeImport(input){
           <div style="margin-top:10px;font-size:12px;color:var(--c-text2)">${hasRequired?"Fix the required fields in your Excel SETUP tab and re-import.":"Warnings noted. Click below to continue."}</div>
           ${!hasRequired?`<button class="btn btn-primary btn-sm btn-glow" style="margin-top:10px" onclick="afterImportSuccess()">Continue to Analysis →</button>`:""}
           <button class="btn btn-secondary btn-sm" style="margin-top:10px;margin-left:8px" onclick="goStep('setup')">Edit Setup in App</button>
+          ${!hasRequired?`<div style="margin-top:10px;font-size:11px"><a href="#" onclick="resetHomeImport();return false" style="color:var(--c-text3)">↺ Not this file — start over / import a different one</a></div>`:""}
         </div>`;
         statusEl.style.display="block";
         scrollToEl(statusEl);
+        // Import is usable past this point (only non-blocking warnings) —
+        // hide "New Project" / "Import Excel" so a stray click doesn't
+        // silently discard the file just read, or send the user off to
+        // re-do Setup for data that's already loaded and ready.
+        if(!hasRequired)$("#home-paths-grid").hide();
         if(hasRequired)return;// stop here — required fields missing
       } else {
-        statusEl.innerHTML=`<div class="card" style="border-color:var(--c-success);background:#effaf8;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
-          <div>
-            <div style="color:var(--c-success);font-weight:800;font-size:15px;margin-bottom:3px">✓ Import successful</div>
-            <div style="font-size:12.5px;color:var(--c-text2)"><b>${esc(fileName)}</b> · ${Object.keys(APP.rawData).filter(k=>!k.startsWith("_arr_")).length} sheets read · Setup auto-loaded. You're ready to analyse.</div>
+        statusEl.innerHTML=`<div class="card" style="border-color:var(--c-success);background:#effaf8;padding:18px 20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
+            <div>
+              <div style="color:var(--c-success);font-weight:800;font-size:15px;margin-bottom:3px">✓ Import successful</div>
+              <div style="font-size:12.5px;color:var(--c-text2)"><b>${esc(fileName)}</b> · ${Object.keys(APP.rawData).filter(k=>!k.startsWith("_arr_")).length} sheets read · Setup auto-loaded. You're ready to analyse.</div>
+            </div>
+            <button class="btn btn-primary btn-glow" style="font-size:14px;padding:10px 22px;white-space:nowrap" onclick="afterImportSuccess()">🔬 Run Analysis →</button>
           </div>
-          <button class="btn btn-primary btn-glow" style="font-size:14px;padding:10px 22px;white-space:nowrap" onclick="afterImportSuccess()">🔬 Run Analysis →</button>
+          <div style="margin-top:10px;font-size:11px"><a href="#" onclick="resetHomeImport();return false" style="color:var(--c-text3)">↺ Wrong file? Start over / import a different one</a></div>
         </div>`;
         statusEl.style.display="block";
         scrollToEl(statusEl);
+        // Same reasoning as above: data is loaded and ready, so the two
+        // entry-path cards no longer apply — leaving them active invited
+        // an accidental click straight back into Setup or a re-import that
+        // silently threw away the file just successfully read.
+        $("#home-paths-grid").hide();
       }
     }catch(err){
       statusEl.innerHTML=`<div class="card" style="border-color:var(--c-danger)"><b style="color:var(--c-danger)">❌ Import failed:</b> ${esc(err.message)}<br><span style="font-size:11.5px;color:var(--c-text2)">Make sure the file is a valid .xlsx or .xls file.</span></div>`;
@@ -1639,7 +1714,9 @@ function handleHomeImport(input){
 }
 
 function afterImportSuccess(){
+  APP.dataIssues=[]; // reset from any prior session/import; real check happens once analysis runs
   unlockStep("data");unlockStep("ai");unlockStep("dashboard");unlockStep("export");
+  updateExportGate();
   $("#btn-data-continue").prop("disabled",false).removeAttr("title").css({opacity:1,cursor:"pointer"}).addClass("btn-glow");
   $("#data-loaded-card").show();$("#drop-zone").hide();
   goStep("ai");
@@ -1676,7 +1753,7 @@ function validateSetupData(){
 function renderHomePage(){
   // Always start fresh — stateless
   APP.setup={instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]};
-  APP.rawData=null;APP.students=[];APP.classStats=null;
+  APP.rawData=null;APP.students=[];APP.classStats=null;APP.genderAnalysis=null;
   // Reset stepper
   document.querySelectorAll(".step-item").forEach(el=>{el.classList.remove("active");el.classList.add("locked");});
   document.querySelector('.step-item[data-step="home"]')?.classList.remove("locked");
@@ -1689,6 +1766,15 @@ function renderHomePage(){
   // previous file so Home always starts blank — on refresh and whenever
   // the user navigates back here.
   $("#home-import-status").hide().empty();
+  // Reveal the two path cards (New Template / Import Existing) again —
+  // handleHomeImport() hides #home-paths-grid on a successful import, and
+  // without this they'd stay hidden forever, even after Home/refresh/logo.
+  $("#home-paths-grid").show();
+  // The header's session-name badge (e.g. "Apex IAS Academy") is only ever
+  // set when a setup/import loads (see line ~1854); Home resetting APP.setup
+  // above must also clear it here, or it keeps showing the previous
+  // institution's name after the user returns Home.
+  $("#session-name-badge").hide().text("");
 }
 
 /* ════ FILE UPLOAD (Step 2 drop-zone) ════ */
@@ -1707,10 +1793,22 @@ function parseWorkbook(data,ext,fname){
   const wb=ext==="csv"?XLSX.read(data,{type:"string"}):XLSX.read(new Uint8Array(data),{type:"array"});
   parseWorkbookSheets(wb);
   autoInferSetup();
-  const studSheet=APP.rawData["STUDENTS"]||[],markKey=Object.keys(APP.rawData).find(k=>k.includes("MARK"))||"",marksSheet=APP.rawData["MARKS+CONTEXT"]||APP.rawData["MARKS_CONTEXT"]||APP.rawData[markKey]||[];
+  const markKey=Object.keys(APP.rawData).find(k=>k.includes("MARK"))||"",marksSheet=APP.rawData["MARKS+CONTEXT"]||APP.rawData["MARKS_CONTEXT"]||APP.rawData[markKey]||[];
   $("#data-loaded-name").text("- "+fname);
-  $("#data-loaded-summary").html(`<b>${wb.SheetNames.length} tabs</b> loaded &nbsp;·&nbsp; <b>${studSheet.length}</b> students &nbsp;·&nbsp; <b>${marksSheet.length}</b> mark rows`);
-  $("#data-loaded-card").show();$("#drop-zone").hide();unlockStep("ai");saveSession();toast("File loaded.","success");
+  $("#data-loaded-summary").html(`<b>${wb.SheetNames.length} tabs</b> loaded &nbsp;·&nbsp; <b>${marksSheet.length}</b> student row(s)`);
+  $("#data-loaded-card").show();$("#drop-zone").hide();unlockStep("ai");saveSession();
+  // Backward compatibility: older templates (pre-merge) shipped a separate
+  // STUDENTS tab holding Full Name/Gender/etc, with MARKS+CONTEXT carrying
+  // only Student ID + Name. That sheet is no longer read directly by
+  // parseStudents() (see the fallback join added there instead), so let
+  // the teacher know their file still works but a newer, simpler template
+  // exists — rather than silently dropping Gender/roster data with no
+  // explanation, or blocking the upload outright.
+  if((APP.rawData["STUDENTS"]||[]).length){
+    toast("Older 3-tab file detected (with a separate STUDENTS tab) — it still works, but consider downloading the newer 2-tab template (Setup → Download Template) next time.","warn");
+  } else {
+    toast("File loaded.","success");
+  }
   $("#btn-data-continue").prop("disabled",false).removeAttr("title").css({opacity:1,cursor:"pointer"}).addClass("btn-glow");
 }
 function autoInferSetup(){
@@ -1855,7 +1953,8 @@ async function runAnalysis(){
   // over every student. Estimate the row count up front (before the heavier
   // parse/compute work below) and give the teacher a heads-up, since this
   // app's stated target environment is often lower-end classroom hardware.
-  const estStudentRows=(APP.rawData["STUDENTS"]||[]).length;
+  const _estMarkKey=Object.keys(APP.rawData).find(k=>k.includes("MARK"))||"";
+  const estStudentRows=(APP.rawData["MARKS+CONTEXT"]||APP.rawData["MARKS_CONTEXT"]||APP.rawData[_estMarkKey]||[]).length;
   if(estStudentRows>1500){
     if(!confirm(`This file looks like it has ${estStudentRows}+ student rows. Analysing a class this large may take a while and could freeze the tab on slower computers. Continue anyway?`))return;
   } else if(estStudentRows>300){
@@ -1876,22 +1975,21 @@ async function runAnalysis(){
     $("#ai-prog").css("width",pct+"%");$("#ai-prog-label").text(pct+"%");
     await sleep(280+Math.random()*220);
   }
-  parseStudents();computeAnalysis();
+  parseStudents();computeAnalysis();computeGenderAnalysis();
   $("#ai-loader").hide();
   $("#btn-analyse").prop("disabled",false).addClass("btn-glow");
   $("#panel-ai .phase-actionbar-btns .btn-secondary").prop("disabled",false).css("opacity",1);
   if(APP.students.length){unlockStep("dashboard");unlockStep("export");}
+  updateExportGate();
   saveSession();toast("Analysis complete - "+APP.students.length+" students processed.","success");goStep("dashboard");
 }
 function validateData(){
   const w=[];
   const markKey=Object.keys(APP.rawData).find(k=>k.includes("MARK"))||"";
   const marks=APP.rawData["MARKS+CONTEXT"]||APP.rawData["MARKS_CONTEXT"]||APP.rawData[markKey]||[];
-  const students=APP.rawData["STUDENTS"]||[];
-  // Trim + case-fold before comparing — a teacher typing "ASP001" in one
-  // tab and "asp001" in another is a very plausible slip, and treating
-  // them as different students both under-counts real duplicates and
-  // over-reports false "orphan" warnings for what's actually one student.
+  // Trim + case-fold before comparing — a teacher typing "ASP001" on one
+  // row and "asp001" on another is a very plausible slip, and treating
+  // them as different students under-counts real duplicates.
   const normId=v=>String(v||"").trim().toUpperCase();
   const ids=marks.map(r=>normId(r["Student ID"])).filter(Boolean);
   // Duplicate IDs
@@ -1899,9 +1997,9 @@ function validateData(){
   if(dups.length)w.push({e:1,m:"Duplicate Student IDs: "+dups.join(", ")});
   // No marks
   if(!ids.length)w.push({e:1,m:"No student rows found in MARKS+CONTEXT. Upload a filled Excel."});
-  // Students missing from STUDENTS tab
-  const stuIds=new Set(students.map(r=>normId(r["Student ID"]||r["ID"])));
-  if(stuIds.size){const orphans=ids.filter(id=>!stuIds.has(id));if(orphans.length)w.push({e:0,m:orphans.length+" student(s) in MARKS+CONTEXT not found in STUDENTS tab — student details will be limited."});}
+  // Rows missing a Full Name — roster details now live on this same sheet
+  const noName=marks.filter(r=>normId(r["Student ID"])&&!String(r["Full Name"]||"").trim()).length;
+  if(noName)w.push({e:0,m:noName+" row(s) have a Student ID but no Full Name filled in."});
   return w;
 }
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
@@ -1937,7 +2035,6 @@ function parseStudents(){
   const markKey=Object.keys(APP.rawData).find(k=>k.includes("MARK")&&k.includes("CONTEXT"))||Object.keys(APP.rawData).find(k=>k.includes("MARK"))||"";
   const markSheetName=APP.rawData["MARKS+CONTEXT"]?"MARKS+CONTEXT":(APP.rawData["MARKS_CONTEXT"]?"MARKS_CONTEXT":markKey);
   const markSheet=APP.rawData[markSheetName]||[];
-  const studentSheet=APP.rawData["STUDENTS"]||[];
 
   // ── Grouped-header detection (sample Excel: subjects repeat per test) ──
   // Object.keys() can never report the same header twice, so counting
@@ -1971,8 +2068,14 @@ function parseStudents(){
       const pv=raw?raw[posMap[testName][short]]:undefined;
       if(pv!==undefined&&pv!==null&&pv!==""){const n=parseFloat(String(pv).replace(/[^0-9.-]/g,""));return isNaN(n)?pv:n;}
     }
-  // Build key variants: hyphen, em dash, underscore separators
+  // Build key variants: hyphen, em dash, underscore separators. Subject
+  // mark columns in the template are named "<Test> - <Subject> Marks"
+  // (trailing " Marks") — that suffix variant has to be tried too, or
+  // every subject score in a freshly-downloaded template silently fails
+  // to match and gets treated as a blank cell.
   const keys=[
+    testName+" - "+short+" Marks",
+    testName+" — "+short+" Marks",
     testName+" - "+short,
     testName+" — "+short,
     testName+"-"+short,
@@ -2002,7 +2105,7 @@ function parseStudents(){
       const pv=raw?raw[posMap[testName][short]]:undefined;
       if(pv!==undefined&&pv!==null&&pv!=="")return pv;
     }
-    const keys=[testName+" - "+short,testName+" — "+short,testName+"-"+short,testName+"_"+short,full,short];
+    const keys=[testName+" - "+short+" Marks",testName+" — "+short+" Marks",testName+" - "+short,testName+" — "+short,testName+"-"+short,testName+"_"+short,full,short];
     for(const k of keys){
       if(k===undefined||k===null)continue;
       const kn=k.replace(/—/g,"-").replace(/[\n\r]/g," ").replace(/\s+/g," ").trim();
@@ -2011,26 +2114,37 @@ function parseStudents(){
     }
     return null;
   }
-  // Join key is normalized (trim + uppercase) so "ASP001" and "asp001"
-  // across the two sheets are correctly treated as the same student
-  // instead of silently becoming two separate, incomplete records. The
+  // Roster fields (Full Name, Gender, ...) now live directly on the
+  // MARKS+CONTEXT row for files built from the current (2-tab) template.
+  // BACKWARD COMPATIBILITY: older 3-tab files put these on a separate
+  // STUDENTS sheet instead — build a lookup from it (if present) purely
+  // as a fallback for whichever fields the MARKS+CONTEXT row is missing,
+  // so those files keep working instead of silently losing Gender/etc.
+  // Key is normalized (trim + uppercase) so "ASP001"/"asp001" match; the
   // originally-entered casing is preserved for display via .id below.
   const normId=v=>String(v||"").trim().toUpperCase();
-  const studentMap={};
-  studentSheet.forEach(r=>{
+  const legacyStudentSheet=APP.rawData["STUDENTS"]||[];
+  const legacyMap={};
+  legacyStudentSheet.forEach(r=>{
     const rawId=String(r["Student ID"]||r["ID"]||"").trim();
     const key=normId(rawId);
     const name=String(r["Full Name"]||r["Name"]||r["Student Name"]||"").trim();
     const skipWords=["excellent","good (","average (","below pass"];
     if((key||name)&&!skipWords.some(w=>name.toLowerCase().includes(w))&&!key.toLowerCase().startsWith("student"))
-      studentMap[key]={id:rawId,name,gender:r["Gender"]||"",dob:r["Date of Birth"]||"",
-        parent:r["Parent / Guardian Name"]||r["Parent Name"]||"",
+      legacyMap[key]={id:rawId,name,gender:r["Gender"]||"",dob:r["Date of Birth"]||"",
         contact:r["Parent Contact"]||r["Contact"]||"",address:r["Address"]||""};
   });
   const studentData={};
   markSheet.forEach(row=>{
-    const rawId=String(row["Student ID"]||"").trim();const key=normId(rawId);const nm=String(row["Student Name"]||row["Full Name"]||"").trim();
-    if(!key)return;if(!studentData[key])studentData[key]={id:(studentMap[key]&&studentMap[key].id)||rawId,name:nm||(studentMap[key]&&studentMap[key].name)||rawId,testData:{}};
+    const rawId=String(row["Student ID"]||"").trim();const key=normId(rawId);
+    const legacy=legacyMap[key];
+    const nm=String(row["Full Name"]||row["Student Name"]||row["Name"]||"").trim();
+    if(!key)return;
+    if(!studentData[key])studentData[key]={id:rawId,name:nm||(legacy&&legacy.name)||rawId,
+      gender:row["Gender"]||(legacy&&legacy.gender)||"",dob:row["Date of Birth"]||(legacy&&legacy.dob)||"",
+      contact:row["Parent Contact"]||row["Contact"]||(legacy&&legacy.contact)||"",
+      address:row["Address"]||(legacy&&legacy.address)||"",
+      testData:{}};
     tests.forEach(t=>{
       if(!studentData[key].testData[t.name])studentData[key].testData[t.name]={marks:{},absents:0,remark:""};
       subjects.forEach(s=>{
@@ -2071,7 +2185,6 @@ function parseStudents(){
       if(rm!==null&&rm!=="")studentData[key].testData[t.name].remark=String(rm);
     });
   });
-  Object.keys(studentMap).forEach(key=>{if(!studentData[key])studentData[key]={id:studentMap[key].id,name:studentMap[key].name,testData:{}};Object.assign(studentData[key],studentMap[key]);});
   APP.students=Object.values(studentData);
 }
 
@@ -2087,7 +2200,7 @@ function computeAnalysis(){
     tests.forEach((t)=>{
       const td=st.testData[t.name]||{marks:{},absents:0,remark:""};
       let total=0,maxTotal=0,scored=0;
-      subjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){const mv=parseFloat(m)||0;if(mv>mx)APP.dataIssues.push({studentId:st.id,studentName:st.name,test:t.name,subject:s,message:`entered ${mv}, exceeds max of ${mx} — will inflate this test's percentage`});total+=mv;maxTotal+=mx;scored++;}else maxTotal+=mx;});
+      subjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){const mv=parseFloat(m)||0;if(mv>mx)APP.dataIssues.push({studentId:st.id,studentName:st.name,test:t.name,subject:s,message:`entered ${mv}, exceeds max of ${mx} — will inflate this test's percentage`});total+=Math.min(mv,mx);maxTotal+=mx;scored++;}else maxTotal+=mx;});
       testAvgs.push(scored?Math.round((total/maxTotal)*100):null);
       if(scored){cumMarks+=total;cumMax+=maxTotal;}
     });
@@ -2109,7 +2222,7 @@ function computeAnalysis(){
     st.analysis.totalAbsent=totalAbsent;
     if(totalAbsent>=absentAlert)st.flags.push({type:"absent",label:"High Absence",color:"var(--c-purple)"});
     if(valid.length>=2){const mean=valid.reduce((a,b)=>a+b,0)/valid.length;const variance=valid.reduce((a,b)=>a+(b-mean)**2,0)/valid.length;if(Math.sqrt(variance)>15)st.flags.push({type:"volatile",label:"Volatile",color:"#3bc9db"});}
-    const subjectAvgs={};subjects.forEach(s=>{const vals=tests.map(t=>{const m=(st.testData[t.name]||{}).marks&&st.testData[t.name].marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;return m!==null&&m!==undefined&&m!==""?m/mx*100:null;}).filter(v=>v!==null);subjectAvgs[s]=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0;});
+    const subjectAvgs={};subjects.forEach(s=>{const vals=tests.map(t=>{const m=(st.testData[t.name]||{}).marks&&st.testData[t.name].marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;return m!==null&&m!==undefined&&m!==""?Math.min(100,m/mx*100):null;}).filter(v=>v!==null);subjectAvgs[s]=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0;});
     st.analysis.subjectAvgs=subjectAvgs;
     const sortedSubjs=Object.entries(subjectAvgs).sort((a,b)=>b[1]-a[1]);
     st.analysis.strongSubject=sortedSubjs[0]&&sortedSubjs[0][0];st.analysis.weakSubject=sortedSubjs[sortedSubjs.length-1]&&sortedSubjs[sortedSubjs.length-1][0];
@@ -2119,7 +2232,11 @@ function computeAnalysis(){
     if(valid.length>=2){const slope=(valid[valid.length-1]-valid[0])/(valid.length-1);st.analysis.predictedNext=Math.max(0,Math.min(100,Math.round(valid[valid.length-1]+slope)));}else st.analysis.predictedNext=null;
     // Extended AI features
     if(valid.length>=2){const mean=valid.reduce((a,b)=>a+b,0)/valid.length;const sd=Math.sqrt(valid.reduce((a,b)=>a+(b-mean)**2,0)/valid.length);st.analysis.consistencyScore=Math.max(0,Math.round(100-sd*2));}else st.analysis.consistencyScore=100;
-    st.analysis.growthRate=valid.length>=2?Math.round(((valid[valid.length-1]-valid[0])/Math.max(valid[0],1))*100):0;
+    // Relative growth (last vs first valid test) blows up when the starting
+    // score is near zero — e.g. 0% -> 50% computes as +5000%, which is
+    // technically "correct" as a ratio but meaningless/embarrassing on a
+    // report a parent reads. Clamp to a still-informative but sane range.
+    st.analysis.growthRate=valid.length>=2?Math.max(-300,Math.min(300,Math.round(((valid[valid.length-1]-valid[0])/Math.max(valid[0],1))*100))):0;
     st.analysis.cumulativeAvg=valid.length?Math.round(valid.reduce((a,b)=>a+b,0)/valid.length):0;
     // Burnout: was high (>70) then dropped
     const wasHigh=valid.length>=2&&valid[0]>=70;const nowLow=valid.length>=2&&valid[valid.length-1]<(valid[0]-15);st.analysis.burnoutRisk=wasHigh&&nowLow;
@@ -2195,7 +2312,7 @@ function computeAnalysis(){
 
 function computeClassStats(){
   const avgs=APP.students.map(st=>st.analysis.overallAvg).filter(v=>!isNaN(v)).sort((a,b)=>a-b);
-  if(!avgs.length)return{};
+  if(!avgs.length){APP.classStats={};return APP.classStats;}
   const n=avgs.length;
   const mean=Math.round(avgs.reduce((a,b)=>a+b,0)/n);
   const median=n%2===0?(avgs[n/2-1]+avgs[n/2])/2:avgs[Math.floor(n/2)];
@@ -2205,6 +2322,67 @@ function computeClassStats(){
   APP.classStats={mean,median,q1,q3,sd,n,healthAvg:hAvg,min:avgs[0],max:avgs[n-1],
     distribution:{excellent:avgs.filter(v=>v>=80).length,good:avgs.filter(v=>v>=60&&v<80).length,average:avgs.filter(v=>v>=35&&v<60).length,below:avgs.filter(v=>v<35).length}};
   return APP.classStats;
+}
+/* ════ GENDER-GAP ANALYSIS (school/institutional level only) ════
+   Wires up the "diversity_analysis" AI feature checkbox to real logic —
+   see the AI_FEATURES doc block above. This is deliberately a class/school
+   aggregate metric, never surfaced per-student: a single child's gender is
+   not a useful or appropriate thing to print on their own report, but
+   "are girls outperforming boys in Math this term?" is a legitimate,
+   commonly-asked question at the class/institution level.
+   MIN_GENDER_GROUP is a privacy floor, not just a statistics one — with
+   very small groups, an "average" is effectively naming an identifiable
+   student's score, which is exactly the kind of exposure a privacy-first
+   tool should avoid by default. */
+function normGender(raw){
+  const s=String(raw||"").trim().toLowerCase();
+  if(["m","male","boy","b"].includes(s))return "Male";
+  if(["f","female","girl","g"].includes(s))return "Female";
+  return null; // blank / "Other" / non-binary / typos — excluded from the
+               // binary comparison rather than guessed at
+}
+function computeGenderAnalysis(){
+  APP.genderAnalysis=null;
+  if(!APP.aiFeatures.has("diversity_analysis"))return null;
+  const MIN_GENDER_GROUP=3;
+  const {subjects,passThreshold}=APP.setup;
+  const groups={Male:[],Female:[]};
+  APP.students.forEach(st=>{const g=normGender(st.gender);if(g)groups[g].push(st);});
+  const eligible=Object.entries(groups).filter(([,arr])=>arr.length>=MIN_GENDER_GROUP);
+  if(eligible.length<2){
+    APP.genderAnalysis={available:false,
+      reason:!Object.values(groups).some(a=>a.length)?"No Gender column found — add one to the MARKS+CONTEXT tab to enable this.":
+        "Not enough students with a recognised Gender value in at least two groups (need "+MIN_GENDER_GROUP+"+ each) to report a meaningful comparison."};
+    return APP.genderAnalysis;
+  }
+  const stats={};
+  eligible.forEach(([label,arr])=>{
+    const avg=Math.round(arr.reduce((a,st)=>a+(st.analysis.overallAvg||0),0)/arr.length);
+    const passRate=Math.round(arr.filter(st=>(st.analysis.overallAvg||0)>=passThreshold).length/arr.length*100);
+    const subjectAvgs={};
+    subjects.forEach(s=>{
+      const vals=arr.map(st=>st.analysis.subjectAvgs&&st.analysis.subjectAvgs[s]).filter(v=>v!=null&&!isNaN(v));
+      subjectAvgs[s]=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0;
+    });
+    stats[label]={count:arr.length,avg,passRate,subjectAvgs};
+  });
+  const result={available:true,groups:stats};
+  const labels=Object.keys(stats);
+  if(labels.length===2){
+    const [a,b]=labels;
+    const diff=stats[a].avg-stats[b].avg;
+    result.leadGroup=diff===0?null:(diff>0?a:b);
+    result.overallGap=Math.abs(diff);
+    let maxGapSubject=null,maxGap=-1;
+    subjects.forEach(s=>{
+      const d=Math.abs((stats[a].subjectAvgs[s]||0)-(stats[b].subjectAvgs[s]||0));
+      if(d>maxGap){maxGap=d;maxGapSubject=s;}
+    });
+    result.maxGapSubject=maxGapSubject;result.maxGapValue=maxGap;
+    result.maxGapLead=maxGapSubject&&(stats[a].subjectAvgs[maxGapSubject]>=stats[b].subjectAvgs[maxGapSubject]?a:b);
+  }
+  APP.genderAnalysis=result;
+  return result;
 }
 function generateStrengthsLetter(st){
   const a=st.analysis,name=st.name.split(" ")[0];
@@ -2235,15 +2413,30 @@ function renderDataIssueBanner(){
   const el=document.getElementById("data-issue-banner");
   if(!el)return;
   if(!issues.length){el.style.display="none";return;}
-  const rows=issues.slice(0,8).map(i=>`${esc(i.studentName)} — ${esc(i.subject)} (${esc(i.test)}): ${esc(i.message)}`).join("<br>");
-  const more=issues.length>8?`<br>+${issues.length-8} more`:"";
-  el.innerHTML=`<b>⚠ Data quality issue${issues.length>1?"s":""} found (${issues.length}):</b> some mark cells couldn't be trusted as-is — see below. Please correct the source sheet and re-import.<br>${rows}${more}`;
+  const rows=issues.map(i=>`${esc(i.studentName)} — ${esc(i.subject)} (${esc(i.test)}): ${esc(i.message)}`).join("<br>");
+  el.innerHTML=`<b>⚠ Data quality issue${issues.length>1?"s":""} found (${issues.length}):</b> some mark cells couldn't be trusted as-is — see below. Please correct the source sheet and re-import. Export is disabled until these are fixed.<div style="max-height:220px;overflow-y:auto;margin-top:8px;padding-right:6px;border-top:1px solid #f5c6c1">${rows}</div>`;
   el.style.display="block";
 }
 function renderDashboard(){
   const s=APP.setup;$("#db-class-label").text([s.instName,s.className,s.section,s.year,s.teacher].filter(Boolean).join(" · "));
   renderDataIssueBanner();
+  updateExportGate();
   renderKPIs();renderStudentCards();renderHeatmap();renderCharts();renderWellbeingPanel();renderFlagsTable();
+}
+// Export must never be reachable while APP.dataIssues has entries — those are
+// mark cells that exceed a subject's max marks and silently inflate that
+// student's percentage. Re-checked on every dashboard render and right after
+// analysis, since dataIssues is only known once computeAnalysis() has run.
+function updateExportGate(){
+  const hasIssues=(APP.dataIssues||[]).length>0;
+  const reason="Fix the data quality issues shown on the Dashboard, then re-import, before exporting.";
+  $("#btn-generate-pdfs").prop("disabled",hasIssues).css({opacity:hasIssues?.45:1,cursor:hasIssues?"not-allowed":"pointer"}).attr("title",hasIssues?reason:"");
+  $("#btn-goto-export-dash").prop("disabled",hasIssues).css({opacity:hasIssues?.45:1,cursor:hasIssues?"not-allowed":"pointer"}).attr("title",hasIssues?reason:"");
+  const exportTab=document.querySelector('[data-step="export"]');
+  if(exportTab){
+    if(hasIssues){exportTab.classList.add("locked");exportTab.setAttribute("title",reason);}
+    else{exportTab.classList.remove("locked");exportTab.removeAttribute("title");}
+  }
 }
 function renderKPIs(){
   const sts=APP.students,n=sts.length;if(!n)return;
@@ -2416,6 +2609,7 @@ function dbTabKeyNav(e,el){
 
 async function generateAllPDFs(){
   if(!APP.students.length){toast("No students to export.","warn");return;}
+  if((APP.dataIssues||[]).length){toast("Fix the "+APP.dataIssues.length+" data quality issue(s) on the Dashboard before exporting.","warn");goStep("dashboard");return;}
   const doS=$("#exp-student").is(":checked"),doT=$("#exp-teacher").is(":checked"),doM=$("#exp-mgmt").is(":checked"),doZ=$("#exp-zip").is(":checked");
   if(!doS&&!doT&&!doM){toast("Select at least one report type to export.","warn");return;}
   const {jsPDF}=window.jspdf;
@@ -2862,6 +3056,44 @@ function buildMgmtPDF(doc){
     y+=8;
   }
   y+=4;
+
+  // ── GENDER PERFORMANCE ANALYSIS (school-level only; diversity_analysis
+  // AI feature) — never shown on the per-student PDF, see computeGenderAnalysis()
+  if(APP.genderAnalysis){
+    const ga=APP.genderAnalysis;
+    if(ga.available&&y<230){
+      const labels=Object.keys(ga.groups);
+      const narrative=ga.leadGroup?
+        (ga.leadGroup==="Female"?"Girls":"Boys")+" are outperforming "+(ga.leadGroup==="Female"?"boys":"girls")+" overall by "+ga.overallGap+" point"+(ga.overallGap===1?"":"s")+" this term."+
+        (ga.maxGapSubject?" The gap is largest in "+ga.maxGapSubject+" ("+ga.maxGapValue+" pts, led by "+(ga.maxGapLead==="Female"?"girls":"boys")+").":"")
+        :"Overall performance is essentially even between the two groups this term.";
+      doc.setFont("helvetica","normal");doc.setFontSize(8);
+      const lines=doc.splitTextToSize(narrative,W-28);
+      const panelH=20;
+      const bh=10+panelH+lines.length*4.2+6;
+      doc.setFillColor(245,240,251);doc.setDrawColor(123,94,167);doc.roundedRect(8,y,W-16,bh,2,2,"FD");
+      doc.setFillColor(123,94,167);doc.rect(8,y,3,bh,"F");
+      doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(123,94,167);doc.text("Gender Performance Analysis",14,y+6);
+      const panelW=(W-32)/2;
+      labels.forEach((label,i)=>{
+        const g=ga.groups[label];
+        const px=14+i*(panelW+4),py=y+10;
+        const pc=label==="Female"?[199,69,150]:[52,120,201];
+        doc.setFillColor(255,255,255);doc.setDrawColor(...pc);doc.roundedRect(px,py,panelW,panelH,1,1,"FD");
+        doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...pc);doc.text(label+" ("+g.count+")",px+4,py+6);
+        doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(40,40,40);doc.text(g.avg+"%",px+4,py+13.5);
+        doc.setFont("helvetica","normal");doc.setFontSize(6.5);doc.setTextColor(120,120,120);doc.text("Pass rate: "+g.passRate+"%",px+4,py+18);
+      });
+      doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.setTextColor(60,60,60);doc.text(lines,14,y+10+panelH+5);
+      y+=bh+5;
+    }else if(!ga.available&&y<270){
+      const lines=doc.splitTextToSize("Gender Performance Analysis: "+ga.reason,W-28);
+      const bh=lines.length*4+7;
+      doc.setFillColor(248,249,255);doc.setDrawColor(210,210,225);doc.roundedRect(8,y,W-16,bh,2,2,"FD");
+      doc.setFont("helvetica","italic");doc.setFontSize(7);doc.setTextColor(130,130,150);doc.text(lines,12,y+5);
+      y+=bh+4;
+    }
+  }
 
   // ── RECOMMENDATION BOX ──
   if(y<265){
