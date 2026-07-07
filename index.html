@@ -28,7 +28,7 @@
 -->
 <!--
 ════════════════════════════════════════════════════════════════════════
- STUDENT INSIGHT — PROJECT INTELLIGENCE BLOCK (PIB)                v1.2
+ STUDENT INSIGHT — PROJECT INTELLIGENCE BLOCK (PIB)                v1.3
  (Master index — update this block on every version bump, per the same
  convention used in Spend-na's index.html)
 ════════════════════════════════════════════════════════════════════════
@@ -113,7 +113,12 @@
 
    Per-student record shape (built in parseStudents(), extended heavily
    in computeAnalysis() — search "function computeAnalysis"):
-     { id, name, gender?, dob?, parent?, contact?, address?,
+     { id, name, gender?, dob?, contact?, address?,   // dob/contact/address
+                   // are LEGACY-IMPORT fields only — read from old
+                   // workbooks that still have those columns for
+                   // backward compatibility, but the current
+                   // generateTemplate() no longer generates them (removed
+                   // along with the "parent" field entirely — see §16A).
        testData: { [testName]: { marks:{ [subject]: number }, absents, remark } },
        analysis: { overallAvg, testAvgs:[...], grade, trend,
                    percentile, rank, topperGap,
@@ -444,6 +449,160 @@
     model), or trades away the "every number is a formula, not an LLM
     guess" explainability the app is positioned on.
 
+16. UPDATE EXISTING SHEET — ADD A NEW TEST WITHOUT LOSING OLD DATA (v1.3)
+    THE PROBLEM: generateTemplate() (§5) always builds a brand-new workbook
+    with 5 blank sample rows — it has no memory of a previously-filled
+    file. Before this feature, adding Test 2 meant re-clicking "Download
+    Template" after adding the test in Setup, which silently produced a
+    fresh empty file and discarded all Test 1 marks. This section is the
+    fix — an additive merge path, not a change to generateTemplate()'s
+    fresh-build behavior (still used whenever mergeMode is off).
+
+    UI: a green card on the Setup step ("Already filled Test 1? Add Test 2
+    / Test 3 to it here", #update-sheet-card, ~line 975) with a
+    "📤 Load Existing Filled Sheet" button.
+
+    FLOW:
+      1. handleUpdateUpload(input) (~line 1799) reads the picked file via
+         FileReader, delegates to loadMergeSourceFromArrayBuffer() (kept
+         separate from the FileReader glue specifically so it's callable
+         directly in tests without a real browser file input — see §16B).
+      2. loadMergeSourceFromArrayBuffer(buf,fileName) (~line 1813):
+         - Parses the file's real MARKS+CONTEXT rows VERBATIM — raw cell
+           values via parseWorkbookSheets()'s _arr_ capture, deliberately
+           NOT through parseStudents(), so nothing is reinterpreted before
+           being written back out.
+         - Rejects (returns false, toasts, does NOT enter merge mode) if:
+           no MARKS+CONTEXT tab found; tab has no "Student ID" column
+           (not a Student Insight sheet); header exists but zero real
+           data rows.
+         - Detects duplicate Student IDs up front (dupeIds) — surfaced as
+           a warning, not silently deduped.
+         - Captures origTestNames by reading each "<Test> - Absent Days"
+           column (appears exactly once per test — the one reliable
+           per-test marker, unlike the per-subject Marks columns) and
+           origSubjects (the subject list at load time) — both used later
+           to warn about drift between the loaded file and the Setup form.
+         - Calls autoInferSetup() (§5) to fill the Setup form from the
+           file's own SETUP tab, then sets APP.mergeMode=true and
+           APP.mergeSource={header,rows,origTestNames,origSubjects,dupeIds}.
+      3. Teacher clicks "✚ Add Test" (normal Setup flow, unchanged) for
+         Test 2 (or several new tests at once — supported, see §16B "P2").
+      4. Teacher clicks the button (now relabelled "🔁 Update & Download")
+         — same #btn-download-template element, generateTemplate() (§5)
+         checks `if(APP.mergeMode&&APP.mergeSource)` and branches to
+         generateMergedTemplate() instead of its normal fresh-build path.
+      5. generateMergedTemplate() (~line 1874):
+         - origHasTest(name): a test counts as "already in the file" if
+           its "<name> - " (or em-dash "<name> — ") prefix is already
+           present in the loaded header — tolerant of the em-dash variant
+           some hand-edited files use.
+         - newTests = tests NOT already in the file. If empty → blocked
+           with a toast ("add the new test's name first"), nothing staged.
+         - missingOrigTests: origTestNames no longer present in the
+           current Setup form (e.g. the Test 1 row was accidentally
+           deleted) — flagged as a warning in the confirm modal, but NOT
+           blocking, because the merge is additive-only against the
+           ORIGINAL header regardless of what's currently in the form —
+           Test 1's columns/marks are preserved either way.
+         - subjectsChanged: current subjects vs origSubjects differ
+           (case/order-insensitive compare) — flagged as a warning; the
+           new test's columns use the CURRENT subject list, old tests'
+           columns are never retroactively touched.
+         - Builds appendHeader (new test's Marks/Absent Days/Remark
+           columns only) and appends it to the ORIGINAL header untouched;
+           appends a matching blank tail to every original data row.
+         - INTEGRITY SELF-CHECK, before anything is staged for writing:
+           row count unchanged, every row's length matches the new full
+           header length, and every original cell (columns 0..origHeader
+           .length-1) in every row is byte-identical to the loaded source
+           — if ANY of this fails, aborts with a toast ("Update aborted —
+           integrity check failed: ...") and does not proceed. This is
+           what actually makes "the merge can't corrupt old data" a
+           checked invariant rather than an assumption.
+         - Does NOT call XLSX.writeFile here — stages the built workbook +
+           computed diff stats into APP._pendingMerge and calls
+           renderMergeConfirmModal().
+      6. renderMergeConfirmModal() (~line 1933): shows rows in→out,
+         columns in→out, the exact list of new column headers being
+         added, any of the warnings above, and the (timestamped) filename
+         — reusing the existing #modal-overlay/.kpi-card/.grid-2 CSS,
+         no new styles added. Nothing has downloaded yet at this point.
+      7. confirmMergedDownload() (~line 1958): the ONLY place that calls
+         XLSX.writeFile for this flow — writes
+         "<Inst>_<Class>_<Year>_UPDATED_<timestampTag()>.xlsx" (yyyyMMdd_
+         HHmm, local time — collision-proof so repeated updates, e.g. Test
+         2 today and Test 3 next month, never overwrite each other or get
+         silently "(1)"-renamed by the browser's download manager), toasts
+         success, unlocks Step 2, then resets APP.mergeMode/mergeSource/
+         _pendingMerge and the button/banner labels back to fresh-template
+         state.
+      cancelMergeMode() (~line 1855): the banner's "Cancel — start a fresh
+      template instead" link — fully resets merge state so generateTemplate()
+      goes back to its normal fresh-5-sample-row behavior (verified in
+      §16B test N10).
+
+    WHY THE ORIGINAL FILE CAN NEVER BE AT RISK (mechanical, not a design
+    promise): browsers give JS no API to write back to a file on disk —
+    FileReader only ever reads a COPY into memory, and XLSX.writeFile()
+    always triggers a NEW download, never an overwrite. This is a browser
+    sandbox restriction, so "the original gets corrupted" isn't something
+    app logic could cause even with a bug — the only real risk surface is
+    the NEW file coming out wrong, which is what §16's integrity check and
+    confirm-before-download step exist to catch.
+
+    KNOWN LIMITATION (deliberately out of scope, not yet built): adding a
+    NEW SUBJECT at the same time as a new test — columns would misalign.
+    If ever requested, needs its own merge path rather than extending this
+    one naively.
+
+16A. PARENT FIELD CLEANUP (v1.3)
+    The exported student PDF (buildStudentPDF, ~line 3215) used to print
+    "ID: <id> · Parent: —" in the header — always a bare dash, since the
+    "parent" field was never actually populated anywhere in the codebase
+    (Parent Contact/Address/DOB were removed from the template earlier;
+    "parent" specifically was never even a real column). Changed to plain
+    "Student ID: <id>". NOT the same thing as the "💬 Parent Summary" card
+    further down the same report (generateParentSummary(), ~line 2904) —
+    that's a real, populated, AI-generated plain-language narrative FOR
+    parents to read, and was intentionally left alone.
+
+16B. TEST HARNESS FOR THE MERGE FEATURE (lives OUTSIDE this file — not
+    shipped, throwaway scaffolding, rebuild it if you touch §16's
+    functions rather than trusting a code read)
+    Stack: jsdom + real `jquery` + real `xlsx-js-style` (the actual CDN
+    library, via npm). The app's own JS (the script block) is extracted from this
+    file verbatim and eval()'d into a jsdom window — tests run the REAL
+    app code, not a reimplementation of its logic.
+    Gotcha worth remembering if rebuilding this: top-level `const APP=...`
+    is a global LEXICAL binding, not a `window` property (per spec) — and
+    jsdom's window.eval() does NOT share lexical scope across SEPARATE
+    eval() calls, so `window.eval(appSrc); window.eval("window.APP=APP")`
+    fails with "APP is not defined". Fix: concatenate and eval in ONE call
+    — `window.eval(appSrc + "\nwindow.APP = APP;\n")`.
+    XLSX.writeFile is monkey-patched in the TEST ENV ONLY to capture the
+    workbook object instead of attempting a real browser download (jsdom
+    doesn't implement that pipeline, and workbook CONTENT is what matters
+    for correctness, not OS-level download mechanics).
+    16 scenarios, all passing as of v1.3:
+      Positive: basic merge (Test1→Test2, byte-for-byte data check), two
+      new tests in one pass, em-dash header variant not double-counted as
+      new, chained multi-round merges (Test1→Test2 round, then →Test3
+      round, verifying BOTH prior tests survive), unicode names preserved,
+      timestamped filenames.
+      Negative: garbage/non-Excel input (rejected gracefully, no crash —
+      SheetJS reads plain text as a harmless 1-cell sheet, so this is a
+      "doesn't match MARKS+CONTEXT" rejection, not a thrown error — the
+      test asserts on mergeMode staying false either way, not on a throw),
+      missing MARKS+CONTEXT tab, header-only/zero-row sheet, no-op update
+      (no new test added — blocked), duplicate Student IDs (flagged, not
+      silently deduped), a test's form-row deleted (old columns/data
+      confirmed still preserved in output anyway, with a warning),
+      subjects changed after load (flagged; old test columns confirmed
+      untouched), a genuine row/header-length mismatch (integrity check
+      confirmed to abort BEFORE writing, not after), and cancelMergeMode()
+      restoring normal fresh-template behavior.
+
 14. THINGS TO CHECK BEFORE MODIFYING
     - Changing APP.setup/APP.students shape? Update BOTH reset sites
       (startNewSession() and the goStep('home') reset in renderHomePage()
@@ -467,9 +626,29 @@
       explicit, deliberate product decision to abandon the stateless
       privacy model (§1) — this is a core stated feature, not an
       omission.
+    - Touching generateMergedTemplate/loadMergeSourceFromArrayBuffer/
+      generateTemplate/buildSetupSheet (§16)? Rebuild the jsdom test
+      harness (§16B) and rerun it — don't trust a code read alone, the
+      integrity-check/no-corruption guarantee is exactly the kind of
+      thing that's easy to silently break with an innocuous-looking edit.
 
 15. CHANGELOG
-    v1.2 (this session) — 7 new generic, institution-agnostic analytics
+    v1.3 (this session) — "Update Existing Sheet" merge feature (§16) +
+      cleanup:
+        a. New Setup-step flow to add Test 2/Test 3 onto an already-filled
+           workbook without discarding prior marks (previously impossible
+           — "Download Template" always built a fresh, blank workbook).
+           Includes a pre-download confirmation modal (rows/columns
+           in→out, exact new-column list, drift warnings), timestamped
+           filenames, and an integrity self-check that aborts before
+           writing if anything doesn't line up.
+        b. Removed the always-blank "Parent: —" line from the exported
+           student PDF header (§16A) — the "parent" field was never
+           actually populated by any code path.
+        c. Verified via a from-scratch jsdom test harness running the
+           REAL app code (§16B) — 16 positive/negative scenarios, all
+           passing.
+    v1.2 — 7 new generic, institution-agnostic analytics
       add-ons, all built on existing data columns (no new Excel fields),
       all additive (no existing rendering, calculation, or PDF code
       removed or restructured) — see §7A for full detail on each:
@@ -959,6 +1138,27 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
       <button class="btn btn-primary btn-sm" id="btn-setup-continue-analysis" onclick="afterImportSuccess()" style="display:none">Continue to Analysis →</button>
     </div>
   </div>
+
+  <!-- UPDATE-EXISTING-SHEET (add a new test without losing prior marks) -->
+  <div class="card" id="update-sheet-card" style="border-color:var(--c-success);background:#f4fbf7">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:20px">🔁</div>
+        <div>
+          <div style="font-weight:700;font-size:13.5px">Already filled Test 1? Add Test 2 / Test 3 to it here</div>
+          <div style="font-size:11.5px;color:var(--c-text2)">Load your existing filled workbook, add the new test below, then re-download — your existing marks are kept, only new blank columns are added.</div>
+        </div>
+      </div>
+      <div>
+        <input type="file" id="update-sheet-input" accept=".xlsx,.xls" style="display:none" onchange="handleUpdateUpload(this)"/>
+        <button class="btn btn-success btn-sm" id="btn-load-existing" onclick="document.getElementById('update-sheet-input').click()">📤 Load Existing Filled Sheet</button>
+      </div>
+    </div>
+    <div id="merge-banner" style="display:none;margin-top:12px;padding:10px 14px;background:#e6f7ee;border-radius:var(--r-sm);font-size:12px;color:#1a7a4c">
+      <div id="merge-banner-text"></div>
+      <div style="margin-top:6px"><a href="#" onclick="cancelMergeMode();return false;" style="color:#1a7a4c;text-decoration:underline">Cancel — start a fresh template instead</a></div>
+    </div>
+  </div>
   <div class="grid-2" style="margin-bottom:14px">
     <div class="card" style="padding:14px 16px">
       <div class="card-title"><span class="icon">🏫</span> Institution</div>
@@ -1317,6 +1517,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
         <p>Traditional systems store information inside databases. Student Insight stores knowledge inside educator-owned project files.</p>
         <p>The application can always reconstruct the complete working environment from those files.</p>
         <p>Nothing important depends on browser memory. Nothing important depends on server storage.</p>
+        <p>This carries through the whole academic year, not just a single test. As Test 2 and Test 3 come in, the same file grows to hold them — the Setup step can load an already-filled sheet and add the next test's columns onto it directly, so nothing already recorded is ever re-entered or discarded along the way.</p>
         <p><strong>Your project remains portable, transparent, and future-proof.</strong></p>
       </div>
     </div>
@@ -1550,7 +1751,16 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
 <script>
 
 /* ════ APP STATE ════ */
-const APP={setup:{instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]},rawData:null,students:[],classStats:null,genderAnalysis:null,filter:"all",sort:"rank",aiFeatures:new Set()};
+const APP={setup:{instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]},rawData:null,students:[],classStats:null,genderAnalysis:null,filter:"all",sort:"rank",aiFeatures:new Set(),
+  // mergeSource holds the already-filled MARKS+CONTEXT sheet (header row +
+  // real student rows, as plain arrays) when the teacher loads an existing
+  // workbook via "Update Existing Sheet" on the Setup step. When set,
+  // generateTemplate() appends new-test columns onto these exact rows
+  // instead of building a fresh 5-sample-row workbook — see
+  // generateMergedTemplate() for why this exists: the plain "Download
+  // Template" button always regenerates from scratch and has no way to
+  // know a previous file's marks should be preserved.
+  mergeMode:false,mergeSource:null,_pendingMerge:null};
 let _charts={},subjectCount=0,testCount=0,_unsaved=false;
 
 /* ════ NAV ════ */
@@ -1570,6 +1780,8 @@ function startNewSession(){
   /* "New Project" — reset everything, go to Setup form */
   APP.setup={instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]};
   APP.students=[];APP.rawData=null;APP.classStats=null;APP.genderAnalysis=null;subjectCount=0;testCount=0;
+  APP.mergeMode=false;APP.mergeSource=null;$("#merge-banner").hide();
+  $("#btn-download-template").text("⬇ Download Template");$("#btn-load-existing").text("📤 Load Existing Filled Sheet");
   $("#subjects-list").empty();$("#tests-list").empty();
   $("#session-name-badge").hide().text("");
   unlockStep("setup");goStep("setup");
@@ -1693,20 +1905,12 @@ const TPL_STYLE={
   sample:{font:{color:{rgb:"888888"},italic:true},alignment:{vertical:"center"}}
 };
 function colLetter(n){let s="";n++;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
-function generateTemplate(){
-  collectSetupForm();
-  if(!APP.setup.instName){toast("Fill Institution Name first.","warn");return;}
-  if(!APP.setup.subjects.length){toast("Add at least one subject.","warn");return;}
-  if(!APP.setup.tests.length){toast("Add at least one test.","warn");return;}
-  const wb=XLSX.utils.book_new();
+/* Shared by generateTemplate() (fresh workbook) and generateMergedTemplate()
+   (existing workbook + new test columns) — both need the exact same SETUP
+   tab, built from whatever's currently in APP.setup, so there's a single
+   place that defines what that tab looks like. */
+function buildSetupSheet(){
   const {subjects,tests,instName,passThreshold,absentAlert,dropAlert}=APP.setup;
-  /* SETUP tab — bold, shaded section-divider rows (INSTITUTION/CLASS/
-     SUBJECTS/TESTS) so the sheet reads like a form instead of a flat,
-     undifferentiated list of pairs. No literal header row is added here:
-     SETUP is parsed positionally on import (col A = label, col B = value,
-     see parseWorkbookSheets) so an extra "Field"/"Value" row would get
-     read back in as real (bogus) data instead of being recognized as a
-     header. */
   const setupRows=[["INSTITUTION",""],["Institution Name",instName],["Type",APP.setup.instType||""],["Location",APP.setup.location||""],["Contact",APP.setup.contact||""],["CLASS",""],["Class / Batch",APP.setup.className],["Section",APP.setup.section||""],["Academic Year",APP.setup.year],["Class Teacher",APP.setup.teacher||""],["SUBJECTS",""]];
   subjects.forEach((s,i)=>setupRows.push(["Subject "+(i+1),s]));
   setupRows.push(["TESTS",""]);
@@ -1717,9 +1921,6 @@ function generateTemplate(){
   const wsSetup=XLSX.utils.aoa_to_sheet(setupRows);
   wsSetup["!cols"]=[{wch:34},{wch:28}];
   wsSetup["!rows"]=setupRows.map(()=>({hpt:20}));
-  // Freeze row 1 (the first "INSTITUTION" section row) so it stays
-  // visible as a visual anchor while scrolling through the long TESTS
-  // block further down.
   wsSetup["!views"]=[{state:"frozen",ySplit:1,topLeftCell:"A2",activePane:"bottomLeft"}];
   setupRows.forEach((row,r)=>{
     const isSection=SECTION_LABELS.has(row[0]);
@@ -1728,7 +1929,20 @@ function generateTemplate(){
       cell.s=isSection?TPL_STYLE.section:TPL_STYLE.label;
     });
   });
-  XLSX.utils.book_append_sheet(wb,wsSetup,"SETUP");
+  return wsSetup;
+}
+function generateTemplate(){
+  collectSetupForm();
+  if(!APP.setup.instName){toast("Fill Institution Name first.","warn");return;}
+  if(!APP.setup.subjects.length){toast("Add at least one subject.","warn");return;}
+  if(!APP.setup.tests.length){toast("Add at least one test.","warn");return;}
+  // If a previously-filled workbook was loaded via "Update Existing Sheet",
+  // append new-test columns onto its real rows instead of building a fresh
+  // 5-sample-row workbook that would silently discard those marks.
+  if(APP.mergeMode&&APP.mergeSource){generateMergedTemplate();return;}
+  const wb=XLSX.utils.book_new();
+  const {subjects,tests,instName}=APP.setup;
+  XLSX.utils.book_append_sheet(wb,buildSetupSheet(),"SETUP");
   /* MARKS+CONTEXT tab — now also carries the roster fields (Full Name,
      Gender) that used to live on a separate STUDENTS tab. Parent/Guardian
      Name is intentionally dropped — no longer collected. Student ID/Full
@@ -1752,6 +1966,190 @@ function generateTemplate(){
   XLSX.writeFile(wb,fname);toast("Template downloaded: "+fname,"success");unlockStep("data");
   $("#btn-download-template").removeClass("btn-glow");
   $("#btn-setup-next").addClass("btn-glow");
+}
+
+/* ════ UPDATE EXISTING SHEET (add a new test, keep old marks) ════
+   Loads an already-filled workbook (e.g. the one with Test 1 marks in it),
+   reads its real MARKS+CONTEXT rows verbatim (not through parseStudents —
+   we want the untouched cell values, including formatting quirks, so nothing
+   is silently reinterpreted), and auto-fills the Setup form from its SETUP
+   tab so the teacher only has to click "Add Test" for the new one(s) before
+   re-downloading. See generateMergedTemplate() for the actual merge, and
+   confirmMergedDownload() for the pre-download safety check. */
+function handleUpdateUpload(input){
+  const file=input.files[0];if(!file)return;
+  const fileErr=validateUploadFile(file,["xlsx","xls"]);
+  if(fileErr){toast(fileErr,"error");input.value="";return;}
+  const r=new FileReader();
+  r.onload=e=>{
+    try{loadMergeSourceFromArrayBuffer(e.target.result,file.name);}
+    catch(err){toast("Error reading file: "+err.message,"error");}
+    input.value="";
+  };
+  r.readAsArrayBuffer(file);
+}
+// Split out from handleUpdateUpload so the parsing/validation logic can be
+// exercised directly in tests without needing a real browser FileReader.
+function loadMergeSourceFromArrayBuffer(arrayBuffer,fileName){
+  const wb=XLSX.read(new Uint8Array(arrayBuffer),{type:"array"});
+  parseWorkbookSheets(wb);
+  const markKey=Object.keys(APP.rawData).find(k=>k.includes("MARK")&&k.includes("CONTEXT"))||Object.keys(APP.rawData).find(k=>k.includes("MARK"));
+  const rawArr=markKey?APP.rawData["_arr_"+markKey]:null;
+  if(!rawArr||!rawArr.length){toast("Couldn't find a MARKS+CONTEXT tab in that file.","error");return false;}
+  const header=(rawArr[0]||[]).map(h=>h===null||h===undefined?"":String(h).trim());
+  if(!header.some(h=>h==="Student ID")){toast("That file's MARKS+CONTEXT tab doesn't look like a Student Insight sheet (no 'Student ID' column found) — can't safely merge into it.","error");return false;}
+  // Keep only real data rows (skip any fully-blank trailing rows), and
+  // pad/trim every row to the header's width so appended columns line
+  // up correctly even if a row was short a trailing blank cell or two.
+  const dataRows=rawArr.slice(1)
+    .filter(row=>row&&row.some(v=>v!==null&&v!==undefined&&v!==""))
+    .map(row=>header.map((_,i)=>{const v=row[i];return v===null||v===undefined?"":v;}));
+  if(!dataRows.length){toast("That sheet has a header but no student rows yet — nothing to preserve. Use a fresh Download Template instead.","warn");return false;}
+  // Duplicate-ID check up front — two rows sharing a Student ID would
+  // silently collapse into one student during analysis later, so flag it
+  // now while it's still easy to trace back to the source file/row.
+  const idCol=header.indexOf("Student ID");
+  const seenIds={};const dupeIds=[];
+  dataRows.forEach(row=>{const id=String(row[idCol]||"").trim().toUpperCase();if(!id)return;if(seenIds[id])dupeIds.push(row[idCol]);seenIds[id]=true;});
+  // One test's name is recoverable exactly from its "<Test> - Absent Days"
+  // column (appears exactly once per test, unlike the per-subject Marks
+  // columns) — used to detect renamed/removed tests before merging.
+  const origTestNames=header.filter(h=>/ - Absent Days$/.test(h)||/ — Absent Days$/.test(h)).map(h=>h.replace(/ [-—] Absent Days$/,""));
+  APP.mergeSource={header,rows:dataRows,sourceFileName:fileName,origTestNames,
+    origSubjects:(APP.setup.subjects||[]).slice(), dupeIds:[...new Set(dupeIds)]};
+  APP.mergeMode=true;
+  autoInferSetup(); // fills subjects/tests/institution form from the file's SETUP tab
+  APP.mergeSource.origSubjects=(APP.setup.subjects||[]).slice(); // capture post-autoinfer, this is the "before" baseline for the mismatch check at merge time
+  const testNames=(APP.setup.tests||[]).map(t=>t.name).join(", ")||"(none detected)";
+  let bannerHtml=`Loaded <b>${esc(fileName)}</b> — <b>${dataRows.length}</b> student row(s), existing test(s): <b>${esc(testNames)}</b>. Now click <b>✚ Add Test</b> below for Test 2 (or Test 3), then use <b>🔁 Update &amp; Download</b> above. You'll get a summary to review before anything downloads.`;
+  if(APP.mergeSource.dupeIds.length){
+    bannerHtml+=`<div style="margin-top:6px;color:#8b1a1a">⚠ Duplicate Student ID(s) already in this file: ${esc(APP.mergeSource.dupeIds.join(", "))}. Fix these in the source file for reliable analysis.</div>`;
+  }
+  $("#merge-banner-text").html(bannerHtml);
+  $("#merge-banner").show();
+  $("#btn-download-template").text("🔁 Update & Download").prop("disabled",false).css({opacity:1,cursor:"pointer"}).addClass("btn-glow");
+  $("#btn-load-existing").text("📤 Load a Different Sheet");
+  toast("Existing sheet loaded — add your new test, then click Update & Download.","success");
+  return true;
+}
+function cancelMergeMode(){
+  APP.mergeMode=false;APP.mergeSource=null;APP._pendingMerge=null;
+  $("#merge-banner").hide();
+  $("#btn-download-template").text("⬇ Download Template");
+  $("#btn-load-existing").text("📤 Load Existing Filled Sheet");
+  validateSetup();
+  toast("Merge cancelled — back to a fresh template.","info");
+}
+// yyyyMMdd_HHmm in local time, for collision-proof, always-newest-sorts-last
+// filenames — repeated updates (Test 2 today, Test 3 next month) never
+// overwrite or get silently "(1)"-renamed by the browser's own download manager.
+function timestampTag(){
+  const d=new Date(),p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes());
+}
+/* Builds the merged workbook in memory and shows a confirmation summary
+   (rows in vs out, exact columns being added, any integrity warnings)
+   BEFORE anything is written to disk. Nothing downloads until the person
+   explicitly confirms in that dialog — see confirmMergedDownload(). */
+function generateMergedTemplate(){
+  const {subjects,tests}=APP.setup;
+  const src=APP.mergeSource;
+  // A test counts as "already in the file" if its column-naming pattern is
+  // already present in the original header — same "<Test> - <Subject>
+  // Marks" convention generateTemplate() writes, so this lines up whether
+  // the original file was made by this app or hand-built to match it.
+  const origHasTest=name=>src.header.some(h=>h.startsWith(name+" - ")||h.startsWith(name+" — "));
+  const newTests=tests.filter(t=>!origHasTest(t.name));
+  if(!newTests.length){
+    toast("No new test found — every test in your Setup form already exists in the loaded sheet. Add the new test's name first (✚ Add Test).","warn");
+    return;
+  }
+  // Guard: a test name collision-free rename of an EXISTING test (e.g. "Test 1"
+  // edited to "Unit Test 1" in the form) would otherwise look like a brand
+  // new test and get appended as duplicate blank columns, leaving the old
+  // ones orphaned under their original name. Flag it so it's caught before
+  // download rather than discovered later as two half-empty test blocks.
+  const missingOrigTests=(src.origTestNames||[]).filter(n=>!tests.some(t=>t.name===n));
+  const subjectsChanged=(()=>{
+    const a=[...(src.origSubjects||[])].map(s=>s.toLowerCase()).sort();
+    const b=[...subjects].map(s=>s.toLowerCase()).sort();
+    return a.length!==b.length||a.some((v,i)=>v!==b[i]);
+  })();
+  const appendHeader=[];
+  newTests.forEach(t=>{subjects.forEach(s=>appendHeader.push(t.name+" - "+s+" Marks"));appendHeader.push(t.name+" - Absent Days");appendHeader.push(t.name+" - Remark");});
+  const fullHeader=src.header.concat(appendHeader);
+  const blankTail=Array(appendHeader.length).fill("");
+  const mergedDataRows=src.rows.map(row=>row.concat(blankTail));
+  const markRows=[fullHeader,...mergedDataRows];
+  // ── Integrity self-check, before writing anything ──
+  // If these don't hold, something upstream went wrong — better to refuse
+  // and say so than to hand back a silently mismatched file.
+  const integrityErrors=[];
+  if(mergedDataRows.length!==src.rows.length)integrityErrors.push(`Row count changed unexpectedly (${src.rows.length} → ${mergedDataRows.length}).`);
+  mergedDataRows.forEach((row,i)=>{if(row.length!==fullHeader.length)integrityErrors.push(`Row ${i+2} has ${row.length} cells, expected ${fullHeader.length}.`);});
+  // Every original cell must still be present, unchanged, in its original
+  // position — this is the crux of "the old data can't get corrupted".
+  src.rows.forEach((origRow,i)=>{
+    for(let c=0;c<src.header.length;c++){
+      if(String(mergedDataRows[i][c])!==String(origRow[c])){integrityErrors.push(`Row ${i+2}, column "${fullHeader[c]}" doesn't match the original — aborting.`);}
+    }
+  });
+  if(integrityErrors.length){
+    toast("Update aborted — integrity check failed: "+integrityErrors[0],"error");
+    return;
+  }
+  const wsMarks=XLSX.utils.aoa_to_sheet(markRows);
+  wsMarks["!cols"]=fullHeader.map((_,i)=>({wch:i<3?16:19}));
+  wsMarks["!rows"]=markRows.map((_,r)=>({hpt:r===0?60:20}));
+  wsMarks["!views"]=[{state:"frozen",xSplit:3,ySplit:1,topLeftCell:colLetter(3)+"2",activePane:"bottomRight"}];
+  fullHeader.forEach((_,c)=>{const addr=colLetter(c)+"1",cell=wsMarks[addr];if(cell)cell.s=TPL_STYLE.header;});
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,buildSetupSheet(),"SETUP");
+  XLSX.utils.book_append_sheet(wb,wsMarks,"MARKS+CONTEXT");
+  const fname=(APP.setup.instName+" "+APP.setup.className+" "+APP.setup.year).replace(/[^\w\s-]/g,"").replace(/\s+/g,"_")+"_UPDATED_"+timestampTag()+".xlsx";
+  APP._pendingMerge={wb,fname,rowsIn:src.rows.length,rowsOut:mergedDataRows.length,colsIn:src.header.length,colsOut:fullHeader.length,appendHeader,newTestNames:newTests.map(t=>t.name),subjectsChanged,missingOrigTests,dupeIds:src.dupeIds||[]};
+  renderMergeConfirmModal();
+}
+function renderMergeConfirmModal(){
+  const p=APP._pendingMerge;if(!p)return;
+  const warnings=[];
+  if(p.subjectsChanged)warnings.push("Your Subjects list is different from the loaded file's. Existing test columns are untouched either way, but double-check this was intentional.");
+  if(p.missingOrigTests.length)warnings.push(`Test(s) from the loaded file aren't in your current Setup form: <b>${esc(p.missingOrigTests.join(", "))}</b>. Their columns/marks will still be kept as-is in the new file — this just means the SETUP tab metadata for them won't be regenerated. If you meant to keep the same test, re-add it with the exact original name instead of a new one.`);
+  if(p.dupeIds.length)warnings.push(`Duplicate Student ID(s) already existed in the loaded file: ${esc(p.dupeIds.join(", "))}.`);
+  const warnHtml=warnings.length?`<div style="margin:10px 0;padding:10px 12px;background:#fff4e0;border-radius:var(--r-sm);font-size:12px;color:#8a5a00">⚠ ${warnings.join("<br>⚠ ")}</div>`:"";
+  $("#modal-content").html(`
+    <h3 style="font-family:var(--font-display);font-size:17px;margin-bottom:4px">🔁 Review before downloading</h3>
+    <div style="font-size:12px;color:var(--c-text3);margin-bottom:14px">Nothing has been saved yet. Check this matches what you expected, then confirm.</div>
+    <div class="grid-2" style="gap:10px;margin-bottom:6px">
+      <div class="kpi-card"><div class="kpi-label">Student rows</div><div class="kpi-val" style="font-size:16px">${p.rowsIn} → ${p.rowsOut}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Columns</div><div class="kpi-val" style="font-size:16px">${p.colsIn} → ${p.colsOut}</div></div>
+    </div>
+    <div style="font-size:12.5px;margin:10px 0 4px"><b>New test(s) being added:</b> ${esc(p.newTestNames.join(", "))}</div>
+    <div style="font-size:11.5px;color:var(--c-text2);max-height:110px;overflow:auto;background:var(--c-surface2);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:6px">${p.appendHeader.map(h=>esc(h)).join("<br>")}</div>
+    ${warnHtml}
+    <div style="font-size:11px;color:var(--c-text3);margin-bottom:14px">Will save as: <code>${esc(p.fname)}</code></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-success btn-sm" onclick="confirmMergedDownload()">✔ Confirm & Download</button>
+    </div>`);
+  $("#modal-overlay").addClass("open");
+  setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);
+}
+function confirmMergedDownload(){
+  const p=APP._pendingMerge;if(!p){closeModal();return;}
+  XLSX.writeFile(p.wb,p.fname);
+  toast(`Updated file downloaded: ${p.fname} — ${p.rowsOut} student row(s) kept as-is, added ${p.newTestNames.length} new test column block(s).`,"success");
+  unlockStep("data");
+  $("#btn-download-template").removeClass("btn-glow");
+  $("#btn-setup-next").addClass("btn-glow");
+  closeModal();
+  // Exit merge mode — the just-downloaded file is now the new baseline; if
+  // the teacher wants to add yet another test later, they load that file
+  // in fresh via "Load Existing Filled Sheet" again.
+  APP.mergeMode=false;APP.mergeSource=null;APP._pendingMerge=null;
+  $("#merge-banner").hide();
+  $("#btn-download-template").text("⬇ Download Template");
+  $("#btn-load-existing").text("📤 Load Existing Filled Sheet");
 }
 
 /* ════ SHARED FILE VALIDATION ════
@@ -1959,6 +2357,8 @@ function renderHomePage(){
   // Always start fresh — stateless
   APP.setup={instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]};
   APP.rawData=null;APP.students=[];APP.classStats=null;APP.genderAnalysis=null;
+  APP.mergeMode=false;APP.mergeSource=null;$("#merge-banner").hide();
+  $("#btn-download-template").text("⬇ Download Template");$("#btn-load-existing").text("📤 Load Existing Filled Sheet");
   // Reset stepper
   document.querySelectorAll(".step-item").forEach(el=>{el.classList.remove("active");el.classList.add("locked");});
   document.querySelector('.step-item[data-step="home"]')?.classList.remove("locked");
@@ -3010,7 +3410,7 @@ function buildStudentPDF(doc,st){
   doc.setFont("helvetica","bold");doc.setFontSize(14);doc.setTextColor(26,29,46);
   doc.text(fitText(doc,st.name,(W-37-4)-13),13,y+10);
   doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(90,96,122);
-  doc.text(fitText(doc,"ID: "+st.id+" · Parent: "+(st.parent||"—"),(W-37-4)-13),13,y+18);
+  doc.text(fitText(doc,"Student ID: "+st.id,(W-37-4)-13),13,y+18);
   // Grade badge (right side)
   doc.setFillColor(...avgColor);doc.roundedRect(W-37,y+3,28,20,3,3,"F");
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);
