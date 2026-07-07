@@ -28,7 +28,7 @@
 -->
 <!--
 ════════════════════════════════════════════════════════════════════════
- STUDENT INSIGHT — PROJECT INTELLIGENCE BLOCK (PIB)                v1.1
+ STUDENT INSIGHT — PROJECT INTELLIGENCE BLOCK (PIB)                v1.2
  (Master index — update this block on every version bump, per the same
  convention used in Spend-na's index.html)
 ════════════════════════════════════════════════════════════════════════
@@ -59,7 +59,7 @@
      supports writing cell styles (font/fill/border on the `s` property),
      which stock SheetJS Community only supports reading, not writing.
      Used to bold/shade the SETUP + MARKS+CONTEXT header rows in
-     generateTemplate() (~line 1590). Drop-in API-compatible with plain
+     generateTemplate() (~line 1696). Drop-in API-compatible with plain
      SheetJS otherwise — reading uploaded workbooks is unaffected.
    - jsPDF 2.5.1 (UMD)   — client-side PDF generation (report cards etc.)
    - JSZip 3.10.1        — dependency used by jsPDF/xlsx for zip handling
@@ -72,7 +72,7 @@
    - manifest.json is attached dynamically via JS (skipped entirely when
      protocol is "file:", i.e. opened directly from disk without a server).
 
-3. CORE APP STATE — the `APP` global object (search "const APP=", ~line 1447)
+3. CORE APP STATE — the `APP` global object (search "const APP=", ~line 1553)
    APP = {
      setup:        { instName, instType, location, contact, className,
                      section, year, teacher,
@@ -129,7 +129,7 @@
        flags: [{type,label,color}]   // badges shown on student cards
      }
 
-4. NAVIGATION / STEP FLOW (see #stepper markup + goStep(), ~line 1451)
+4. NAVIGATION / STEP FLOW (see #stepper markup + goStep(), ~line 1557)
    home → setup(1) → data(2, "Upload Data") → ai(3, "Analyse") →
    dashboard(4) → export(5, "Export PDFs")
    Plus two always-unlocked utility tabs: about, samplefiles (modal — see
@@ -144,14 +144,14 @@
 
    EXPORT GATE (v1.1 — added on top of the plain unlockStep mechanism):
    unlockStep("export") only controls whether the step is *reachable in
-   principle* (not permanently disabled). updateExportGate() (~line 2529)
+   principle* (not permanently disabled). updateExportGate() (~line 2731)
    is the actual correctness gate on top of that: it disables
    #btn-generate-pdfs, the dashboard's #btn-goto-export-dash quick button,
    and re-adds `.locked` to the Export step in the sidebar, ALL driven by a
    single check — `APP.dataIssues.length>0` — no matter how or when that
    became true. Called from all 3 places Export could become reachable:
-   afterImportSuccess() (~line 1815), end of runAnalysis() (~line 2027),
-   and every renderDashboard() (~line 2519). generateAllPDFs() (~line 2709)
+   afterImportSuccess() (~line 1921), end of runAnalysis() (~line 2133),
+   and every renderDashboard() (~line 2721). generateAllPDFs() (~line 2937)
    also hard-guards the same condition itself, so even a stale/bypassed
    button state can't actually produce an export.
    Previously (pre-v1.1): Export unlocked unconditionally after import and
@@ -165,12 +165,12 @@
    `$("#session-name-badge").hide().text("")` alongside their state reset.
 
 5. DATA IMPORT PIPELINE (Step 1 Setup → Step 2 Upload)
-   generateTemplate() (~line 1590): builds a downloadable .xlsx scaffold
+   generateTemplate() (~line 1696): builds a downloadable .xlsx scaffold
    from the current Setup form (institution/class/subjects/tests) with
    sheets SETUP and MARKS+CONTEXT (Student ID/Full Name/Gender + marks
    all on the one sheet), using SheetJS.
    Upload flow: handleFileSelect/handleFileDrop → processFile() →
-   parseWorkbook() → parseWorkbookSheets() (~line 1680), which:
+   parseWorkbook() → parseWorkbookSheets() (~line 1786), which:
      - Reads all sheets into APP.rawData keyed by sheet name.
      - ALSO stores the raw header row verbatim (with duplicate column
        names intact) as APP.rawData["_hdr_"+sheetName] — this exists
@@ -178,22 +178,22 @@
        never show duplicate keys, which silently broke "grouped header"
        detection (subject columns repeated once per test, e.g. "Maths"
        appearing under every test block). See parseStudents()'s
-       isGrouped/posMap logic (~line 2147) which reads column *positions*
+       isGrouped/posMap logic (~line 2253) which reads column *positions*
        from this raw header row to disambiguate identically-named columns
        per test, bypassing the row object's last-value-wins collapsing.
-   autoInferSetup() (~line 1913): if Setup wasn't filled manually, infers
+   autoInferSetup() (~line 2019): if Setup wasn't filled manually, infers
    institution/subjects/tests directly from the uploaded workbook headers.
-   validateSetup() (~line 3227): duplicate subject/test name detection is
+   validateSetup() (~line 3456): duplicate subject/test name detection is
    case-insensitive (a teacher typing "Maths" and "maths" would otherwise
    silently corrupt subjectAvgs, which is keyed by name) — also drives the
    inline field-error UI and the enabling of the "Download Template" CTA.
-   validateData() (~line 2085): pre-analysis structural checks — duplicate
+   validateData() (~line 2191): pre-analysis structural checks — duplicate
    Student IDs (case/space-normalized), rows missing a Full Name, empty
    MARKS+CONTEXT. Blocking (`e:1`) vs advisory (`e:0`) warnings surface
    via #validation-warnings before runAnalysis() proceeds.
 
 6. ANALYSIS PIPELINE (Step 3 "Analyse")
-   runAnalysis() (~line 2027) is the orchestrator:
+   runAnalysis() (~line 2133) is the orchestrator:
      1. Ensures Setup is populated (collectSetupForm() or autoInferSetup()).
      2. Defaults to selectAllAI() if no AI feature checkboxes were chosen.
      3. Runs validateData(); blocks on errors, shows advisory warnings.
@@ -212,7 +212,7 @@
      6. Unlocks dashboard+export, calls updateExportGate() (v1.1 — see §4,
         may immediately re-lock export if dataIssues exist), calls
         saveSession() (the no-op toast — see §1), navigates to dashboard.
-   computeAnalysis() (~line 2291) is where nearly every AI_FEATURES metric
+   computeAnalysis() (~line 2397) is where nearly every AI_FEATURES metric
    in §7 is actually computed per student — grade bands, trend (±5% diff
    first/last test), sharp-drop (dropAlert threshold between consecutive
    tests), volatility (stdev>15), stress score (absences*5 + trend/
@@ -242,7 +242,7 @@
    ratio explodes — a 0%→50% jump computed as +5000%. Clamped to
    [-300,300]; normal cases (e.g. 70%→90% = +29%) are unaffected.
 
-7. AI_FEATURES CONFIG (~line 1963) — declarative feature catalogue
+7. AI_FEATURES CONFIG (~line 2069) — declarative feature catalogue
    Five categories, each an array of {id,label,sub}, independently
    togglable via the Step 3 checkbox grid (renderAICheckboxes/toggleAI):
      perf  — avg, pct, rank, grade, trend, prediction, percentile,
@@ -277,20 +277,20 @@
    metric — check computeAnalysis() for whether APP.aiFeatures is even
    read (currently it isn't, inside that function).
 
-8. DASHBOARD (Step 4) — renderDashboard() (~line 2519) and friends
+8. DASHBOARD (Step 4) — renderDashboard() (~line 2721) and friends
    - Tabbed via switchDbTab()/.db-tab / .db-tab-panel; the Analytics tab's
      Chart.js charts are built lazily on first visit (window._chartsBuilt
      guard) and destroyCharts() always tears down previous instances
      before renderCharts() rebuilds, so no duplicate chart leaks.
    - renderKPIs / renderStudentCards / renderHeatmap / renderFlagsTable /
      renderWellbeingPanel each read from APP.students + APP.classStats.
-   - renderDataIssueBanner() (~line 2510, v1.1): shows EVERY entry in
+   - renderDataIssueBanner() (~line 2712, v1.1): shows EVERY entry in
      APP.dataIssues inside a scrollable `max-height:220px;overflow-y:auto`
      container — previously truncated to the first 8 with an inert
      "+N more" text tail, so most issues on a real class-sized file were
      simply unreadable. Also now states plainly that Export is disabled
      until the listed issues are fixed (ties to §4's export gate).
-   - updateExportGate() (~line 2529, v1.1): see §4 — called at the top of
+   - updateExportGate() (~line 2731, v1.1): see §4 — called at the top of
      every renderDashboard(), so the gate state is always re-derived from
      the current APP.dataIssues rather than trusted to stay correct from
      an earlier call.
@@ -304,9 +304,9 @@
      (also reused by the Sample Files modal, showSampleFiles()).
 
 9. PDF EXPORT (Step 5) — jsPDF, no server rendering
-   - buildStudentPDF(doc,st)  (~line 2767) — one student's report card.
-   - buildTeacherPDF(doc)     (~line 2919) — class-wide teacher summary.
-   - buildMgmtPDF(doc)        (~line 3036) — management/institution report,
+   - buildStudentPDF(doc,st)  (~line 2995) — one student's report card.
+   - buildTeacherPDF(doc)     (~line 3148) — class-wide teacher summary.
+   - buildMgmtPDF(doc)        (~line 3265) — management/institution report,
      ends with a fixed footer band ("Student Insight — Free & Open Source
      | Privacy-First | Confidential" + "MANAGEMENT CONFIDENTIAL").
    - fitText(doc,text,maxW) / addPDFHeader(doc,title) are shared layout
@@ -314,7 +314,7 @@
      once rather than in each build*PDF function.
    - All three assume APP.students/APP.classStats are already populated
      (i.e. Step 3 has run) — none of them re-run analysis themselves.
-   - generateAllPDFs() (~line 2709) is the entry point (the "Generate &
+   - generateAllPDFs() (~line 2937) is the entry point (the "Generate &
      Download ZIP" button): guards on 0 students AND (v1.1) on
      APP.dataIssues.length>0 — the latter is a defense-in-depth backstop
      in case the button's disabled state (§4) is ever bypassed or stale;
@@ -344,30 +344,105 @@
       feed into this same array/gate.
     - Known unresolved security items from the last code review (mirrors
       the Spend-na-style review convention): unpinned SRI hashes for
-      xlsx/jsPDF/JSZip/Chart.js (see top-of-file note); esc() (~line 3225)
+      xlsx/jsPDF/JSZip/Chart.js (see top-of-file note); esc() (~line 3454)
       is the HTML-escaping helper — use it for ANY user-entered string
       (student names, remarks, institution name, etc.) interpolated into
-      innerHTML/template strings anywhere in the app; toast() (~line 3271)
+      innerHTML/template strings anywhere in the app; toast() (~line 3500)
       itself interpolates `msg` unescaped into innerHTML — never pass
       unsanitized user/workbook-derived text into toast() without escaping
       it first.
 
 11. ABOUT PANEL / TRUST ACCORDION
-    toggleTrust(id) (~line 3277) drives a 6-pill accordion (#trust-detail,
+    toggleTrust(id) (~line 3506) drives a 6-pill accordion (#trust-detail,
     .trust-body/.trust-pill, ids t1..t6) explaining the privacy model to
     end users. The About panel also embeds Sandy's LinkedIn profile
     (https://in.linkedin.com/in/sandeep-s-hakki-83174022) — keep this
     link in sync if the profile URL ever changes.
 
 12. SAMPLE FILES MODAL
-    showSampleFiles() (~line 2666) renders a modal with four downloadable
+    showSampleFiles() (~line 2894) renders a modal with four downloadable
     Excel templates (uses the same SheetJS pipeline as generateTemplate())
     — reuses #modal-overlay/closeModal() infra from §8/§10.
 
 13. ENV BADGE
-    initEnvBadge() (~line 3272): shows a "LOCAL" or "QA" pill (#env-badge)
+    initEnvBadge() (~line 3501): shows a "LOCAL" or "QA" pill (#env-badge)
     based on hostname matching "localhost"/"127."/"sandeephakki-qa" — purely
     cosmetic, has no effect on app behavior/gating.
+
+7A. GENERIC ANALYTICS ADD-ONS (v1.2) — deliberately institution-agnostic
+    Added after being asked "what would a competitor add" and then explicitly
+    told to keep it generic (no UPSC/coaching-specific assumptions) and to
+    use ONLY the data the app already collects — no new Excel columns, no
+    new setup fields. All 7 computed in computeAnalysis()/computeExtraInsights()
+    (~line 2397/2544) and computeClassStats() (~line 2582); all verified
+    against hand-calculated synthetic data before being wired into any UI
+    (see the "Validated with" note under each).
+    a) Best/Worst individual test — st.analysis.bestTest/worstTest
+       ({name,pct}), derived from the existing testAvgs array. Shown in the
+       student modal (openStudentModal, ~line 2869).
+    b) Subject-vs-class-average delta — st.analysis.subjectDeltas (per
+       subject, signed point difference vs the class's own average for
+       that subject). Computed in computeExtraInsights(). Shown in the
+       student modal as small +/- badges.
+    c) Class-rank movement between the last two tests specifically —
+       st.analysis.rankMovement (positive = moved up). NOT the same as
+       comparing first-vs-last test; uses a new per-test cumulative-avg
+       snapshot (st.analysis.cumAvgByTest, captured inside the main test
+       loop in computeAnalysis()) so it reflects standing *at that point in
+       time*, not the final overallAvg. Ties use the same dense-rank
+       convention as the primary `rank` field. Shown as a ▲/▼ arrow next to
+       "Rank #N" on student cards (renderStudentCards, ~line 2774).
+       Validated with: verify_new_insights.js (a scratch script, run outside
+       the app, same pattern as the earlier verify_*.js checks — NOT part
+       of the shipped app).
+    d) "First Time Below Pass" flag — a new flags[] entry, type
+       "first-below-pass", distinct from the existing "At Risk" flag
+       (which only reacts to the cumulative overall average, so it can't
+       fire until several bad tests have already dragged it down). Fires
+       when a student passed every prior test but their single most recent
+       test dropped below passThreshold. Has its own explainedWarnings
+       reason string, same as every other flag type.
+    e) Report Card Comment — st.analysis.reportCardComment
+       (generateReportCardComment(), ~line 2705): a short, single-line,
+       traditional-style remark (score band + trend), deliberately separate
+       from and shorter than the existing parentSummary/motivation/
+       strengthsLetter narratives. Appears in the student modal (as the
+       first narrative card) AND in the actual exported student PDF
+       (buildStudentPDF, ~line 2995 — added as a new entry in that
+       function's existing data-driven `sections` array, so the PDF's
+       drawing/pagination code itself was never touched).
+       KNOWN LIMITATION: not editable in-app before export — flagged
+       explicitly in a code comment rather than silently implied to be
+       editable. A teacher who wants to override the auto-generated text
+       must edit the exported file afterward.
+    f) Attendance-vs-performance correlation — class-level only, computed
+       in computeClassStats() as classStats.attendanceCorrelation
+       ({noAbsence:{avg,n}, someAbsence:{avg,n}}). Requires at least 2
+       students in EACH group before showing anything (same anonymity-floor
+       spirit as MIN_GENDER_GROUP_SIZE in §gender-analysis, just a lighter
+       bar since attendance isn't a protected category). Rendered with an
+       explicit "correlation, not causation" caveat in the UI text itself.
+    g) Class-wide subject weakness — classStats.subjectWeakness
+       ([{subject,pctBelow,avgClass}], sorted worst-first). Surfaces which
+       SUBJECT needs attention across the whole class, not which student —
+       genuinely different question from every other existing metric,
+       which is entirely student-centric. This finally wires up something
+       the old AI_FEATURES catalogue only ever listed as an unimplemented
+       aspirational id (subject_audit/class_difficulty, §7's caveat).
+    UI HOME: all of (f) and (g) live in a brand-new "Insights" dashboard
+    tab (dbtab-insights/tab-insights, added as a new sibling after the
+    Wellbeing tab — switchDbTab()/dbTabKeyNav() are fully generic over
+    #db-tabs .db-tab, confirmed before adding, so no tab-switching logic
+    needed to change). renderClassInsights() (~line 2827) reuses the
+    existing .wb-grid/.wb-card/.data-table CSS classes — no new CSS added.
+    Called from renderDashboard() (~line 2721) alongside the other render*
+    calls, same pattern as every existing tab.
+    Deliberately NOT built (see conversation): topic/chapter-level
+    analytics, goal/target tracking, OCR ingestion, cross-institution
+    benchmarking, free-text LLM narratives — each either needs a new data
+    column the app doesn't collect, needs a server (breaks §1's stateless
+    model), or trades away the "every number is a formula, not an LLM
+    guess" explainability the app is positioned on.
 
 14. THINGS TO CHECK BEFORE MODIFYING
     - Changing APP.setup/APP.students shape? Update BOTH reset sites
@@ -394,6 +469,24 @@
       omission.
 
 15. CHANGELOG
+    v1.2 (this session) — 7 new generic, institution-agnostic analytics
+      add-ons, all built on existing data columns (no new Excel fields),
+      all additive (no existing rendering, calculation, or PDF code
+      removed or restructured) — see §7A for full detail on each:
+        a. Best/Worst individual test (student modal)
+        b. Subject-vs-class-average delta (student modal)
+        c. Class-rank movement between the last two tests (student cards)
+        d. "First Time Below Pass" flag (distinct from At Risk)
+        e. Report Card Comment — short templated remark, in both the
+           student modal and the exported student PDF
+        f. Attendance-vs-performance correlation (new Insights tab)
+        g. Class-wide subject weakness (new Insights tab)
+      All 7 verified against hand-calculated synthetic data before being
+      wired into any UI (see verify_new_insights.js, run outside the app —
+      not shipped as part of it, same as the earlier verify_*.js scripts).
+    v1.1 — regression pass + fixes: mark-overflow cap, Export gate
+      (updateExportGate()), scrollable data-issue banner, session-name
+      badge clearing, Growth-Rate clamp. See detail retained below.
     v1.1 (this session) — regression pass + fixes, all inline in this
     same file/script block (no external files added or referenced):
       1. Mark-overflow cap: a mark exceeding its subject's max no longer
@@ -1042,6 +1135,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     <button class="db-tab" role="tab" aria-selected="false" aria-controls="tab-heatmap" id="dbtab-heatmap" tabindex="-1" onclick="switchDbTab('heatmap',this)" onkeydown="dbTabKeyNav(event,this)">Heatmap</button>
     <button class="db-tab" role="tab" aria-selected="false" aria-controls="tab-alerts" id="dbtab-alerts" tabindex="-1" onclick="switchDbTab('alerts',this)" onkeydown="dbTabKeyNav(event,this)">Alerts <span class="db-badge" id="alert-badge"></span></button>
     <button class="db-tab" role="tab" aria-selected="false" aria-controls="tab-wellbeing" id="dbtab-wellbeing" tabindex="-1" onclick="switchDbTab('wellbeing',this)" onkeydown="dbTabKeyNav(event,this)">Wellbeing</button>
+    <button class="db-tab" role="tab" aria-selected="false" aria-controls="tab-insights" id="dbtab-insights" tabindex="-1" onclick="switchDbTab('insights',this)" onkeydown="dbTabKeyNav(event,this)">Insights</button>
   </div>
 
   <!-- TAB: STUDENTS -->
@@ -1088,6 +1182,18 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     <div class="card">
       <div class="card-title" style="margin-bottom:12px">Class Wellbeing & Stress Indicators</div>
       <div id="wellbeing-panel"></div>
+    </div>
+  </div>
+
+  <!-- TAB: INSIGHTS (class-level, generic — works for any institution, no new data columns) -->
+  <div class="db-tab-panel" id="tab-insights" role="tabpanel" aria-labelledby="dbtab-insights" tabindex="0">
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title" style="margin-bottom:12px">Attendance vs. Performance</div>
+      <div id="attendance-correlation-panel"></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Subject Weakness (Class-Wide)</div>
+      <div class="tbl-wrap" id="subject-weakness-wrap"></div>
     </div>
   </div>
 
@@ -2295,18 +2401,30 @@ function computeAnalysis(){
   // the invalid/negative-mark issues it detects. Resetting again here would
   // silently wipe those out before this loop even runs.
   APP.students.forEach(st=>{
-    st.analysis={};const testAvgs=[];let cumMarks=0,cumMax=0;
+    st.analysis={};const testAvgs=[];const cumAvgByTest=[];let cumMarks=0,cumMax=0;
     tests.forEach((t)=>{
       const td=st.testData[t.name]||{marks:{},absents:0,remark:""};
       let total=0,maxTotal=0,scored=0;
       subjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){const mv=parseFloat(m)||0;if(mv>mx)APP.dataIssues.push({studentId:st.id,studentName:st.name,test:t.name,subject:s,message:`entered ${mv}, exceeds max of ${mx} — will inflate this test's percentage`});total+=Math.min(mv,mx);maxTotal+=mx;scored++;}else maxTotal+=mx;});
       testAvgs.push(scored?Math.round((total/maxTotal)*100):null);
       if(scored){cumMarks+=total;cumMax+=maxTotal;}
+      // Cumulative avg *as of this test* (not the final overallAvg) — used
+      // only by computeExtraInsights() below to derive class-rank movement
+      // between the last two tests. Purely additive; doesn't change
+      // testAvgs/overallAvg/anything already relied on.
+      cumAvgByTest.push(cumMax?Math.round((cumMarks/cumMax)*100):null);
     });
     const valid=testAvgs.filter(v=>v!==null);
+    // Best / worst individual test — generic, works for any institution,
+    // needs no data beyond what's already collected.
+    let bestI=-1,worstI=-1;
+    testAvgs.forEach((v,i)=>{if(v!==null){if(bestI===-1||v>testAvgs[bestI])bestI=i;if(worstI===-1||v<testAvgs[worstI])worstI=i;}});
+    st.analysis.bestTest=bestI>-1?{name:tests[bestI].name,pct:testAvgs[bestI]}:null;
+    st.analysis.worstTest=(worstI>-1&&worstI!==bestI)?{name:tests[worstI].name,pct:testAvgs[worstI]}:null;
     // Single rounding from raw cumulative totals (avoids compounding rounding error from averaging pre-rounded per-test %s)
     st.analysis.overallAvg=cumMax?Math.round((cumMarks/cumMax)*100):0;
     st.analysis.testAvgs=testAvgs;
+    st.analysis.cumAvgByTest=cumAvgByTest;
     const a=st.analysis.overallAvg;
     st.analysis.grade=a>=90?"A+":a>=80?"A":a>=70?"B":a>=60?"C":a>=passThreshold?"D":"F";
     let trend="stable";if(valid.length>=2){const diff=valid[valid.length-1]-valid[0];trend=diff>=5?"improving":diff<=-5?"declining":"stable";}
@@ -2314,6 +2432,14 @@ function computeAnalysis(){
     st.flags=[];
     if(APP.dataIssues.some(di=>di.studentId===st.id))st.flags.push({type:"data-error",label:"⚠ Data Error",color:"#c0392b"});
     if(a<passThreshold)st.flags.push({type:"at-risk",label:"At Risk",color:"var(--c-danger)"});
+    // Distinct from At Risk (which looks at the cumulative overall average
+    // and can't fire until several bad tests have already dragged it down).
+    // This catches the exact moment a previously-passing student's *latest*
+    // test dropped below the pass threshold for the first time — useful even
+    // when their overall average is still comfortably above the line.
+    if(valid.length>=2&&valid[valid.length-1]<passThreshold&&valid.slice(0,-1).every(v=>v>=passThreshold)){
+      st.flags.push({type:"first-below-pass",label:"First Time Below Pass",color:"#d35400"});
+    }
     if(trend==="declining")st.flags.push({type:"declining",label:"Declining",color:"var(--c-warn)"});
     if(trend==="improving")st.flags.push({type:"improving",label:"Improving",color:"var(--c-success)"});
     if(valid.length>=2)for(let i=1;i<valid.length;i++){if(valid[i]!==null&&valid[i-1]!==null&&(valid[i-1]-valid[i])>=dropAlert){st.flags.push({type:"sharp-drop",label:"Sharp Drop",color:"var(--c-danger)"});break;}}
@@ -2327,7 +2453,7 @@ function computeAnalysis(){
     st.analysis.strongSubject=sortedSubjs[0]&&sortedSubjs[0][0];st.analysis.weakSubject=sortedSubjs[sortedSubjs.length-1]&&sortedSubjs[sortedSubjs.length-1][0];
     const stressScore=Math.min(100,Math.round((totalAbsent*5)+(trend==="declining"?30:0)+(a<passThreshold?40:0)));
     st.analysis.stressScore=stressScore;st.analysis.wellbeingFlag=stressScore>=60?"high":stressScore>=30?"moderate":"low";
-    st.analysis.parentSummary=generateParentSummary(st);st.analysis.motivation=generateMotivation(st);st.analysis.studyPlan=generateStudyPlan(st);st.analysis.intervention=generateIntervention(st);
+    st.analysis.parentSummary=generateParentSummary(st);st.analysis.motivation=generateMotivation(st);st.analysis.studyPlan=generateStudyPlan(st);st.analysis.intervention=generateIntervention(st);st.analysis.reportCardComment=generateReportCardComment(st);
     if(valid.length>=2){const slope=(valid[valid.length-1]-valid[0])/(valid.length-1);st.analysis.predictedNext=Math.max(0,Math.min(100,Math.round(valid[valid.length-1]+slope)));}else st.analysis.predictedNext=null;
     // Extended AI features
     if(valid.length>=2){const mean=valid.reduce((a,b)=>a+b,0)/valid.length;const sd=Math.sqrt(valid.reduce((a,b)=>a+(b-mean)**2,0)/valid.length);st.analysis.consistencyScore=Math.max(0,Math.round(100-sd*2));}else st.analysis.consistencyScore=100;
@@ -2380,6 +2506,7 @@ function computeAnalysis(){
       const fn=st.name.split(" ")[0];
       const reasons={
         "at-risk":`${fn} scored ${st.analysis.overallAvg}%, below the pass threshold of ${APP.setup.passThreshold}%. Immediate academic support is recommended.`,
+        "first-below-pass":`${fn} passed every prior test but fell below the ${APP.setup.passThreshold}% pass threshold on the most recent one (${valid[valid.length-1]}%). Worth checking in now, before it becomes a pattern.`,
         "sharp-drop":`A sharp performance drop was detected between tests. Check for health issues, external factors, or learning gaps in specific subjects.`,
         "declining":`Trend is declining across ${valid.length} tests (${valid[0]}% → ${valid[valid.length-1]}%). Investigate root causes and increase personalised support.`,
         "absent":`Total absences of ${st.analysis.totalAbsent} days across test periods exceeds the alert threshold. Missed lessons may be impacting performance significantly.`,
@@ -2405,11 +2532,55 @@ function computeAnalysis(){
   });
   const trueTop=APP.students.length?APP.students[0].analysis.overallAvg:0;
   APP.students.forEach(st=>{st.analysis.topperGap=Math.max(0,trueTop-st.analysis.overallAvg);});
+  computeExtraInsights();
   computePercentiles();
   computeClassStats();
 }
+/* ════ EXTRA INSIGHTS (added on top of the original analysis engine —
+   generic, no new data columns required, works for any institution) ════
+   Runs after ranking/topperGap so it can use the class-wide picture
+   (subject averages, per-test cumulative standings) that only exists
+   once every student has been processed once. */
+function computeExtraInsights(){
+  const {subjects,tests}=APP.setup;
+  // 1) Subject-vs-class-average delta: how far above/below the class's own
+  // average this student is, per subject — same subjectAvgs data every
+  // other feature already uses, just re-aggregated one level up.
+  const classSubjectAvg={};
+  subjects.forEach(s=>{
+    const vals=APP.students.map(st=>st.analysis.subjectAvgs[s]||0);
+    classSubjectAvg[s]=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0;
+  });
+  APP.students.forEach(st=>{
+    const deltas={};
+    subjects.forEach(s=>{deltas[s]=Math.round((st.analysis.subjectAvgs[s]||0)-classSubjectAvg[s]);});
+    st.analysis.subjectDeltas=deltas;
+  });
+  // 2) Class-rank movement between the last two tests, using each
+  // student's cumulative average AS OF that point in time (cumAvgByTest,
+  // captured during the main loop above) — not the final overallAvg. The
+  // existing `rank` field only reflects the end state; this answers
+  // "is this student's standing in the class moving up or down right now."
+  if(tests.length>=2){
+    const idxCurr=tests.length-1, idxPrev=tests.length-2;
+    function rankAt(idx){
+      const ranked=APP.students.map(st=>({id:st.id,v:st.analysis.cumAvgByTest[idx]})).filter(r=>r.v!==null).sort((a,b)=>b.v-a.v);
+      const rankMap={};
+      ranked.forEach((r,i)=>{rankMap[r.id]=(i>0&&r.v===ranked[i-1].v)?rankMap[ranked[i-1].id]:i+1;});
+      return rankMap;
+    }
+    const prevRanks=rankAt(idxPrev),currRanks=rankAt(idxCurr);
+    APP.students.forEach(st=>{
+      const p=prevRanks[st.id],c=currRanks[st.id];
+      st.analysis.rankMovement=(p!=null&&c!=null)?(p-c):null; // positive = moved up in the class
+    });
+  }else{
+    APP.students.forEach(st=>{st.analysis.rankMovement=null;});
+  }
+}
 
 function computeClassStats(){
+  const {subjects,passThreshold}=APP.setup;
   const avgs=APP.students.map(st=>st.analysis.overallAvg).filter(v=>!isNaN(v)).sort((a,b)=>a-b);
   if(!avgs.length){APP.classStats={};return APP.classStats;}
   const n=avgs.length;
@@ -2418,8 +2589,26 @@ function computeClassStats(){
   const q1=avgs[Math.floor(n*0.25)];const q3=avgs[Math.floor(n*0.75)];
   const sd=Math.round(Math.sqrt(avgs.reduce((a,b)=>a+(b-mean)**2,0)/n));
   const hAvg=Math.round(APP.students.reduce((s,st)=>s+(st.analysis.healthScore||0),0)/n);
+  // Attendance-vs-performance correlation (class level only). Min group
+  // size of 2 on both sides is a basic anonymity/noise floor — same spirit
+  // as the gender-analysis privacy floor elsewhere, just a lighter bar
+  // since attendance isn't a protected personal category the way gender is.
+  const noAbsence=APP.students.filter(st=>(st.analysis.totalAbsent||0)===0);
+  const someAbsence=APP.students.filter(st=>(st.analysis.totalAbsent||0)>0);
+  const attendanceCorrelation=(noAbsence.length>=2&&someAbsence.length>=2)?{
+    noAbsence:{avg:Math.round(noAbsence.reduce((a,s)=>a+s.analysis.overallAvg,0)/noAbsence.length),n:noAbsence.length},
+    someAbsence:{avg:Math.round(someAbsence.reduce((a,s)=>a+s.analysis.overallAvg,0)/someAbsence.length),n:someAbsence.length}
+  }:null;
+  // Class-wide subject weakness — which SUBJECT needs attention, not which
+  // student. Reuses subjectAvgs (already computed per student); nothing new.
+  const subjectWeakness=(subjects&&subjects.length)?subjects.map(s=>{
+    const vals=APP.students.map(st=>st.analysis.subjectAvgs[s]||0);
+    const belowCount=vals.filter(v=>v<passThreshold).length;
+    return {subject:s,pctBelow:Math.round((belowCount/n)*100),avgClass:Math.round(vals.reduce((a,b)=>a+b,0)/n)};
+  }).sort((a,b)=>b.pctBelow-a.pctBelow):[];
   APP.classStats={mean,median,q1,q3,sd,n,healthAvg:hAvg,min:avgs[0],max:avgs[n-1],
-    distribution:{excellent:avgs.filter(v=>v>=80).length,good:avgs.filter(v=>v>=60&&v<80).length,average:avgs.filter(v=>v>=35&&v<60).length,below:avgs.filter(v=>v<35).length}};
+    distribution:{excellent:avgs.filter(v=>v>=80).length,good:avgs.filter(v=>v>=60&&v<80).length,average:avgs.filter(v=>v>=35&&v<60).length,below:avgs.filter(v=>v<35).length},
+    attendanceCorrelation,subjectWeakness};
   return APP.classStats;
 }
 /* ════ GENDER-GAP ANALYSIS (school/institutional level only) ════
@@ -2505,6 +2694,19 @@ function generateParentSummary(st){
 function generateMotivation(st){const a=st.analysis,name=st.name.split(" ")[0];if(a.overallAvg>=80)return `Excellent work, ${name}! Keep pushing your limits - you have the potential to excel consistently.`;if(a.trend==="improving")return `Great progress, ${name}! You are moving in the right direction. Keep this momentum going!`;if(a.overallAvg<APP.setup.passThreshold)return `${name}, every expert was once a beginner. With focused effort and the right support, you can turn this around.`;return `Good effort, ${name}. A little more focus on weaker areas will take you to the next level.`;}
 function generateStudyPlan(st){const a=st.analysis,weak=Object.entries(a.subjectAvgs).filter(([s,v])=>v<60).map(([s])=>s);if(!weak.length)return "Maintain your current study habits. Consider challenging yourself with advanced problems in your strong subjects.";return `Focus areas: ${weak.join(", ")}. Steps: (1) Revise fundamentals. (2) Practice 30 min daily. (3) Attempt past papers. (4) Ask the teacher for targeted exercises.`;}
 function generateIntervention(st){const a=st.analysis,flags=st.flags.map(f=>f.label).join(", ");if(!flags)return "No immediate intervention needed. Continue regular monitoring.";return `Flags: ${flags}. `+(a.stressScore>=60?"High stress indicators - consider a one-on-one check-in. ":"")+"Recommended: parent-teacher meeting, additional practice material, monitor next test.";}
+// Short, single-line "report card" style remark — deliberately shorter and
+// plainer than parentSummary/motivation above, closer to what a teacher
+// would actually hand-write on a physical report card. Generic score-band +
+// trend combination; no institution-specific assumptions. NOTE: this is
+// generated fresh on every analysis run and is not currently editable
+// in-app before export — a teacher who wants to override it must still
+// edit the exported PDF/text afterward. Flagging this limitation here
+// rather than silently pretending it's editable.
+function generateReportCardComment(st){
+  const a=st.analysis,name=st.name.split(" ")[0],band=a.overallAvg>=90?"outstanding":a.overallAvg>=75?"very good":a.overallAvg>=60?"satisfactory":a.overallAvg>=APP.setup.passThreshold?"below expectations":"needs urgent attention";
+  const trendBit=a.trend==="improving"?" Showing clear improvement.":a.trend==="declining"?" Recent decline needs attention.":"";
+  return `${name}'s overall performance this term is ${band} (${a.overallAvg}%).${trendBit}`;
+}
 
 /* ════ DASHBOARD ════ */
 function renderDataIssueBanner(){
@@ -2520,7 +2722,7 @@ function renderDashboard(){
   const s=APP.setup;$("#db-class-label").text([s.instName,s.className,s.section,s.year,s.teacher].filter(Boolean).join(" · "));
   renderDataIssueBanner();
   updateExportGate();
-  renderKPIs();renderStudentCards();renderHeatmap();renderCharts();renderWellbeingPanel();renderFlagsTable();
+  renderKPIs();renderStudentCards();renderHeatmap();renderCharts();renderWellbeingPanel();renderFlagsTable();renderClassInsights();
 }
 // Export must never be reachable while APP.dataIssues has entries — those are
 // mark cells that exceed a subject's max marks and silently inflate that
@@ -2576,7 +2778,12 @@ function renderStudentCards(){
     const a=st.analysis,color=a.overallAvg>=85?"var(--c-success)":a.overallAvg>=60?"var(--c-primary)":a.overallAvg>=APP.setup.passThreshold?"var(--c-warn)":"var(--c-danger)";
     const sparkData=a.testAvgs.filter(v=>v!==null);const sparkSvg=buildSparkPath(sparkData);
     const flagBadges=st.flags.slice(0,3).map(f=>`<span class="badge" style="background:${f.color}22;color:${f.color};border:1px solid ${f.color}44">${f.label}</span>`).join("");
-    return `<div class="student-card" data-student-id="${esc(st.id)}"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px"><div style="min-width:0;flex:1" title="${esc(st.name)}"><div class="sc-name">${esc(st.name)}</div><div class="sc-id">${esc(st.id)} · Rank #${a.rank}</div></div><div style="text-align:right;flex-shrink:0"><div class="sc-avg" style="color:${color}">${a.overallAvg}%</div><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:11px;color:var(--c-text3)">${a.grade}</span>${a.healthScore!=null?`<span style="font-size:9px;padding:1px 5px;border-radius:99px;font-weight:700;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'};color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥${a.healthScore}</span>`:''}</div></div></div><div class="sc-bar"><div class="sc-bar-fill" style="width:${a.overallAvg}%;background:${color}"></div></div>${sparkData.length>1?`<div style="margin:6px 0">${sparkSvg}</div>`:""}<div class="sc-flags">${flagBadges}</div></div>`;
+    // Rank movement (v1.2, §new-feature): compares standing after the last
+    // two tests specifically, not the final vs. first test — a purely
+    // additive indicator alongside the existing final Rank #N.
+    const rm=a.rankMovement;
+    const rmBadge=rm==null?"":rm>0?` <span style="color:var(--c-success);font-weight:700" title="Moved up ${rm} place(s) since the previous test">▲${rm}</span>`:rm<0?` <span style="color:var(--c-danger);font-weight:700" title="Moved down ${-rm} place(s) since the previous test">▼${-rm}</span>`:` <span style="color:var(--c-text3)" title="No change in rank since the previous test">—</span>`;
+    return `<div class="student-card" data-student-id="${esc(st.id)}"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px"><div style="min-width:0;flex:1" title="${esc(st.name)}"><div class="sc-name">${esc(st.name)}</div><div class="sc-id">${esc(st.id)} · Rank #${a.rank}${rmBadge}</div></div><div style="text-align:right;flex-shrink:0"><div class="sc-avg" style="color:${color}">${a.overallAvg}%</div><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:11px;color:var(--c-text3)">${a.grade}</span>${a.healthScore!=null?`<span style="font-size:9px;padding:1px 5px;border-radius:99px;font-weight:700;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'};color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥${a.healthScore}</span>`:''}</div></div></div><div class="sc-bar"><div class="sc-bar-fill" style="width:${a.overallAvg}%;background:${color}"></div></div>${sparkData.length>1?`<div style="margin:6px 0">${sparkSvg}</div>`:""}<div class="sc-flags">${flagBadges}</div></div>`;
   }).join(""));
 }
 function buildSparkPath(data){
@@ -2613,6 +2820,22 @@ function renderFlagsTable(){
   const flagged=APP.students.filter(s=>s.flags.length);
   if(!flagged.length){$("#flags-table-wrap").html("<div style='color:var(--c-text3);padding:10px'>No flags detected.</div>");return;}
   $("#flags-table-wrap").html(`<table class="data-table"><thead><tr><th>Student</th><th>Avg</th><th>Grade</th><th>Flags</th></tr></thead><tbody>${flagged.map(st=>`<tr><td style="font-weight:600">${esc(st.name)}</td><td>${st.analysis.overallAvg}%</td><td>${st.analysis.grade}</td><td>${st.flags.map(f=>`<span class="badge" style="background:${f.color}22;color:${f.color}">${f.label}</span>`).join(" ")}</td></tr>`).join("")}</tbody></table>`);
+}
+// New class-level Insights tab (attendance correlation + subject weakness).
+// Reuses the existing .wb-grid/.wb-card and .data-table CSS classes for
+// visual consistency with the Wellbeing/Alerts tabs — no new CSS added.
+function renderClassInsights(){
+  const cs=APP.classStats||{};
+  const ac=cs.attendanceCorrelation;
+  if(!ac){
+    $("#attendance-correlation-panel").html("<div style='color:var(--c-text3);padding:10px'>Not enough data to compare — needs at least 2 students with no absences and 2 with at least one absence.</div>");
+  }else{
+    const gap=ac.noAbsence.avg-ac.someAbsence.avg;
+    $("#attendance-correlation-panel").html(`<div class="wb-grid"><div class="wb-card"><div style="font-size:22px">🟢</div><div style="font-size:12px;font-weight:600;margin:4px 0">No Absences (n=${ac.noAbsence.n})</div><div class="wb-val" style="color:var(--c-success)">${ac.noAbsence.avg}%</div></div><div class="wb-card"><div style="font-size:22px">🟠</div><div style="font-size:12px;font-weight:600;margin:4px 0">1+ Absences (n=${ac.someAbsence.n})</div><div class="wb-val" style="color:var(--c-warn)">${ac.someAbsence.avg}%</div></div><div class="wb-card"><div style="font-size:22px">📉</div><div style="font-size:12px;font-weight:600;margin:4px 0">Gap</div><div class="wb-val">${gap>=0?"+":""}${gap}%</div></div></div><div style="font-size:11px;color:var(--c-text3);margin-top:8px">Correlation only — this doesn't prove absences *cause* the difference, just that the two groups scored differently this term.</div>`);
+  }
+  const sw=cs.subjectWeakness||[];
+  if(!sw.length){$("#subject-weakness-wrap").html("<div style='color:var(--c-text3);padding:10px'>No subject data.</div>");return;}
+  $("#subject-weakness-wrap").html(`<table class="data-table"><thead><tr><th>Subject</th><th>Class Average</th><th>% Below Pass Threshold</th></tr></thead><tbody>${sw.map(r=>`<tr><td style="font-weight:600">${esc(r.subject)}</td><td>${r.avgClass}%</td><td style="color:${r.pctBelow>=40?'var(--c-danger)':r.pctBelow>=20?'var(--c-warn)':'var(--c-success)'}">${r.pctBelow}%</td></tr>`).join("")}</tbody></table>`);
 }
 function getFilteredStudents(){
   const q=$("#search-student").val().toLowerCase();
@@ -2656,7 +2879,12 @@ ${a.explainedWarnings&&a.explainedWarnings.length?`<div style="margin-bottom:12p
   <div class="kpi-card"><div class="kpi-label">EW Score</div><div class="kpi-val" style="font-size:18px;color:${(a.earlyWarningScore||0)>=50?"var(--c-danger)":(a.earlyWarningScore||0)>=25?"var(--c-warn)":"var(--c-success)"}">${a.earlyWarningScore||0}</div></div>
   <div class="kpi-card"><div class="kpi-label">Competitive</div><div class="kpi-val" style="font-size:13px">${a.competitiveReadiness||"—"}</div></div>
   <div class="kpi-card"><div class="kpi-label">Topper Gap</div><div class="kpi-val" style="font-size:18px">${a.topperGap||0}%</div></div>
-</div><div style="display:flex;flex-direction:column;gap:10px"><div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">💬 Parent Summary</div><div style="font-size:13px">${esc(a.parentSummary)}</div></div><div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">🌟 Motivation</div><div style="font-size:13px">${esc(a.motivation)}</div></div>
+</div>
+<div class="grid-4" style="margin-bottom:14px">
+  <div class="kpi-card"><div class="kpi-label">Best Test</div><div class="kpi-val" style="font-size:14px">${a.bestTest?esc(a.bestTest.name)+" ("+a.bestTest.pct+"%)":"—"}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Weakest Test</div><div class="kpi-val" style="font-size:14px">${a.worstTest?esc(a.worstTest.name)+" ("+a.worstTest.pct+"%)":"—"}</div></div>
+</div>
+${a.subjectDeltas&&Object.keys(a.subjectDeltas).length?`<div class="card" style="padding:12px;margin-bottom:14px"><div class="card-title" style="margin-bottom:6px">📊 vs. Class Average, by Subject</div><div style="display:flex;flex-wrap:wrap;gap:6px">${Object.entries(a.subjectDeltas).map(([s,d])=>`<span class="badge" style="background:${d>=0?'var(--c-success)':'var(--c-danger)'}18;color:${d>=0?'var(--c-success)':'var(--c-danger)'}" title="${esc(s)}: ${d>=0?'above':'below'} the class average by ${Math.abs(d)} points">${esc(s)} ${d>=0?"+":""}${d}</span>`).join("")}</div></div>`:""}</div><div style="display:flex;flex-direction:column;gap:10px">${a.reportCardComment?`<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">📝 Report Card Comment</div><div style="font-size:13px">${esc(a.reportCardComment)}</div></div>`:""}<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">💬 Parent Summary</div><div style="font-size:13px">${esc(a.parentSummary)}</div></div><div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">🌟 Motivation</div><div style="font-size:13px">${esc(a.motivation)}</div></div>
 <div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">⭐ Strengths</div><div style="font-size:13px">${esc(a.strengthsLetter||"")}</div></div><div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">📚 Study Plan</div><div style="font-size:13px">${esc(a.studyPlan)}</div></div>${a.intervention?`<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">🚨 Intervention Note</div><div style="font-size:13px">${esc(a.intervention)}</div></div>`:""}</div>`);
   $("#modal-overlay").addClass("open");
   _modalLastFocus=document.activeElement;
@@ -2868,6 +3096,7 @@ function buildStudentPDF(doc,st){
   }
   // ── NARRATIVE SECTIONS (visually boxed) ──
   const sections=[
+    {title:"Report Card Comment",text:a.reportCardComment,bg:[253,246,230],border:[230,161,58]},
     {title:"For Parents",text:a.parentSummary,bg:[238,240,253],border:[67,97,238]},
     {title:"Strengths",text:a.strengthsLetter,bg:[230,249,247],border:[46,196,182]},
     {title:"Motivation",text:a.motivation,bg:[240,235,248],border:[123,94,167]},
