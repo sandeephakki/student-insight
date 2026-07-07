@@ -2853,7 +2853,6 @@ function computeAnalysis(){
     st.analysis.strongSubject=sortedSubjs[0]&&sortedSubjs[0][0];st.analysis.weakSubject=sortedSubjs[sortedSubjs.length-1]&&sortedSubjs[sortedSubjs.length-1][0];
     const stressScore=Math.min(100,Math.round((totalAbsent*5)+(trend==="declining"?30:0)+(a<passThreshold?40:0)));
     st.analysis.stressScore=stressScore;st.analysis.wellbeingFlag=stressScore>=60?"high":stressScore>=30?"moderate":"low";
-    st.analysis.parentSummary=generateParentSummary(st);st.analysis.motivation=generateMotivation(st);st.analysis.studyPlan=generateStudyPlan(st);st.analysis.intervention=generateIntervention(st);st.analysis.reportCardComment=generateReportCardComment(st);
     if(valid.length>=2){const slope=(valid[valid.length-1]-valid[0])/(valid.length-1);st.analysis.predictedNext=Math.max(0,Math.min(100,Math.round(valid[valid.length-1]+slope)));}else st.analysis.predictedNext=null;
     // Extended AI features
     if(valid.length>=2){const mean=valid.reduce((a,b)=>a+b,0)/valid.length;const sd=Math.sqrt(valid.reduce((a,b)=>a+(b-mean)**2,0)/valid.length);st.analysis.consistencyScore=Math.max(0,Math.round(100-sd*2));}else st.analysis.consistencyScore=100;
@@ -2900,6 +2899,11 @@ function computeAnalysis(){
     // This was computed but never surfaced anywhere in the UI — a student
     // missing marks for an entire subject had no visible indicator at all.
     if(st.analysis.missingSubjects.length)st.flags.push({type:"data-gap",label:"⚠ Missing: "+st.analysis.missingSubjects.join(", "),color:"#8e7cc3"});
+
+    // Moved here (was previously called mid-way through flag computation, before
+    // burnout/resilient/plateau/data-gap were pushed — those flags were silently
+    // invisible to every narrative field below).
+    st.analysis.parentSummary=generateParentSummary(st);st.analysis.motivation=generateMotivation(st);st.analysis.studyPlan=generateStudyPlan(st);st.analysis.intervention=generateIntervention(st);st.analysis.reportCardComment=generateReportCardComment(st);
 
     // ── EXPLAINABLE WARNINGS ──
     st.analysis.explainedWarnings=st.flags.map(f=>{
@@ -3093,7 +3097,14 @@ function generateParentSummary(st){
 }
 function generateMotivation(st){const a=st.analysis,name=st.name.split(" ")[0];if(a.overallAvg>=80)return `Excellent work, ${name}! Keep pushing your limits - you have the potential to excel consistently.`;if(a.trend==="improving")return `Great progress, ${name}! You are moving in the right direction. Keep this momentum going!`;if(a.overallAvg<APP.setup.passThreshold)return `${name}, every expert was once a beginner. With focused effort and the right support, you can turn this around.`;return `Good effort, ${name}. A little more focus on weaker areas will take you to the next level.`;}
 function generateStudyPlan(st){const a=st.analysis,weak=Object.entries(a.subjectAvgs).filter(([s,v])=>v<60).map(([s])=>s);if(!weak.length)return "Maintain your current study habits. Consider challenging yourself with advanced problems in your strong subjects.";return `Focus areas: ${weak.join(", ")}. Steps: (1) Revise fundamentals. (2) Practice 30 min daily. (3) Attempt past papers. (4) Ask the teacher for targeted exercises.`;}
-function generateIntervention(st){const a=st.analysis,flags=st.flags.map(f=>f.label).join(", ");if(!flags)return "No immediate intervention needed. Continue regular monitoring.";return `Flags: ${flags}. `+(a.stressScore>=60?"High stress indicators - consider a one-on-one check-in. ":"")+"Recommended: parent-teacher meeting, additional practice material, monitor next test.";}
+function generateIntervention(st){
+  const a=st.analysis;
+  const RISK_TYPES=["data-error","at-risk","first-below-pass","declining","sharp-drop","absent","volatile","burnout","data-gap"];
+  const riskFlags=st.flags.filter(f=>RISK_TYPES.includes(f.type));
+  if(!riskFlags.length)return "No immediate intervention needed. Continue regular monitoring.";
+  const flags=riskFlags.map(f=>f.label).join(", ");
+  return `Flags: ${flags}. `+(a.stressScore>=60?"High stress indicators - consider a one-on-one check-in. ":"")+"Recommended: parent-teacher meeting, additional practice material, monitor next test.";
+}
 // Short, single-line "report card" style remark — deliberately shorter and
 // plainer than parentSummary/motivation above, closer to what a teacher
 // would actually hand-write on a physical report card. Generic score-band +
