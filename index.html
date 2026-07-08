@@ -1153,6 +1153,27 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     </div>
   </div>
 
+  <!-- USAGE MODE (Institution vs Individual) -->
+  <div class="card" id="mode-select-card" style="border-color:var(--c-primary);background:var(--c-primary-soft)">
+    <div class="card-title" style="margin-bottom:10px"><span class="icon">🎯</span> Who is this for?</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label class="mode-option-card" id="mode-card-institution" onclick="setUsageMode('institution')" style="cursor:pointer;padding:12px 14px;border-radius:var(--r-sm);border:2px solid var(--c-primary);background:#fff;display:flex;gap:10px;align-items:flex-start">
+        <div style="font-size:22px">🏫</div>
+        <div>
+          <div style="font-weight:700;font-size:13px">Institution / Coaching Batch</div>
+          <div style="font-size:11.5px;color:var(--c-text2);margin-top:2px">A teacher or coaching centre tracking a whole class or batch of students — with rank, class average, and at-risk flags.</div>
+        </div>
+      </label>
+      <label class="mode-option-card" id="mode-card-individual" onclick="setUsageMode('individual')" style="cursor:pointer;padding:12px 14px;border-radius:var(--r-sm);border:2px solid var(--c-border);background:#fff;display:flex;gap:10px;align-items:flex-start">
+        <div style="font-size:22px">👤</div>
+        <div>
+          <div style="font-weight:700;font-size:13px">Individual (Parent / Self-Prep)</div>
+          <div style="font-size:11.5px;color:var(--c-text2);margin-top:2px">A parent tracking one or more children, or an aspirant tracking their own prep — no class comparison, just personal progress over time.</div>
+        </div>
+      </label>
+    </div>
+  </div>
+
   <!-- UPDATE-EXISTING-SHEET (add a new test without losing prior marks) -->
   <div class="card" id="update-sheet-card" style="border-color:var(--c-success);background:#f4fbf7">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between">
@@ -1175,35 +1196,36 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
   </div>
   <div class="grid-2" style="margin-bottom:14px">
     <div class="card" style="padding:14px 16px">
-      <div class="card-title"><span class="icon">🏫</span> Institution</div>
+      <div class="card-title"><span class="icon" id="inst-card-icon">🏫</span> <span id="inst-card-title">Institution</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
         <div class="form-group" style="margin-bottom:0;grid-column:1/-1">
-          <label>Institution Name <span style="color:var(--c-danger)">*</span></label>
+          <label id="inst-name-label">Institution Name <span style="color:var(--c-danger)">*</span></label>
           <input id="inst-name" type="text" placeholder="e.g. Springfield International School" oninput="markDirty();validateSetup()"/>
+          <div id="inst-name-hint" style="font-size:11px;color:var(--c-text3);margin-top:3px;display:none"></div>
           <div id="err-inst-name" style="display:none;font-size:11px;color:var(--c-danger);margin-top:3px">⚠ Institution name is required</div>
         </div>
-        <div class="form-group" style="margin-bottom:0"><label>Type</label>
+        <div class="form-group" style="margin-bottom:0" id="inst-type-group"><label>Type</label>
           <select id="inst-type" onchange="markDirty()"><option value="">Select...</option><option>Pre-primary / Playschool</option><option>Primary School</option><option>High School</option><option>College / University</option><option>Coaching Centre</option><option>Corporate Training</option><option>Other</option></select>
         </div>
-        <div class="form-group" style="margin-bottom:0"><label>Location</label><input id="inst-location" type="text" placeholder="City, State" oninput="markDirty()"/></div>
-        <div class="form-group" style="margin-bottom:0"><label>Contact</label><input id="inst-contact" type="text" placeholder="phone / email" oninput="markDirty()"/></div>
+        <div class="form-group" style="margin-bottom:0" id="inst-location-group"><label>Location</label><input id="inst-location" type="text" placeholder="City, State" oninput="markDirty()"/></div>
+        <div class="form-group" style="margin-bottom:0" id="inst-contact-group"><label>Contact</label><input id="inst-contact" type="text" placeholder="phone / email" oninput="markDirty()"/></div>
       </div>
     </div>
     <div class="card" style="padding:14px 16px">
-      <div class="card-title"><span class="icon">📚</span> Class / Batch</div>
+      <div class="card-title"><span class="icon" id="class-card-icon">📚</span> <span id="class-card-title">Class / Batch</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
-        <div class="form-group" style="margin-bottom:0">
-          <label>Class / Batch <span style="color:var(--c-danger)">*</span></label>
+        <div class="form-group" style="margin-bottom:0" id="class-name-group">
+          <label id="class-name-label">Class / Batch <span style="color:var(--c-danger)">*</span></label>
           <input id="class-name" type="text" placeholder="e.g. Class 9" oninput="markDirty();validateSetup()"/>
           <div id="err-class-name" style="display:none;font-size:11px;color:var(--c-danger);margin-top:3px">⚠ Class / Batch is required</div>
         </div>
-        <div class="form-group" style="margin-bottom:0"><label>Section</label><input id="class-section" type="text" placeholder="e.g. B" oninput="markDirty()"/></div>
+        <div class="form-group" style="margin-bottom:0" id="class-section-group"><label>Section</label><input id="class-section" type="text" placeholder="e.g. B" oninput="markDirty()"/></div>
         <div class="form-group" style="margin-bottom:0">
           <label>Academic Year <span style="color:var(--c-danger)">*</span></label>
           <input id="class-year" type="text" placeholder="e.g. 2026" oninput="markDirty();validateSetup()"/>
           <div id="err-class-year" style="display:none;font-size:11px;color:var(--c-danger);margin-top:3px">⚠ Academic year is required</div>
         </div>
-        <div class="form-group" style="margin-bottom:0"><label>Teacher Name</label><input id="class-teacher" type="text" oninput="markDirty()"/></div>
+        <div class="form-group" style="margin-bottom:0"><label id="class-teacher-label">Teacher Name</label><input id="class-teacher" type="text" oninput="markDirty()"/></div>
       </div>
       <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--c-border)">
         <div style="font-size:11px;font-weight:700;color:var(--c-text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px">Scoring</div>
@@ -1214,7 +1236,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px"><input type="checkbox" id="sc-pf" style="accent-color:var(--c-primary)" onchange="markDirty()"/> Pass/Fail</label>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          <div class="form-group" style="margin-bottom:0"><label style="font-size:9.5px">Pass %</label><input id="pass-threshold" type="number" value="35" min="0" max="100" style="text-align:center" oninput="markDirty()"/></div>
+          <div class="form-group" style="margin-bottom:0"><label style="font-size:9.5px" id="pass-threshold-label">Pass %</label><input id="pass-threshold" type="number" value="35" min="0" max="100" style="text-align:center" oninput="markDirty()"/></div>
           <div class="form-group" style="margin-bottom:0"><label style="font-size:9.5px">Absent Alert</label><input id="absent-alert" type="number" value="3" min="0" style="text-align:center" oninput="markDirty()"/></div>
           <div class="form-group" style="margin-bottom:0"><label style="font-size:9.5px">Drop Alert %</label><input id="drop-alert" type="number" value="20" min="0" max="100" style="text-align:center" oninput="markDirty()"/></div>
         </div>
@@ -1323,12 +1345,21 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     </div>
     <button class="btn btn-primary btn-sm btn-glow" id="btn-goto-export-dash" onclick="goStep('export')" style="flex-shrink:0">Export PDFs →</button>
   </div>
+  <!-- Individual mode: each child/aspirant is a fully separate report — no
+       cross-comparison — so instead of a cohort grid, this switches which
+       single student's own data drives every widget below. Hidden entirely
+       in Institution mode. -->
+  <div id="individual-student-switcher" style="display:none;margin-bottom:12px;padding:10px 14px;background:var(--c-primary-soft);border-radius:var(--r-sm);align-items:center;gap:10px;flex-wrap:wrap">
+    <label style="font-size:12.5px;font-weight:700;color:var(--c-text2)">👤 Viewing:</label>
+    <select id="individual-student-select" onchange="selectIndividualStudent(this.value)" style="padding:5px 10px;font-size:13px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-weight:700"></select>
+    <div style="font-size:11.5px;color:var(--c-text2)">Each child/aspirant is tracked independently — this doesn't compare them to each other.</div>
+  </div>
   <div id="data-issue-banner" style="display:none;background:#fdecea;border:1px solid #f5c6c1;color:#8b1a1a;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px"></div>
   <div id="db-stats-bar" style="display:none;font-size:12px;color:var(--c-text2);background:var(--c-surface);padding:7px 14px;border-radius:var(--r-sm);border:1px solid var(--c-border);margin-bottom:10px"></div>
   <div class="db-kpi-strip" id="kpi-row"></div>
 
-  <!-- LAYER 2: PERSISTENT FILTER BAR (visible across all tabs) -->
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+  <!-- LAYER 2: PERSISTENT FILTER BAR (visible across all tabs, Institution mode only) -->
+  <div id="db-filter-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
     <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
     <button class="filter-btn" onclick="setFilter('at-risk',this)">At-Risk</button>
     <button class="filter-btn" onclick="setFilter('improving',this)">Improving</button>
@@ -1360,13 +1391,14 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
   <!-- TAB: ANALYTICS -->
   <div class="db-tab-panel" id="tab-analytics" role="tabpanel" aria-labelledby="dbtab-analytics" tabindex="0">
     <div class="grid-2" style="margin-bottom:16px">
-      <div class="chart-container"><div class="card-title">Subject Averages</div><canvas id="chart-subject-avg"></canvas></div>
-      <div class="chart-container"><div class="card-title">Class Trend</div><canvas id="chart-trend"></canvas></div>
+      <div class="chart-container"><div class="card-title" id="chart-subject-avg-title">Subject Averages</div><canvas id="chart-subject-avg"></canvas></div>
+      <div class="chart-container"><div class="card-title" id="chart-trend-title">Class Trend</div><canvas id="chart-trend"></canvas></div>
     </div>
-    <div class="grid-2">
+    <div class="grid-2" id="cohort-charts-row">
       <div class="chart-container"><div class="card-title">Marks vs Attendance</div><canvas id="chart-scatter"></canvas></div>
       <div class="chart-container"><div class="card-title">Top Performers</div><canvas id="chart-rank"></canvas></div>
     </div>
+    <div id="individual-charts-note" style="display:none;color:var(--c-text3);font-size:12px;padding:10px 2px">Cross-student comparison charts (Marks vs Attendance, Top Performers) aren't shown in Individual mode — each child/aspirant is tracked on their own, not against others.</div>
   </div>
 
   <!-- TAB: HEATMAP -->
@@ -1425,18 +1457,18 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     <div class="card">
       <div class="card-title"><span class="icon">📋</span> What Gets Generated</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
-        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-primary)"><div style="font-weight:700;margin-bottom:4px">👤 Student Reports</div><div style="font-size:12px;color:var(--c-text2)">One PDF per student — scores, trend, narrative, study plan.</div></div>
-        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-success)"><div style="font-weight:700;margin-bottom:4px">👩‍🏫 Teacher Report</div><div style="font-size:12px;color:var(--c-text2)">Class overview, flags, at-risk list, recommendations.</div></div>
-        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-purple)"><div style="font-weight:700;margin-bottom:4px">🏫 Management Report</div><div style="font-size:12px;color:var(--c-text2)">Executive summary, pass rate, trend overview.</div></div>
+        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-primary)"><div style="font-weight:700;margin-bottom:4px" id="exp-student-card-title">👤 Student Reports</div><div style="font-size:12px;color:var(--c-text2)" id="exp-student-card-desc">One PDF per student — scores, trend, narrative, study plan.</div></div>
+        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-success)" id="exp-teacher-card"><div style="font-weight:700;margin-bottom:4px">👩‍🏫 Teacher Report</div><div style="font-size:12px;color:var(--c-text2)">Class overview, flags, at-risk list, recommendations.</div></div>
+        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-purple)" id="exp-mgmt-card"><div style="font-weight:700;margin-bottom:4px">🏫 Management Report</div><div style="font-size:12px;color:var(--c-text2)">Executive summary, pass rate, trend overview.</div></div>
         <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-warn)"><div style="font-weight:700;margin-bottom:4px">📦 ZIP Bundle</div><div style="font-size:12px;color:var(--c-text2)">All PDFs in one download. Share student PDFs via WhatsApp.</div></div>
       </div>
     </div>
     <div class="card">
       <div class="card-title"><span class="icon">⚙️</span> Export Options</div>
       <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px"><input type="checkbox" id="exp-student" checked style="accent-color:var(--c-primary)"/> Student PDFs (×<span id="exp-count">0</span>)</label>
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px"><input type="checkbox" id="exp-teacher" checked style="accent-color:var(--c-primary)"/> Teacher Report</label>
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px"><input type="checkbox" id="exp-mgmt" checked style="accent-color:var(--c-primary)"/> Management Report</label>
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px"><input type="checkbox" id="exp-student" checked style="accent-color:var(--c-primary)"/> <span id="exp-student-label">Student PDFs</span> (×<span id="exp-count">0</span>)</label>
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px" id="exp-teacher-option"><input type="checkbox" id="exp-teacher" checked style="accent-color:var(--c-primary)"/> Teacher Report</label>
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px" id="exp-mgmt-option"><input type="checkbox" id="exp-mgmt" checked style="accent-color:var(--c-primary)"/> Management Report</label>
         <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px"><input type="checkbox" id="exp-zip" checked style="accent-color:var(--c-primary)"/> Bundle as ZIP</label>
       </div>
     </div>
@@ -1779,7 +1811,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
 <script>
 
 /* ════ APP STATE ════ */
-const APP={setup:{instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]},rawData:null,students:[],classStats:null,genderAnalysis:null,filter:"all",sort:"rank",aiFeatures:new Set(),
+const APP={setup:{mode:"institution",instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]},rawData:null,students:[],classStats:null,genderAnalysis:null,filter:"all",sort:"rank",aiFeatures:new Set(),individualSelectedId:null,
   // mergeSource holds the already-filled MARKS+CONTEXT sheet (header row +
   // real student rows, as plain arrays) when the teacher loads an existing
   // workbook via "Update Existing Sheet" on the Setup step. When set,
@@ -1806,12 +1838,13 @@ function goStep(step){
 /* ════ PROJECT LIFECYCLE — stateless, no persistence ════ */
 function startNewSession(){
   /* "New Project" — reset everything, go to Setup form */
-  APP.setup={instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]};
+  APP.setup={mode:"institution",instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]};
   APP.students=[];APP.rawData=null;APP.classStats=null;APP.genderAnalysis=null;subjectCount=0;testCount=0;
   APP.mergeMode=false;APP.mergeSource=null;$("#merge-banner").hide();
   $("#btn-download-template").text("⬇ Download Template");$("#btn-load-existing").text("📤 Load Existing Filled Sheet");
   $("#subjects-list").empty();$("#tests-list").empty();
   $("#session-name-badge").hide().text("");
+  setUsageMode("institution",true);
   unlockStep("setup");goStep("setup");
 }
 function deleteSession(){/* removed — no stored sessions */}
@@ -1930,6 +1963,7 @@ function collectSetupForm(){
   });
 }
 function fillSetupForm(s){
+  setUsageMode(s.mode||"institution",true);
   $("#inst-name").val(s.instName||"");$("#inst-type").val(s.instType||"");
   $("#inst-location").val(s.location||"");$("#inst-contact").val(s.contact||"");
   $("#class-name").val(s.className||"");$("#class-section").val(s.section||"");
@@ -1940,6 +1974,51 @@ function fillSetupForm(s){
   (s.subjects||[]).forEach(sub=>addSubject(sub));
   (s.tests||[]).forEach((t,ti)=>{addTest(t.name,t.date);});
   if(s.tests)s.tests.forEach((t,ti)=>{const wrap=$("#tests-list .test-row-wrap").eq(ti);(s.subjects||[]).forEach((sub,si)=>{wrap.find(`.mm-inp[data-subj="${si}"]`).val((t.maxMarks&&t.maxMarks[sub])||100);});});
+}
+
+/* ════ USAGE MODE (Institution vs Individual) ════
+   A single flag — APP.setup.mode — drives every institution-vs-individual
+   difference downstream: Setup form labels/required-ness, which report
+   types are offered on the Export step, and whether the Dashboard shows
+   cohort-relative widgets (rank, percentile, class topper, pass rate,
+   at-risk-vs-batch) or switches to a single-student progress view.
+   Everything else (computeAnalysis, grade bands, health score, trend)
+   is unchanged — those already work at n=1. */
+function setUsageMode(mode,skipDirty){
+  APP.setup.mode=mode==="individual"?"individual":"institution";
+  $("#mode-card-institution").css({borderColor:APP.setup.mode==="institution"?"var(--c-primary)":"var(--c-border)"});
+  $("#mode-card-individual").css({borderColor:APP.setup.mode==="individual"?"var(--c-primary)":"var(--c-border)"});
+  applyModeUI();
+  if(!skipDirty)markDirty();
+}
+function applyModeUI(){
+  const isIndividual=APP.setup.mode==="individual";
+  // --- Setup form: relabel / hide institution-only fields ---
+  $("#inst-card-icon").text(isIndividual?"👤":"🏫");
+  $("#inst-card-title").text(isIndividual?"About":"Institution");
+  $("#inst-name-label").html(isIndividual?'Student / Aspirant Name <span style="color:var(--c-danger)">*</span>':'Institution Name <span style="color:var(--c-danger)">*</span>');
+  $("#inst-name").attr("placeholder",isIndividual?"e.g. Ananya Krishnan":"e.g. Springfield International School");
+  $("#inst-name-hint").toggle(isIndividual).text(isIndividual?"If tracking more than one child, use one workbook per child, or add each as a separate row and re-export per child.":"");
+  $("#inst-type-group,#inst-location-group,#inst-contact-group").toggle(!isIndividual);
+  $("#class-card-icon").text(isIndividual?"🎯":"📚");
+  $("#class-card-title").text(isIndividual?"Goal":"Class / Batch");
+  $("#class-name-label").html(isIndividual?"Target Exam / Goal (optional)":'Class / Batch <span style="color:var(--c-danger)">*</span>');
+  $("#class-name").attr("placeholder",isIndividual?"e.g. UPSC CSE 2027":"e.g. Class 9");
+  $("#class-section-group").toggle(!isIndividual);
+  $("#class-teacher-label").text(isIndividual?"Mentor / Coach (optional)":"Teacher Name");
+  $("#pass-threshold-label").text(isIndividual?"Target %":"Pass %");
+  // clear any stale required-field error styling left over from the other mode
+  validateSetup();
+
+  // --- Export step: Individual mode has no cohort to report on, so
+  // Teacher/Management reports (which are class-wide by construction)
+  // are dropped entirely rather than shown empty or misleading. ---
+  $("#exp-teacher-card,#exp-mgmt-card,#exp-teacher-option,#exp-mgmt-option").toggle(!isIndividual);
+  if(isIndividual){$("#exp-teacher").prop("checked",false);$("#exp-mgmt").prop("checked",false);}
+  else if(!$("#exp-teacher-option").is(":visible")){/* re-enabling institution mode restores defaults */}
+  $("#exp-student-card-title").text(isIndividual?"👤 Progress Reports":"👤 Student Reports");
+  $("#exp-student-card-desc").text(isIndividual?"One PDF per student — personal trend, subject breakdown, coaching notes.":"One PDF per student — scores, trend, narrative, study plan.");
+  $("#exp-student-label").text(isIndividual?"Progress PDFs":"Student PDFs");
 }
 
 /* ════ EXCEL TEMPLATE GENERATION ════ */
@@ -1963,13 +2042,13 @@ function colLetter(n){let s="";n++;while(n>0){const m=(n-1)%26;s=String.fromChar
    place that defines what that tab looks like. */
 function buildSetupSheet(){
   const {subjects,tests,instName,passThreshold,absentAlert,dropAlert}=APP.setup;
-  const setupRows=[["INSTITUTION",""],["Institution Name",instName],["Type",APP.setup.instType||""],["Location",APP.setup.location||""],["Contact",APP.setup.contact||""],["CLASS",""],["Class / Batch",APP.setup.className],["Section",APP.setup.section||""],["Academic Year",APP.setup.year],["Class Teacher",APP.setup.teacher||""],["SUBJECTS",""]];
+  const setupRows=[["MODE",""],["Usage Mode",APP.setup.mode||"institution"],["INSTITUTION",""],["Institution Name",instName],["Type",APP.setup.instType||""],["Location",APP.setup.location||""],["Contact",APP.setup.contact||""],["CLASS",""],["Class / Batch",APP.setup.className],["Section",APP.setup.section||""],["Academic Year",APP.setup.year],["Class Teacher",APP.setup.teacher||""],["SUBJECTS",""]];
   subjects.forEach((s,i)=>setupRows.push(["Subject "+(i+1),s]));
   setupRows.push(["TESTS",""]);
   tests.forEach((t,i)=>{setupRows.push(["Test "+(i+1)+" Name",t.name]);setupRows.push(["Test "+(i+1)+" Date",t.date||""]);subjects.forEach(s=>setupRows.push(["Max Marks - "+s+" (Test "+(i+1)+")",(t.maxMarks&&t.maxMarks[s])||100]));});
   setupRows.push(["Scoring Method",Object.keys(APP.setup.scoring).filter(k=>APP.setup.scoring[k]).join(", ")]);
   setupRows.push(["Pass Threshold %",passThreshold],["Absent Alert Days",absentAlert],["Sharp Drop Alert %",dropAlert]);
-  const SECTION_LABELS=new Set(["INSTITUTION","CLASS","SUBJECTS","TESTS"]);
+  const SECTION_LABELS=new Set(["MODE","INSTITUTION","CLASS","SUBJECTS","TESTS"]);
   const wsSetup=XLSX.utils.aoa_to_sheet(setupRows);
   wsSetup["!cols"]=[{wch:34},{wch:28}];
   wsSetup["!rows"]=setupRows.map(()=>({hpt:20}));
@@ -1985,7 +2064,7 @@ function buildSetupSheet(){
 }
 function generateTemplate(){
   collectSetupForm();
-  if(!APP.setup.instName){toast("Fill Institution Name first.","warn");return;}
+  if(!APP.setup.instName){toast(APP.setup.mode==="individual"?"Fill Student/Aspirant Name first.":"Fill Institution Name first.","warn");return;}
   if(!APP.setup.subjects.length){toast("Add at least one subject.","warn");return;}
   if(!APP.setup.tests.length){toast("Add at least one test.","warn");return;}
   // If a previously-filled workbook was loaded via "Update Existing Sheet",
@@ -2407,7 +2486,7 @@ function validateSetupData(){
 /* ════ renderHomePage ════ */
 function renderHomePage(){
   // Always start fresh — stateless
-  APP.setup={instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]};
+  APP.setup={mode:"institution",instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]};
   APP.rawData=null;APP.students=[];APP.classStats=null;APP.genderAnalysis=null;
   APP.mergeMode=false;APP.mergeSource=null;$("#merge-banner").hide();
   $("#btn-download-template").text("⬇ Download Template");$("#btn-load-existing").text("📤 Load Existing Filled Sheet");
@@ -2471,6 +2550,7 @@ function parseWorkbook(data,ext,fname){
 function autoInferSetup(){
   const setupSheet=APP.rawData["SETUP"]||[];if(!setupSheet.length)return;
   const kv={};setupSheet.forEach(row=>{const k=String(Object.values(row)[0]||"").trim();const v=String(Object.values(row)[1]||"").trim();if(k&&v)kv[k]=v;});
+  if(kv["Usage Mode"])APP.setup.mode=(kv["Usage Mode"]==="individual"?"individual":"institution");
   if(kv["Institution Name"])APP.setup.instName=kv["Institution Name"];
   if(kv["Type"])APP.setup.instType=kv["Type"];
   if(kv["Location"])APP.setup.location=kv["Location"];
@@ -3185,7 +3265,35 @@ function renderDashboard(){
   const s=APP.setup;$("#db-class-label").text([s.instName,s.className,s.section,s.year,s.teacher].filter(Boolean).join(" · "));
   renderDataIssueBanner();
   updateExportGate();
-  renderKPIs();renderStudentCards();renderHeatmap();renderCharts();renderWellbeingPanel();renderFlagsTable();renderClassInsights();
+  const isIndividual=s.mode==="individual";
+  // Chrome that only makes sense when comparing many students against
+  // each other gets hidden entirely in Individual mode, rather than shown
+  // with misleading/empty cohort numbers.
+  $("#individual-student-switcher").css("display",isIndividual?"flex":"none");
+  $("#db-filter-bar").toggle(!isIndividual);
+  $("#dbtab-insights").toggle(!isIndividual);
+  $("#cohort-charts-row").toggle(!isIndividual);
+  $("#individual-charts-note").toggle(isIndividual);
+  if(isIndividual){
+    populateIndividualSwitcher();
+    // Insights tab is cohort-only (attendance correlation, subject weakness
+    // averaged across a class) — if it was left active from Institution
+    // mode, fall back to Students so nothing hidden stays "selected".
+    if($("#dbtab-insights").hasClass("active")||$("#tab-insights").hasClass("active")){switchDbTab("students",$("#dbtab-students")[0]);}
+  }
+  renderKPIs();renderStudentCards();renderHeatmap();renderCharts();renderWellbeingPanel();renderFlagsTable();
+  if(!isIndividual)renderClassInsights();
+}
+function populateIndividualSwitcher(){
+  const sel=$("#individual-student-select");
+  const sts=APP.students;
+  if(!sts.length){sel.html("");return;}
+  if(!APP.individualSelectedId||!sts.find(s=>s.id===APP.individualSelectedId))APP.individualSelectedId=sts[0].id;
+  sel.html(sts.map(s=>`<option value="${esc(s.id)}" ${s.id===APP.individualSelectedId?"selected":""}>${esc(s.name)}</option>`).join(""));
+}
+function selectIndividualStudent(id){
+  APP.individualSelectedId=id;
+  renderKPIs();renderStudentCards();renderHeatmap();renderCharts();renderWellbeingPanel();renderFlagsTable();
 }
 // Export must never be reachable while APP.dataIssues has entries — those are
 // mark cells that exceed a subject's max marks and silently inflate that
@@ -3203,19 +3311,38 @@ function updateExportGate(){
   }
 }
 function renderKPIs(){
+  const isIndividual=APP.setup.mode==="individual";
   const sts=APP.students,n=sts.length;if(!n)return;
+  const s=APP.setup;
+  $("#db-class-label").text([s.instName,s.className+(s.section?" "+s.section:"")].filter(Boolean).join(" — ")||(isIndividual?"Progress Dashboard":"Class Dashboard"));
+  $("#db-meta-label").text([s.year?s.year+" Academic Year":"",s.teacher?(isIndividual?"Mentor: "+s.teacher:"Teacher: "+s.teacher):""].filter(Boolean).join(" · "));
+  // Alert badge
+  const alertCount=APP.students.filter(st=>st.flags&&st.flags.length>0).length;
+  $("#alert-badge").text(alertCount||"").toggle(alertCount>0);
+
+  if(isIndividual){
+    // Single-student KPIs — every number here is the selected student
+    // against their own history / the target %, never against anyone else.
+    const st=sts.find(s=>s.id===APP.individualSelectedId)||sts[0];
+    const a=st.analysis;
+    const metTarget=a.overallAvg>=APP.setup.passThreshold;
+    const kpiCards=[
+      {label:"Average",val:a.overallAvg+"%",sub:"",accent:a.overallAvg>=60?"#2ec4b6":"#f25454"},
+      {label:"Grade",val:a.grade,sub:"",accent:"#4361ee"},
+      {label:"Trend",val:a.trend.charAt(0).toUpperCase()+a.trend.slice(1),sub:"",accent:a.trend==="improving"?"#2ec4b6":a.trend==="declining"?"#f25454":"#4361ee"},
+      {label:"Met Target",val:metTarget?"Yes":"Not Yet",sub:"Target "+APP.setup.passThreshold+"%",accent:metTarget?"#2ec4b6":"#f9a825"},
+      {label:"Health Score",val:a.healthScore!=null?a.healthScore:"—",sub:a.healthBand||"",accent:"#2ec4b6"},
+    ];
+    $("#kpi-row").html(kpiCards.map(k=>`<div class="kpi-card" style="--kpi-accent:${k.accent}"><div class="kpi-label">${k.label}</div><div class="kpi-val" style="color:${k.accent=="#4361ee"?"var(--c-text)":k.accent}">${esc(String(k.val))}</div>${k.sub?`<div class="kpi-sub">${esc(k.sub)}</div>`:""}</div>`).join(""));
+    $("#db-stats-bar").hide(); // median/SD/quartiles are cohort statistics, meaningless at n=1
+    return;
+  }
+
   const avgs=sts.map(s=>s.analysis.overallAvg),classAvg=Math.round(avgs.reduce((a,b)=>a+b,0)/n);
   const passing=sts.filter(s=>s.analysis.overallAvg>=APP.setup.passThreshold).length;
   const atRisk=sts.filter(s=>s.flags.find(f=>f.type==="at-risk")).length;
   const improving=sts.filter(s=>s.analysis.trend==="improving").length;
   const top=sts[0];
-  // Meta label
-  const s=APP.setup;
-  $("#db-class-label").text([s.instName,s.className+(s.section?" "+s.section:"")].filter(Boolean).join(" — ")||"Class Dashboard");
-  $("#db-meta-label").text([s.year?s.year+" Academic Year":"",s.teacher?"Teacher: "+s.teacher:""].filter(Boolean).join(" · "));
-  // Alert badge
-  const alertCount=APP.students.filter(st=>st.flags&&st.flags.length>0).length;
-  $("#alert-badge").text(alertCount||"").toggle(alertCount>0);
   // KPI strip with accent colours
   const passRate=Math.round(passing/n*100);
   const kpiCards=[
@@ -3235,6 +3362,7 @@ function renderKPIs(){
   }
 }
 function renderStudentCards(){
+  const isIndividual=APP.setup.mode==="individual";
   const filtered=getFilteredStudents();
   if(!filtered.length){$("#student-grid").html("<div style='color:var(--c-text3);padding:20px'>No students match the filter.</div>");return;}
   $("#student-grid").html(filtered.map(st=>{
@@ -3243,10 +3371,13 @@ function renderStudentCards(){
     const flagBadges=st.flags.slice(0,3).map(f=>`<span class="badge" style="background:${f.color}22;color:${f.color};border:1px solid ${f.color}44">${f.label}</span>`).join("");
     // Rank movement (v1.2, §new-feature): compares standing after the last
     // two tests specifically, not the final vs. first test — a purely
-    // additive indicator alongside the existing final Rank #N.
+    // additive indicator alongside the existing final Rank #N. Rank itself
+    // only means something when there's a cohort to rank within, so both
+    // are dropped in Individual mode.
     const rm=a.rankMovement;
     const rmBadge=rm==null?"":rm>0?` <span style="color:var(--c-success);font-weight:700" title="Moved up ${rm} place(s) since the previous test">▲${rm}</span>`:rm<0?` <span style="color:var(--c-danger);font-weight:700" title="Moved down ${-rm} place(s) since the previous test">▼${-rm}</span>`:` <span style="color:var(--c-text3)" title="No change in rank since the previous test">—</span>`;
-    return `<div class="student-card" data-student-id="${esc(st.id)}"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px"><div style="min-width:0;flex:1" title="${esc(st.name)}"><div class="sc-name">${esc(st.name)}</div><div class="sc-id">${esc(st.id)} · Rank #${a.rank}${rmBadge}</div></div><div style="text-align:right;flex-shrink:0"><div class="sc-avg" style="color:${color}">${a.overallAvg}%</div><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:11px;color:var(--c-text3)">${a.grade}</span>${a.healthScore!=null?`<span style="font-size:9px;padding:1px 5px;border-radius:99px;font-weight:700;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'};color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥${a.healthScore}</span>`:''}</div></div></div><div class="sc-bar"><div class="sc-bar-fill" style="width:${a.overallAvg}%;background:${color}"></div></div>${sparkData.length>1?`<div style="margin:6px 0">${sparkSvg}</div>`:""}<div class="sc-flags">${flagBadges}</div></div>`;
+    const idLine=isIndividual?esc(st.id):`${esc(st.id)} · Rank #${a.rank}${rmBadge}`;
+    return `<div class="student-card" data-student-id="${esc(st.id)}"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px"><div style="min-width:0;flex:1" title="${esc(st.name)}"><div class="sc-name">${esc(st.name)}</div><div class="sc-id">${idLine}</div></div><div style="text-align:right;flex-shrink:0"><div class="sc-avg" style="color:${color}">${a.overallAvg}%</div><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:11px;color:var(--c-text3)">${a.grade}</span>${a.healthScore!=null?`<span style="font-size:9px;padding:1px 5px;border-radius:99px;font-weight:700;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'};color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥${a.healthScore}</span>`:''}</div></div></div><div class="sc-bar"><div class="sc-bar-fill" style="width:${a.overallAvg}%;background:${color}"></div></div>${sparkData.length>1?`<div style="margin:6px 0">${sparkSvg}</div>`:""}<div class="sc-flags">${flagBadges}</div></div>`;
   }).join(""));
 }
 function buildSparkPath(data){
@@ -3264,27 +3395,54 @@ function renderHeatmap(){
   $("#heatmap-wrap").html(`<table class="heatmap-table"><thead><tr>${hdr}</tr></thead><tbody>${rows}</tbody></table>`);
 }
 function renderCharts(){
-  destroyCharts();const {subjects,tests}=APP.setup,sts=APP.students;if(!sts.length)return;
+  destroyCharts();const {subjects,tests}=APP.setup;const isIndividual=APP.setup.mode==="individual";
+  const sts=isIndividual?getFilteredStudents():APP.students;
+  if(!sts.length)return;
+  $("#chart-subject-avg-title").text(isIndividual?"Subject Averages":"Subject Averages");
+  $("#chart-trend-title").text(isIndividual?"Progress Trend":"Class Trend");
+  const seriesLabel=isIndividual?"Average %":"Class Avg %";
+  // In Individual mode `sts` is just the one selected student (see above),
+  // so these are already "their own" averages, not a cohort blend —
+  // no code branch needed here beyond the label change.
   const subjAvgs=subjects.map(s=>{const avgs=sts.map(st=>st.analysis.subjectAvgs[s]||0);return Math.round(avgs.reduce((a,b)=>a+b,0)/avgs.length);});
-  _charts.subjectAvg=new Chart($("#chart-subject-avg")[0],{type:"bar",data:{labels:subjects,datasets:[{label:"Class Avg %",data:subjAvgs,backgroundColor:"rgba(67,97,238,.7)",borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100}}}});
+  _charts.subjectAvg=new Chart($("#chart-subject-avg")[0],{type:"bar",data:{labels:subjects,datasets:[{label:seriesLabel,data:subjAvgs,backgroundColor:"rgba(67,97,238,.7)",borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100}}}});
   const trendAvgs=tests.map((_,ti)=>{const avgs=sts.map(st=>st.analysis.testAvgs[ti]).filter(v=>v!==null);return avgs.length?Math.round(avgs.reduce((a,b)=>a+b,0)/avgs.length):null;});
-  _charts.trend=new Chart($("#chart-trend")[0],{type:"line",data:{labels:tests.map(t=>t.name),datasets:[{label:"Class Avg %",data:trendAvgs,borderColor:"var(--c-primary)",backgroundColor:"rgba(67,97,238,.1)",tension:.3,fill:true}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:100}}}});
+  _charts.trend=new Chart($("#chart-trend")[0],{type:"line",data:{labels:tests.map(t=>t.name),datasets:[{label:seriesLabel,data:trendAvgs,borderColor:"var(--c-primary)",backgroundColor:"rgba(67,97,238,.1)",tension:.3,fill:true}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:100}}}});
+  // Cross-student comparison charts (attendance-vs-marks scatter, Top
+  // Performers ranking) only render in Institution mode — the canvases
+  // are hidden in Individual mode via #cohort-charts-row, but skip the
+  // (wasted) Chart.js calls entirely too.
+  if(isIndividual)return;
   _charts.scatter=new Chart($("#chart-scatter")[0],{type:"scatter",data:{datasets:[{label:"Students",data:sts.map(st=>({x:st.analysis.totalAbsent||0,y:st.analysis.overallAvg})),backgroundColor:"rgba(67,97,238,.6)",pointRadius:5}]},options:{responsive:true,scales:{x:{title:{display:true,text:"Total Absences"}},y:{title:{display:true,text:"Avg %"},min:0,max:100}}}});
   const top10=[...sts].slice(0,Math.min(10,sts.length));
   _charts.rank=new Chart($("#chart-rank")[0],{type:"bar",data:{labels:top10.map(s=>s.name.split(" ")[0]),datasets:[{label:"Overall %",data:top10.map(s=>s.analysis.overallAvg),backgroundColor:top10.map(s=>s.analysis.overallAvg>=80?"rgba(46,196,182,.7)":s.analysis.overallAvg>=APP.setup.passThreshold?"rgba(67,97,238,.7)":"rgba(242,92,84,.7)"),borderRadius:4}]},options:{responsive:true,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,max:100}}}});
 }
 function destroyCharts(){Object.values(_charts).forEach(c=>c&&c.destroy());_charts={};}
 function renderWellbeingPanel(){
-  const sts=APP.students,n=sts.length||1;
+  const isIndividual=APP.setup.mode==="individual";
+  const sts=isIndividual?getFilteredStudents():APP.students,n=sts.length||1;
   const high=sts.filter(s=>s.analysis.wellbeingFlag==="high").length,mod=sts.filter(s=>s.analysis.wellbeingFlag==="moderate").length,avgStress=Math.round(sts.reduce((a,s)=>a+s.analysis.stressScore,0)/n);
+  if(isIndividual){
+    const st=sts[0];
+    if(!st){$("#wellbeing-panel").html("");return;}
+    const label=st.analysis.wellbeingFlag==="high"?"High":st.analysis.wellbeingFlag==="moderate"?"Moderate":"Low";
+    const color=st.analysis.wellbeingFlag==="high"?"var(--c-danger)":st.analysis.wellbeingFlag==="moderate"?"var(--c-warn)":"var(--c-success)";
+    const emoji=st.analysis.wellbeingFlag==="high"?"😰":st.analysis.wellbeingFlag==="moderate"?"😐":"😊";
+    $("#wellbeing-panel").html(`<div class="wb-grid"><div class="wb-card"><div style="font-size:22px">${emoji}</div><div style="font-size:12px;font-weight:600;margin:4px 0">Stress Level</div><div class="wb-val" style="color:${color}">${label}</div></div><div class="wb-card"><div style="font-size:22px">📊</div><div style="font-size:12px;font-weight:600;margin:4px 0">Stress Score</div><div class="wb-val">${st.analysis.stressScore}/100</div></div><div class="wb-card"><div style="font-size:22px">📅</div><div style="font-size:12px;font-weight:600;margin:4px 0">Absences</div><div class="wb-val">${st.analysis.totalAbsent||0}</div></div></div>`);
+    return;
+  }
   $("#wellbeing-panel").html(`<div class="wb-grid"><div class="wb-card"><div style="font-size:22px">😰</div><div style="font-size:12px;font-weight:600;margin:4px 0">High Stress</div><div class="wb-val" style="color:var(--c-danger)">${high}</div></div><div class="wb-card"><div style="font-size:22px">😐</div><div style="font-size:12px;font-weight:600;margin:4px 0">Moderate</div><div class="wb-val" style="color:var(--c-warn)">${mod}</div></div><div class="wb-card"><div style="font-size:22px">😊</div><div style="font-size:12px;font-weight:600;margin:4px 0">Low Stress</div><div class="wb-val" style="color:var(--c-success)">${n-high-mod}</div></div><div class="wb-card"><div style="font-size:22px">📊</div><div style="font-size:12px;font-weight:600;margin:4px 0">Avg Stress Score</div><div class="wb-val">${avgStress}/100</div></div></div>`);
 }
 function renderFlagsTable(){
-  const flagged=APP.students.filter(s=>s.flags.length);
+  const isIndividual=APP.setup.mode==="individual";
+  const pool=isIndividual?getFilteredStudents():APP.students;
+  const flagged=pool.filter(s=>s.flags.length);
   if(!flagged.length){$("#flags-table-wrap").html("<div style='color:var(--c-text3);padding:10px'>No flags detected.</div>");return;}
   $("#flags-table-wrap").html(`<table class="data-table"><thead><tr><th>Student</th><th>Avg</th><th>Grade</th><th>Flags</th></tr></thead><tbody>${flagged.map(st=>`<tr><td style="font-weight:600">${esc(st.name)}</td><td>${st.analysis.overallAvg}%</td><td>${st.analysis.grade}</td><td>${st.flags.map(f=>`<span class="badge" style="background:${f.color}22;color:${f.color}">${f.label}</span>`).join(" ")}</td></tr>`).join("")}</tbody></table>`);
 }
-// New class-level Insights tab (attendance correlation + subject weakness).
+// Class-level Insights tab (attendance correlation + subject weakness) —
+// inherently cohort statistics (averaged across many students), so this
+// is only ever called in Institution mode; see renderDashboard().
 // Reuses the existing .wb-grid/.wb-card and .data-table CSS classes for
 // visual consistency with the Wellbeing/Alerts tabs — no new CSS added.
 function renderClassInsights(){
@@ -3301,6 +3459,15 @@ function renderClassInsights(){
   $("#subject-weakness-wrap").html(`<table class="data-table"><thead><tr><th>Subject</th><th>Class Average</th><th>% Below Pass Threshold</th></tr></thead><tbody>${sw.map(r=>`<tr><td style="font-weight:600">${esc(r.subject)}</td><td>${r.avgClass}%</td><td style="color:${r.pctBelow>=40?'var(--c-danger)':r.pctBelow>=20?'var(--c-warn)':'var(--c-success)'}">${r.pctBelow}%</td></tr>`).join("")}</tbody></table>`);
 }
 function getFilteredStudents(){
+  // Individual mode: the switcher, not the filter/search bar, decides
+  // which single student is shown — each child/aspirant is a fully
+  // separate report, never a filtered *view onto* a shared cohort list.
+  if(APP.setup.mode==="individual"){
+    const sts=APP.students;
+    if(!sts.length)return[];
+    const found=sts.find(s=>s.id===APP.individualSelectedId);
+    return found?[found]:[sts[0]];
+  }
   const q=$("#search-student").val().toLowerCase();
   let sts=APP.students.filter(s=>!q||s.name.toLowerCase().includes(q)||s.id.toLowerCase().includes(q));
   if(APP.filter==="at-risk")sts=sts.filter(s=>s.flags.find(f=>f.type==="at-risk"));
@@ -3332,23 +3499,25 @@ $(document).on("click",".student-card",function(){
 function openStudentModal(id){
   const st=APP.students.find(s=>s.id===id);if(!st)return;
   const a=st.analysis,{subjects,tests}=APP.setup;
+  const isIndividual=APP.setup.mode==="individual";
   const testRows=tests.map((t,ti)=>{const td=st.testData[t.name]||{marks:{},absents:0,remark:""};return `<tr><td style="font-weight:600">${esc(t.name)}</td>${subjects.map(s=>`<td>${td.marks[s]!==undefined&&td.marks[s]!==null&&td.marks[s]!==""?td.marks[s]:"-"}</td>`).join("")}<td style="font-weight:700">${a.testAvgs[ti]!==null?a.testAvgs[ti]+"%":"-"}</td><td>${td.absents||0}</td><td style="font-size:11px">${esc(td.remark||"")}</td></tr>`;}).join("");
-  $("#modal-content").html(`<h3 style="font-family:var(--font-display);font-size:18px;margin-bottom:4px">${esc(st.name)}</h3><div style="font-size:12px;color:var(--c-text3);margin-bottom:16px">ID: ${esc(st.id)} · Rank #${a.rank} · ${a.percentile}th percentile · Grade: ${a.grade}</div><div class="grid-4" style="margin-bottom:16px"><div class="kpi-card"><div class="kpi-label">Overall Avg</div><div class="kpi-val">${a.overallAvg}%</div></div><div class="kpi-card"><div class="kpi-label">Trend</div><div class="kpi-val" style="font-size:16px">${a.trend==="improving"?"📈":a.trend==="declining"?"📉":"➡"} ${a.trend}</div></div><div class="kpi-card"><div class="kpi-label">Absences</div><div class="kpi-val">${a.totalAbsent}</div></div><div class="kpi-card"><div class="kpi-label">Stress</div><div class="kpi-val" style="font-size:16px">${a.wellbeingFlag}</div></div></div><div class="tbl-wrap" style="margin-bottom:16px"><table class="data-table"><thead><tr><th>Test</th>${subjects.map(s=>`<th>${esc(s)}</th>`).join("")}<th>Avg</th><th>Absent</th><th>Remark</th></tr></thead><tbody>${testRows}</tbody></table></div>${a.healthScore!=null?`<div style="margin-bottom:10px;padding:8px 12px;border-radius:var(--r-sm);display:flex;align-items:center;gap:10px;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'}"><div style="font-size:22px;font-weight:700;font-family:var(--font-display);color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥ ${a.healthScore}</div><div><div style="font-weight:700;font-size:12px">Health Score — ${a.healthBand||''}</div><div style="font-size:11px;color:var(--c-text2)">Academics 40% · Consistency 20% · Trend 20% · Engagement 20%</div></div></div>`:""}
+  const idLine=isIndividual?`ID: ${esc(st.id)} · Grade: ${a.grade}`:`ID: ${esc(st.id)} · Rank #${a.rank} · ${a.percentile}th percentile · Grade: ${a.grade}`;
+  $("#modal-content").html(`<h3 style="font-family:var(--font-display);font-size:18px;margin-bottom:4px">${esc(st.name)}</h3><div style="font-size:12px;color:var(--c-text3);margin-bottom:16px">${idLine}</div><div class="grid-4" style="margin-bottom:16px"><div class="kpi-card"><div class="kpi-label">Overall Avg</div><div class="kpi-val">${a.overallAvg}%</div></div><div class="kpi-card"><div class="kpi-label">Trend</div><div class="kpi-val" style="font-size:16px">${a.trend==="improving"?"📈":a.trend==="declining"?"📉":"➡"} ${a.trend}</div></div><div class="kpi-card"><div class="kpi-label">Absences</div><div class="kpi-val">${a.totalAbsent}</div></div><div class="kpi-card"><div class="kpi-label">Stress</div><div class="kpi-val" style="font-size:16px">${a.wellbeingFlag}</div></div></div><div class="tbl-wrap" style="margin-bottom:16px"><table class="data-table"><thead><tr><th>Test</th>${subjects.map(s=>`<th>${esc(s)}</th>`).join("")}<th>Avg</th><th>Absent</th><th>Remark</th></tr></thead><tbody>${testRows}</tbody></table></div>${a.healthScore!=null?`<div style="margin-bottom:10px;padding:8px 12px;border-radius:var(--r-sm);display:flex;align-items:center;gap:10px;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'}"><div style="font-size:22px;font-weight:700;font-family:var(--font-display);color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥ ${a.healthScore}</div><div><div style="font-weight:700;font-size:12px">Health Score — ${a.healthBand||''}</div><div style="font-size:11px;color:var(--c-text2)">Academics 40% · Consistency 20% · Trend 20% · Engagement 20%</div></div></div>`:""}
 ${a.explainedWarnings&&a.explainedWarnings.length?`<div style="margin-bottom:12px"><div style="font-weight:600;font-size:11px;margin-bottom:6px">⚠ Alerts &amp; Explanations</div>${a.explainedWarnings.map(f=>`<div style="margin-bottom:5px;padding:6px 10px;border-radius:var(--r-sm);background:${f.color}18;border-left:3px solid ${f.color}"><div style="font-weight:700;font-size:11px;color:${f.color}">${f.label}</div><div style="font-size:11px;color:var(--c-text2);margin-top:2px">${f.reason||''}</div></div>`).join('')}</div>`:st.flags.length?`<div style="margin-bottom:14px"><div style="font-weight:600;margin-bottom:6px">Flags</div>${st.flags.map(f=>`<span class="badge" style="background:${f.color}22;color:${f.color};margin-right:6px">${f.label}</span>`).join("")}</div>`:""}
 <div class="grid-4" style="margin-bottom:14px">
   <div class="kpi-card"><div class="kpi-label">Consistency</div><div class="kpi-val" style="font-size:18px">${a.consistencyScore||"—"}%</div></div>
   <div class="kpi-card"><div class="kpi-label">Growth Rate</div><div class="kpi-val" style="font-size:18px;color:${(a.growthRate||0)>=0?"var(--c-success)":"var(--c-danger)"}">${(a.growthRate||0)>=0?"+":""}${a.growthRate||0}%</div></div>
   <div class="kpi-card"><div class="kpi-label">Engagement</div><div class="kpi-val" style="font-size:18px">${a.engagementIndex||"—"}</div></div>
   <div class="kpi-card"><div class="kpi-label">EW Score</div><div class="kpi-val" style="font-size:18px;color:${(a.earlyWarningScore||0)>=50?"var(--c-danger)":(a.earlyWarningScore||0)>=25?"var(--c-warn)":"var(--c-success)"}">${a.earlyWarningScore||0}</div></div>
-  <div class="kpi-card"><div class="kpi-label">Competitive</div><div class="kpi-val" style="font-size:13px">${a.competitiveReadiness||"—"}</div></div>
-  <div class="kpi-card"><div class="kpi-label">Topper Gap</div><div class="kpi-val" style="font-size:18px">${a.topperGap||0}%</div></div>
+  ${isIndividual?"":`<div class="kpi-card"><div class="kpi-label">Competitive</div><div class="kpi-val" style="font-size:13px">${a.competitiveReadiness||"—"}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Topper Gap</div><div class="kpi-val" style="font-size:18px">${a.topperGap||0}%</div></div>`}
 </div>
 <div class="grid-4" style="margin-bottom:14px">
   <div class="kpi-card"><div class="kpi-label">Best Test</div><div class="kpi-val" style="font-size:14px">${a.bestTest?esc(a.bestTest.name)+" ("+a.bestTest.pct+"%)":"—"}</div></div>
   <div class="kpi-card"><div class="kpi-label">Weakest Test</div><div class="kpi-val" style="font-size:14px">${a.worstTest?esc(a.worstTest.name)+" ("+a.worstTest.pct+"%)":"—"}</div></div>
 </div>
-${a.subjectDeltas&&Object.keys(a.subjectDeltas).length?`<div class="card" style="padding:12px;margin-bottom:14px"><div class="card-title" style="margin-bottom:6px">📊 vs. Class Average, by Subject</div><div style="display:flex;flex-wrap:wrap;gap:6px">${Object.entries(a.subjectDeltas).map(([s,d])=>`<span class="badge" style="background:${d>=0?'var(--c-success)':'var(--c-danger)'}18;color:${d>=0?'var(--c-success)':'var(--c-danger)'}" title="${esc(s)}: ${d>=0?'above':'below'} the class average by ${Math.abs(d)} points">${esc(s)} ${d>=0?"+":""}${d}</span>`).join("")}</div></div>`:""}</div><div style="display:flex;flex-direction:column;gap:10px">${a.reportCardComment?`<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">📝 Report Card Comment</div><div style="font-size:13px">${esc(a.reportCardComment)}</div></div>`:""}<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">💬 Parent Summary</div><div style="font-size:13px">${esc(a.parentSummary)}</div></div><div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">🌟 Motivation</div><div style="font-size:13px">${esc(a.motivation)}</div></div>
-<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">⭐ Strengths</div><div style="font-size:13px">${esc(a.strengthsLetter||"")}</div></div><div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">📚 Study Plan</div><div style="font-size:13px">${esc(a.studyPlan)}</div></div>${a.intervention?`<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">🚨 Intervention Note</div><div style="font-size:13px">${esc(a.intervention)}</div></div>`:""}</div>`);
+${!isIndividual&&a.subjectDeltas&&Object.keys(a.subjectDeltas).length?`<div class="card" style="padding:12px;margin-bottom:14px"><div class="card-title" style="margin-bottom:6px">📊 vs. Class Average, by Subject</div><div style="display:flex;flex-wrap:wrap;gap:6px">${Object.entries(a.subjectDeltas).map(([s,d])=>`<span class="badge" style="background:${d>=0?'var(--c-success)':'var(--c-danger)'}18;color:${d>=0?'var(--c-success)':'var(--c-danger)'}" title="${esc(s)}: ${d>=0?'above':'below'} the class average by ${Math.abs(d)} points">${esc(s)} ${d>=0?"+":""}${d}</span>`).join("")}</div></div>`:""}</div><div style="display:flex;flex-direction:column;gap:10px">${a.reportCardComment?`<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">📝 Report Card Comment</div><div style="font-size:13px">${esc(a.reportCardComment)}</div></div>`:""}<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">💬 Parent Summary</div><div style="font-size:13px">${esc(a.parentSummary)}</div></div><div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">🌟 Motivation</div><div style="font-size:13px">${esc(a.motivation)}</div></div>
+<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">⭐ Strengths</div><div style="font-size:13px">${esc(a.strengthsLetter||"")}</div></div><div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">📚 Study Plan</div><div style="font-size:13px">${esc(a.studyPlan)}</div></div>${!isIndividual&&a.intervention?`<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">🚨 Intervention Note</div><div style="font-size:13px">${esc(a.intervention)}</div></div>`:""}</div>`);
   $("#modal-overlay").addClass("open");
   _modalLastFocus=document.activeElement;
   setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);
@@ -3457,13 +3626,14 @@ function addPDFHeader(doc,title){
 }
 function buildStudentPDF(doc,st){
   const a=st.analysis,s=APP.setup;
+  const isIndividual=s.mode==="individual";
   const W=210,H=297;
   // ── HEADER BAR ──
   doc.setFillColor(30,58,95);doc.rect(0,0,W,22,"F");
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(13);
-  doc.text("Student Insight  |  Progress Report",10,10);
+  doc.text(isIndividual?"Student Insight  |  Progress Report":"Student Insight  |  Progress Report",10,10);
   doc.setFontSize(8);doc.setFont("helvetica","normal");
-  doc.text([s.instName,s.className+(s.section?" "+s.section:""),s.year].filter(Boolean).join(" · "),10,17);
+  doc.text([s.instName,isIndividual?(s.className||""):s.className+(s.section?" "+s.section:""),s.year].filter(Boolean).join(" · "),10,17);
   doc.text("Generated: "+new Date().toLocaleDateString(),W-10,17,{align:"right"});
   doc.setTextColor(40,40,40);
   let y=30;
@@ -3473,7 +3643,7 @@ function buildStudentPDF(doc,st){
   doc.setFont("helvetica","bold");doc.setFontSize(14);doc.setTextColor(26,29,46);
   doc.text(fitText(doc,st.name,(W-37-4)-13),13,y+10);
   doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(90,96,122);
-  doc.text(fitText(doc,"Student ID: "+st.id,(W-37-4)-13),13,y+18);
+  doc.text(fitText(doc,isIndividual?"ID: "+st.id:"Student ID: "+st.id,(W-37-4)-13),13,y+18);
   // Grade badge (right side)
   doc.setFillColor(...avgColor);doc.roundedRect(W-37,y+3,28,20,3,3,"F");
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);
@@ -3481,7 +3651,15 @@ function buildStudentPDF(doc,st){
   doc.setFontSize(8);doc.text("Grade "+a.grade,W-23,y+21,{align:"center"});
   y+=32;
   // ── KPI ROW ──
-  const kpis=[
+  // Rank/Percentile only mean something with a cohort behind them — in
+  // Individual mode they're replaced with Grade and Met-Target, which
+  // compare the student only to the scale and to their own target %.
+  const kpis=isIndividual?[
+    {label:"Grade",val:a.grade,color:[67,97,238]},
+    {label:"Met Target",val:a.overallAvg>=s.passThreshold?"Yes":"Not Yet",color:a.overallAvg>=s.passThreshold?[46,196,182]:[249,168,38]},
+    {label:"Trend",val:a.trend==="improving"?"UP":a.trend==="declining"?"DOWN":"STABLE",color:a.trend==="improving"?[46,196,182]:a.trend==="declining"?[242,92,84]:[90,96,122]},
+    {label:"Absences",val:a.totalAbsent||0,color:a.totalAbsent>=s.absentAlert?[242,92,84]:[90,96,122]},
+  ]:[
     {label:"Rank",val:"#"+a.rank,color:[67,97,238]},
     {label:"Percentile",val:a.percentile+"th",color:[46,196,182]},
     {label:"Trend",val:a.trend==="improving"?"UP":a.trend==="declining"?"DOWN":"STABLE",color:a.trend==="improving"?[46,196,182]:a.trend==="declining"?[242,92,84]:[90,96,122]},
@@ -3599,7 +3777,7 @@ function buildStudentPDF(doc,st){
     const lines=doc.splitTextToSize(a.intervention,W-28);const bh=lines.length*4.5+12;
     doc.setFillColor(253,236,234);doc.setDrawColor(242,92,84);doc.roundedRect(8,y,W-16,bh,2,2,"FD");
     doc.setFillColor(242,92,84);doc.rect(8,y,3,bh,"F");
-    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(192,57,43);doc.text("Teacher Intervention Note",14,y+7);
+    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(192,57,43);doc.text(isIndividual?"Coaching Note":"Teacher Intervention Note",14,y+7);
     doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(40,40,40);doc.text(lines,14,y+13);y+=bh+5;
   }
   // ── FOOTER ──
@@ -3917,6 +4095,7 @@ function saveSession(){
 function esc(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
 
 function validateSetup(){
+  const isIndividual=APP.setup.mode==="individual";
   const instName=$("#inst-name").val().trim();
   const className=$("#class-name").val().trim();
   const year=$("#class-year").val().trim();
@@ -3926,8 +4105,12 @@ function validateSetup(){
   // inline field errors
   $("#err-inst-name").toggle(!instName);
   if(!instName) $("#inst-name").css("border-color","var(--c-danger)"); else $("#inst-name").css("border-color","");
-  $("#err-class-name").toggle(!className);
-  if(!className) $("#class-name").css("border-color","var(--c-danger)"); else $("#class-name").css("border-color","");
+  // Class / Batch is only mandatory in Institution mode — an individual
+  // aspirant/parent may have no "batch" at all, and forcing a fake one
+  // in would just pollute the reports with meaningless text.
+  const classRequired=!isIndividual;
+  $("#err-class-name").toggle(classRequired&&!className);
+  if(classRequired&&!className) $("#class-name").css("border-color","var(--c-danger)"); else $("#class-name").css("border-color","");
   $("#err-class-year").toggle(!year);
   if(!year) $("#class-year").css("border-color","var(--c-danger)"); else $("#class-year").css("border-color","");
 
@@ -3940,8 +4123,8 @@ function validateSetup(){
   const dupeTests=findDupes(tests);
 
   const missing=[];
-  if(!instName) missing.push("Institution Name");
-  if(!className) missing.push("Class / Batch");
+  if(!instName) missing.push(isIndividual?"Student/Aspirant Name":"Institution Name");
+  if(classRequired&&!className) missing.push("Class / Batch");
   if(!year) missing.push("Academic Year");
   if(!subjects.length) missing.push("at least one Subject");
   if(!tests.length) missing.push("at least one Test");
@@ -4012,6 +4195,7 @@ $(function(){
   // Stateless design: wipe any previously stored session data on load
   try{localStorage.removeItem("sia_sessions");localStorage.removeItem("sia_auth");localStorage.removeItem("sia_gs_url");}catch(e){}
   renderAICheckboxes();selectAllAI();initEnvBadge();
+  setUsageMode("institution",true); // default card visuals before any Setup interaction
   goStep("home"); // always shows clean home
 });
 </script>
