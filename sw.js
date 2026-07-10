@@ -1,17 +1,22 @@
 /* ============================================================
-   Student Insight — Service Worker v9.0
+   Student Insight — Service Worker v10.0
    Caches the app shell for offline use.
    Cache is versioned — bump CACHE_VERSION on each deploy.
+   v10.0: moved from GitHub Pages project path (/student-insight/)
+   to the custom domain https://studin.in/, served at root — shell
+   paths updated accordingly. Bumping the version forces every
+   existing installed client to drop its old (now-wrong-path) cache
+   on next visit instead of silently serving stale/broken shell files.
 ============================================================ */
 
-const CACHE_VERSION = 'sia-v9.0';
+const CACHE_VERSION = 'sia-v10.0';
 const CACHE_NAME    = CACHE_VERSION;
 
 // App shell assets to cache on install
 const SHELL_ASSETS = [
-  '/student-insight/',
-  '/student-insight/index.html',
-  '/student-insight/manifest.json',
+  '/',
+  '/index.html',
+  '/manifest.json',
 ];
 
 // CDN assets the app depends on (cache on first fetch)

@@ -10,17 +10,24 @@ A PWA for schools to analyse student performance without sending any data to ext
 
 | Environment | URL |
 |-------------|-----|
-| **Production** | https://sandeephakki.github.io/student-insight/ |
+| **Production** | https://studin.in/ |
 | **QA** | https://sandeephakki-qa.github.io/student-insight/ |
+
+> Production is served via GitHub Pages on a custom domain (`studin.in`) —
+> requires a `CNAME` file at the repo root containing `studin.in`, plus a DNS
+> `A`/`ALIAS` record pointed at GitHub Pages. QA stays on the default
+> `github.io` project URL.
 
 ---
 
 ## How it works
 
-1. Teacher sets up the class (institution, subjects, tests, scoring rules, alert thresholds) — or skips this and lets the app infer it from the uploaded workbook.
-2. Marks are imported from an Excel workbook with two sheets, `STUDENTS` and `MARKS+CONTEXT` (a downloadable template and four sample class-marks spreadsheets are available via "Download Template" / the "Sample Files" button).
-3. Analysis runs entirely in-browser across five categories the teacher can toggle: performance (averages, rank, trend, predictions), warnings (at-risk, sharp drops, plateaus), narrative summaries (parent summaries, study plans, intervention notes), wellbeing (stress/burnout/resilience indicators), and management-level class health.
-4. A tabbed dashboard (KPIs, student cards, heatmap, flags table, wellbeing panel, charts) and exportable PDF reports (per-student report card, teacher summary, management report) are generated and downloaded locally.
+1. On first visit, the app asks whether you're an **Institution/Teacher** or an **Individual/Parent** — this sets up the right layout below (switchable later in Setup).
+2. Teacher sets up the class (institution, subjects, tests, scoring rules, alert thresholds) — or skips this and lets the app infer it from the uploaded workbook.
+3. Marks are imported from an Excel workbook with two sheets, `SETUP` and `MARKS+CONTEXT` (a downloadable template and six sample spreadsheets — four institution, two individual — are available via "Download Template" / the "Sample Files" button).
+4. Analysis runs entirely in-browser across five categories the teacher can toggle: performance (averages, rank, trend, predictions), warnings (at-risk, sharp drops, plateaus), narrative summaries (parent summaries, study plans, intervention notes), wellbeing (stress/burnout/resilience indicators), and management-level class health.
+5. A tabbed dashboard (KPIs, student cards, heatmap, flags table, wellbeing panel, charts) and exportable PDF reports (per-student report card, teacher summary, management report) are generated and downloaded locally.
+6. **Compare Sections / Batches** (Institution mode): managing more than one class or batch — Class 5-A/B/C, a coaching batch A/B, anything? Upload each section's already-filled sheet directly — no manual re-entry of Subjects/Tests/Max Marks required, since the first file you upload sets the shared schema automatically — and see every section ranked and charted side by side (section-level comparison, not student-vs-student).
 
 No data ever leaves the device. No servers. No tracking. No API keys. Nothing is saved between sessions unless you explicitly export a file.
 
@@ -46,12 +53,13 @@ README.md         ← This file
 2. Go to **Settings → Pages → Source → GitHub Actions**
 3. Push any change to `main` — the workflow auto-deploys
 4. Your app is live at `https://<your-username>.github.io/student-insight/`
+5. *(Optional)* Point a custom domain at it: add a `CNAME` file at the repo root containing your domain, then create a matching DNS record — see [GitHub's custom domain guide](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site). Production here uses this to serve at `studin.in`.
 
 ---
 
 ## Sample files
 
-Four sample class-marks spreadsheets are hosted in the `samples/` folder of this repo and are linked from the "Sample Files" button next to About in the app. They're handy for trying the app out or as a template for formatting your own class data.
+Six sample spreadsheets — four Institution-mode class examples and two Individual-mode (parent/aspirant) examples — are hosted in the `samples/` folder of this repo and are linked from the "Sample Files" button next to About in the app. They're handy for trying the app out or as a template for formatting your own class data.
 
 ---
 
