@@ -129,7 +129,7 @@
                    plateau, earlyWarningScore, competitiveReadiness,
                    predictedNext, missingSubjects, hasDataGaps,
                    explainedWarnings:[{...flag, reason}],
-                   parentSummary, motivation, studyPlan, intervention,
+                   parentMessage, trendFacts, homePlan, schoolPlan,
                    strengthsLetter },
        flags: [{type,label,color}]   // badges shown on student cards
      }
@@ -459,15 +459,20 @@
        when a student passed every prior test but their single most recent
        test dropped below passThreshold. Has its own explainedWarnings
        reason string, same as every other flag type.
-    e) Report Card Comment — st.analysis.reportCardComment
-       (generateReportCardComment(), ~line 2705): a short, single-line,
-       traditional-style remark (score band + trend), deliberately separate
-       from and shorter than the existing parentSummary/motivation/
-       strengthsLetter narratives. Appears in the student modal (as the
-       first narrative card) AND in the actual exported student PDF
-       (buildStudentPDF, ~line 2995 — added as a new entry in that
-       function's existing data-driven `sections` array, so the PDF's
-       drawing/pagination code itself was never touched).
+    e) Parent-facing narratives — redesigned from the original six
+       overlapping cards (Report Card Comment / For Parents / Strengths /
+       Motivation / Study Plan / Intervention, which repeated the same
+       score+trend sentence three ways) into: st.analysis.parentMessage
+       (one merged message, tone genuinely scaled to severity —
+       generateParentMessage()), st.analysis.trendFacts (concrete numbers,
+       not a vague "declining" label — generateTrendFacts()),
+       st.analysis.strengthsLetter (now returns null instead of filler text
+       when no subject genuinely qualifies — generateStrengthsLetter()),
+       and st.analysis.homePlan / st.analysis.schoolPlan (split by who
+       actually acts, replacing the old studyPlan/intervention — 
+       generateHomePlan()/generateSchoolPlan()). All are editable in the
+       student modal via narrativeCard()/saveNarrativeField(), and the
+       exported PDF (buildStudentPDF) mirrors the same fields/labels.
        KNOWN LIMITATION: not editable in-app before export — flagged
        explicitly in a code comment rather than silently implied to be
        editable. A teacher who wants to override the auto-generated text
@@ -614,8 +619,8 @@
     "parent" field was never actually populated anywhere in the codebase
     (Parent Contact/Address/DOB were removed from the template earlier;
     "parent" specifically was never even a real column). Changed to plain
-    "Student ID: <id>". NOT the same thing as the "💬 Parent Summary" card
-    further down the same report (generateParentSummary(), ~line 2904) —
+    "Student ID: <id>". NOT the same thing as the "💬 The Bottom Line" card
+    further down the same report (generateParentMessage(), ~line 2904) —
     that's a real, populated, AI-generated plain-language narrative FOR
     parents to read, and was intentionally left alone.
 
@@ -3720,7 +3725,7 @@ function computeAnalysis(){
     // Moved here (was previously called mid-way through flag computation, before
     // burnout/resilient/plateau/data-gap were pushed — those flags were silently
     // invisible to every narrative field below).
-    st.analysis.parentSummary=generateParentSummary(st);st.analysis.motivation=generateMotivation(st);st.analysis.studyPlan=generateStudyPlan(st);st.analysis.intervention=generateIntervention(st);st.analysis.reportCardComment=generateReportCardComment(st);
+    st.analysis.parentMessage=generateParentMessage(st);st.analysis.trendFacts=generateTrendFacts(st);st.analysis.homePlan=generateHomePlan(st);st.analysis.schoolPlan=generateSchoolPlan(st);
 
     // ── EXPLAINABLE WARNINGS ──
     st.analysis.explainedWarnings=st.flags.map(f=>{
@@ -4563,59 +4568,99 @@ async function exportComparisonReportPDF(){
   toast("Comparison report downloaded: "+fname,"success");
 }
 
+// Only returns a Strengths note when a genuine strength exists (a subject
+// at/above 70%). Previously this fell back to "is working hard to build
+// strengths" even when nothing was — that reads as filler to a parent, not
+// as a strength, and actually undermines trust in a report that's honest
+// everywhere else. Returning null lets the caller omit the section.
 function generateStrengthsLetter(st){
   const a=st.analysis,name=st.name.split(" ")[0];
   const topSubjs=Object.entries(a.subjectAvgs||{}).filter(([,v])=>v>=70).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([s])=>s);
-  if(!topSubjs.length)return name+" is working hard to build strengths. Consistent effort will unlock real progress.";
+  if(!topSubjs.length)return null;
   return `${name} shows genuine strength in ${topSubjs.join(" and ")}${a.overallAvg>=80?" — performing at an excellent level and ready for greater challenges":a.trend==="improving"?" — and the trajectory is very encouraging":""}.${a.resilient?" "+name+" has also shown great resilience, bouncing back after difficult periods.":""}`;
 }
 function computePercentiles(){const n=APP.students.length;if(!n)return;const sorted=[...APP.students].sort((a,b)=>a.analysis.overallAvg-b.analysis.overallAvg);sorted.forEach((st,i)=>{st.analysis.percentile=n>1?Math.round((i/(n-1))*100):100;});}
 
-/* ════ NARRATIVES ════ */
-function generateParentSummary(st){
-  const a=st.analysis,name=st.name.split(" ")[0],t=a.trend,avg=a.overallAvg;
-  let msg=name+" scored an overall average of "+avg+"% this period. ";
-  if(t==="improving") msg+="Performance is improving - encourage this positive trend.";
-  else if(t==="declining") msg+="There has been a decline. Additional support at home will help.";
-  else msg+="Performance has been consistent. Continued focus will help.";
-  if(a.strongSubject) msg+=" Strongest subject: "+a.strongSubject+".";
-  if(a.weakSubject&&a.weakSubject!==a.strongSubject) msg+=" Needs attention in: "+a.weakSubject+".";
-  return msg;
+/* ════ NARRATIVES ════
+   Redesigned from a parent's actual reading experience, not just from what
+   was easy to compute. The old six-card layout (Report Card Comment / For
+   Parents / Strengths / Motivation / Study Plan / Intervention) repeated
+   the same "scored X%, there's been a decline" sentence three times in
+   slightly different words, used one flat encouraging tone regardless of
+   how serious the situation actually was, and gave generic advice
+   ("revise fundamentals, practice 30 min daily") that wasn't tied to which
+   subject actually needed it. Replaced with:
+     - parentMessage: ONE plain-language paragraph, tone genuinely scaled
+       to severity (a bottom-of-class declining student reads very
+       differently from a strong, improving one — no "good effort!" on a
+       report that also says "at risk").
+     - trendFacts: concrete numbers (which test, how many points, which
+       test named "declining" actually shows it) instead of a vague label.
+     - homePlan / schoolPlan: split by who actually does the action, each
+       anchored to the specific weakest subject rather than a canned list.
+   ════ */
+// Concrete, checkable trend facts instead of a vague "there has been a
+// decline" — names the actual tests and the actual point swing, and is
+// honest about a tie for weakest subject instead of arbitrarily picking one
+// (the marks table right above this can show two subjects tied at the same
+// %, so silently naming only one of them would look inconsistent).
+// Shared by generateTrendFacts() and generateHomePlan(). Naming "the
+// weakest subjects" only makes sense when it's a genuine minority of the
+// subject list — if a student is struggling roughly evenly everywhere,
+// the tie-for-lowest can end up covering every subject, and then telling
+// a parent to focus "specifically" on all of them isn't specific at all.
+// broad=true flags that degenerate case so callers can say something
+// honest instead ("no single weak spot") rather than naming everything.
+function weakestSubjectsInfo(st){
+  const entries=Object.entries(st.analysis.subjectAvgs||{});
+  if(!entries.length)return{entries,minVal:null,weakest:[],broad:false};
+  const minVal=Math.min(...entries.map(([,v])=>v));
+  const weakest=entries.filter(([,v])=>v===minVal).map(([s])=>s);
+  const broad=entries.length>2&&weakest.length>=Math.ceil(entries.length*0.6);
+  return{entries,minVal,weakest,broad};
 }
-function generateMotivation(st){const a=st.analysis,name=st.name.split(" ")[0];if(a.overallAvg>=80)return `Excellent work, ${name}! Keep pushing your limits - you have the potential to excel consistently.`;if(a.trend==="improving")return `Great progress, ${name}! You are moving in the right direction. Keep this momentum going!`;if(a.overallAvg<APP.setup.passThreshold)return `${name}, every expert was once a beginner. With focused effort and the right support, you can turn this around.`;return `Good effort, ${name}. A little more focus on weaker areas will take you to the next level.`;}
-function generateStudyPlan(st){const a=st.analysis,weak=Object.entries(a.subjectAvgs).filter(([s,v])=>v<60).map(([s])=>s);if(!weak.length)return "Maintain your current study habits. Consider challenging yourself with advanced problems in your strong subjects.";return `Focus areas: ${weak.join(", ")}. Steps: (1) Revise fundamentals. (2) Practice 30 min daily. (3) Attempt past papers. (4) Ask the teacher for targeted exercises.`;}
-function generateIntervention(st){
+function generateTrendFacts(st){
+  const a=st.analysis,name=st.name.split(" ")[0];
+  const points=(APP.setup.tests||[]).map((t,i)=>({name:t.name,val:a.testAvgs[i]})).filter(p=>p.val!==null&&p.val!==undefined);
+  const{minVal,weakest,broad}=weakestSubjectsInfo(st);
+  const weakBit=broad?` Struggling fairly evenly across every subject (~${minVal}%) — no single weak spot to point to.`
+    :weakest.length?` Needs the most attention right now: ${weakest.join(" and ")} (${minVal}%).`:"";
+  if(points.length<2)return(points.length===1?`Only one test on record so far (${points[0].name}: ${points[0].val}%) — not enough data yet for a trend.`:"No scored tests on record yet.")+weakBit;
+  const first=points[0],last=points[points.length-1],delta=last.val-first.val;
+  const dirWord=delta>3?"risen":delta<-3?"fallen":"stayed roughly steady";
+  const deltaBit=Math.abs(delta)>3?` — a ${Math.abs(delta)}-point ${delta>0?"rise":"fall"} over ${points.length} tests`:"";
+  return `${name} has ${dirWord} from ${first.val}% (${first.name}) to ${last.val}% (${last.name})${deltaBit}.${weakBit}`;
+}
+function generateParentMessage(st){
+  const a=st.analysis,name=st.name.split(" ")[0];
+  const atRisk=(st.flags||[]).some(f=>f.type==="at-risk");
+  // Tone genuinely changes by severity instead of a flat "good effort!"
+  // regardless of how serious the flags on the same report say it is.
+  if(atRisk&&a.trend==="declining")return `${name} is currently in the bottom band of the class at ${a.overallAvg}%, and scores have been falling test over test. This needs real attention now, not just more of the same studying. We'd like to sit down together — parents and teacher — this week to agree on a plan.`;
+  if(a.trend==="declining")return `${name} scored ${a.overallAvg}% this term, and there's a downward trend worth catching early. Nothing alarming yet, but it's the right time for some extra support at home before it compounds.`;
+  if(a.overallAvg>=80)return `${name} is performing strongly at ${a.overallAvg}%${a.trend==="improving"?", and still improving":""}. Keep doing what's working — this is a good stage to add some stretch rather than more repetition.`;
+  if(a.trend==="improving")return `${name} is at ${a.overallAvg}% and moving in the right direction. Keep the current routine going — consistency is what's paying off here.`;
+  return `${name} is holding steady at ${a.overallAvg}%. No red flags, but there's room to push further with focused practice.`;
+}
+// Split by who actually does the action — a parent reading "practice 30 min
+// daily" has no idea if that's meant for home or school. homePlan is what
+// the family can do; schoolPlan (Institution mode only) is what the
+// teacher/school is doing or recommending, merged from the old separate
+// Study Plan + Intervention Note (which frequently repeated each other).
+function generateHomePlan(st){
+  const name=st.name.split(" ")[0];
+  const{minVal,weakest,broad}=weakestSubjectsInfo(st);
+  if(!weakest.length||minVal>=70)return "Keep up the current routine — nothing specific needs fixing at home right now.";
+  if(broad)return `This week: struggling roughly evenly across every subject means there's no single fix — rotate, one subject per day (20–30 min), and spend that time on fundamentals rather than more practice volume. Trying to cover everything at once usually fixes nothing.`;
+  return `This week: 20–30 min/day on ${weakest.join(" and ")} specifically, not general revision. Have ${name} explain one solved problem out loud each day — that surfaces real gaps faster than more worksheets.`;
+}
+function generateSchoolPlan(st){
   const a=st.analysis;
   const RISK_TYPES=["data-error","at-risk","first-below-pass","declining","sharp-drop","absent","volatile","burnout","data-gap"];
-  const riskFlags=st.flags.filter(f=>RISK_TYPES.includes(f.type));
-  if(!riskFlags.length)return "No immediate intervention needed. Continue regular monitoring.";
+  const riskFlags=(st.flags||[]).filter(f=>RISK_TYPES.includes(f.type));
+  if(!riskFlags.length)return null; // nothing to report — omit instead of padding with "no intervention needed"
   const flags=riskFlags.map(f=>f.label).join(", ");
-  return `Flags: ${flags}. `+(a.stressScore>=60?"High stress indicators - consider a one-on-one check-in. ":"")+"Recommended: parent-teacher meeting, additional practice material, monitor next test.";
-}
-// Short, single-line "report card" style remark — deliberately shorter and
-// plainer than parentSummary/motivation above, closer to what a teacher
-// would actually hand-write on a physical report card. Generic score-band +
-// trend combination; no institution-specific assumptions. NOTE: this is
-// generated fresh on every analysis run and is not currently editable
-// in-app before export — a teacher who wants to override it must still
-// edit the exported PDF/text afterward. Flagging this limitation here
-// rather than silently pretending it's editable.
-function generateReportCardComment(st){
-  const a=st.analysis,name=st.name.split(" ")[0];
-  // Bug fix: "needs urgent attention" is a verb phrase, not an adjective
-  // like the other bands ("outstanding", "very good", etc.) — plugged into
-  // "performance this term is {band}" it produced the broken sentence
-  // "performance this term is needs urgent attention". isPhrase tracks
-  // which bands need "is" dropped instead of kept.
-  const bandInfo=a.overallAvg>=90?{txt:"outstanding",isPhrase:false}
-    :a.overallAvg>=75?{txt:"very good",isPhrase:false}
-    :a.overallAvg>=60?{txt:"satisfactory",isPhrase:false}
-    :a.overallAvg>=APP.setup.passThreshold?{txt:"below expectations",isPhrase:false}
-    :{txt:"needs urgent attention",isPhrase:true};
-  const trendBit=a.trend==="improving"?" Showing clear improvement.":a.trend==="declining"?" Recent decline needs attention.":"";
-  return bandInfo.isPhrase
-    ?`${name}'s overall performance this term ${bandInfo.txt} (${a.overallAvg}%).${trendBit}`
-    :`${name}'s overall performance this term is ${bandInfo.txt} (${a.overallAvg}%).${trendBit}`;
+  return `Flags: ${flags}. `+(a.stressScore>=60?"High stress indicators — recommend a one-on-one check-in. ":"")+"Suggested: parent-teacher meeting, targeted practice material, close monitoring on the next test.";
 }
 
 /* ════ DASHBOARD ════ */
@@ -4915,7 +4960,16 @@ function openStudentModal(id){
   // right where a parent actually reads it, not only in the FAQ (a 78th
   // percentile student can have a 60% average if the rest of the class
   // scored lower still).
-  const idLine=isIndividual?`ID: ${esc(st.id)} · Grade: ${a.grade}`:`ID: ${esc(st.id)} · Rank #${a.rank} of ${APP.students.length} · ${a.percentile}th percentile (better than ${a.percentile}% of classmates — not a % score) · Grade: ${a.grade}`;
+  // Percentile math on a class of well under a dozen students implies a
+  // precision that doesn't exist (e.g. "14th percentile" out of 8 kids is
+  // really just "7th of 8" dressed up with a decimal-feeling number). Below
+  // 12 students, show rank + a plain point-difference from the class
+  // average instead of a percentile.
+  const classAvgAll=(!isIndividual&&APP.students&&APP.students.length>1)?(()=>{const vals=APP.students.map(s2=>s2.analysis&&s2.analysis.overallAvg).filter(v=>v!==undefined&&v!==null);return vals.length?Math.round(vals.reduce((x,y)=>x+y,0)/vals.length):null;})():null;
+  const standingBit=isIndividual?"":(APP.students.length>=12
+    ?` · Rank #${a.rank} of ${APP.students.length} · ${a.percentile}th percentile (better than ${a.percentile}% of classmates — not a % score)`
+    :` · Rank #${a.rank} of ${APP.students.length}${classAvgAll!==null?` · ${Math.abs(a.overallAvg-classAvgAll)} points ${a.overallAvg>=classAvgAll?"above":"below"} the class average of ${classAvgAll}%`:""}`);
+  const idLine=isIndividual?`ID: ${esc(st.id)} · Grade: ${a.grade}`:`ID: ${esc(st.id)}${standingBit} · Grade: ${a.grade}`;
   $("#modal-content").html(`<h3 style="font-family:var(--font-display);font-size:18px;margin-bottom:4px">${esc(st.name)}</h3><div style="font-size:12px;color:var(--c-text3);margin-bottom:16px">${idLine}</div><div class="grid-4" style="margin-bottom:16px"><div class="kpi-card"><div class="kpi-label">Overall Avg</div><div class="kpi-val">${a.overallAvg}%</div></div><div class="kpi-card"><div class="kpi-label">Trend</div><div class="kpi-val" style="font-size:16px">${a.trend==="improving"?"📈":a.trend==="declining"?"📉":"➡"} ${a.trend}</div></div><div class="kpi-card"><div class="kpi-label">Absences</div><div class="kpi-val">${a.totalAbsent}</div></div><div class="kpi-card" title="Estimated from absences + score trend only — not a certified wellbeing or psychological assessment"><div class="kpi-label">Stress ⓘ</div><div class="kpi-val" style="font-size:16px">${a.wellbeingFlag}</div></div></div><div class="tbl-wrap" style="margin-bottom:4px"><table class="data-table"><thead><tr><th>Test</th>${subjects.map(s=>`<th>${esc(s)}</th>`).join("")}<th>Total</th><th>Avg</th><th>Absent</th><th>Remark</th></tr></thead><tbody>${testRows}${classAvgRow}</tbody></table></div><div style="font-size:10.5px;color:var(--c-text3);margin-bottom:16px">Total = scored/max marks across subjects opted for that test.</div>${a.healthScore!=null?`<div style="margin-bottom:10px;padding:8px 12px;border-radius:var(--r-sm);display:flex;align-items:center;gap:10px;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'}"><div style="font-size:22px;font-weight:700;font-family:var(--font-display);color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥ ${a.healthScore}</div><div><div style="font-weight:700;font-size:12px">Health Score — ${a.healthBand||''}</div><div style="font-size:11px;color:var(--c-text2)">Academics 40% · Consistency 20% · Trend 20% · Engagement 20%</div></div></div>`:""}
 ${a.explainedWarnings&&a.explainedWarnings.length?`<div style="margin-bottom:12px"><div style="font-weight:600;font-size:11px;margin-bottom:6px">⚠ Alerts &amp; Explanations</div>${a.explainedWarnings.map(f=>`<div style="margin-bottom:5px;padding:6px 10px;border-radius:var(--r-sm);background:${f.color}18;border-left:3px solid ${f.color}"><div style="font-weight:700;font-size:11px;color:${f.color}">${f.label}</div><div style="font-size:11px;color:var(--c-text2);margin-top:2px">${f.reason||''}</div></div>`).join('')}</div>`:st.flags.length?`<div style="margin-bottom:14px"><div style="font-weight:600;margin-bottom:6px">Flags</div>${st.flags.map(f=>`<span class="badge" style="background:${f.color}22;color:${f.color};margin-right:6px">${f.label}</span>`).join("")}</div>`:""}
 <div class="grid-4" style="margin-bottom:14px">
@@ -4930,8 +4984,7 @@ ${a.explainedWarnings&&a.explainedWarnings.length?`<div style="margin-bottom:12p
   <div class="kpi-card"><div class="kpi-label">Best Test</div><div class="kpi-val" style="font-size:14px">${a.bestTest?esc(a.bestTest.name)+" ("+a.bestTest.pct+"%)":"—"}</div></div>
   <div class="kpi-card"><div class="kpi-label">Weakest Test</div><div class="kpi-val" style="font-size:14px">${a.worstTest?esc(a.worstTest.name)+" ("+a.worstTest.pct+"%)":"—"}</div></div>
 </div>
-${!isIndividual&&a.subjectDeltas&&Object.keys(a.subjectDeltas).length?`<div class="card" style="padding:12px;margin-bottom:14px"><div class="card-title" style="margin-bottom:6px">📊 vs. Class Average, by Subject</div><div style="display:flex;flex-wrap:wrap;gap:6px">${Object.entries(a.subjectDeltas).map(([s,d])=>`<span class="badge" style="background:${d>=0?'var(--c-success)':'var(--c-danger)'}18;color:${d>=0?'var(--c-success)':'var(--c-danger)'}" title="${esc(s)}: ${d>=0?'above':'below'} the class average by ${Math.abs(d)} points">${esc(s)} ${d>=0?"+":""}${d}</span>`).join("")}</div></div>`:""}</div><div style="display:flex;flex-direction:column;gap:10px">${a.reportCardComment!==undefined?narrativeCard("📝","Report Card Comment","reportCardComment",a.reportCardComment,st.id):""}${narrativeCard("💬","For Parents","parentSummary",a.parentSummary,st.id)}${narrativeCard("🌟","Motivation","motivation",a.motivation,st.id)}
-${narrativeCard("⭐","Strengths","strengthsLetter",a.strengthsLetter,st.id)}${narrativeCard("📚","Study Plan","studyPlan",a.studyPlan,st.id)}${!isIndividual&&a.intervention!==undefined?narrativeCard("🚨","Intervention Note","intervention",a.intervention,st.id):""}</div>`);
+${!isIndividual&&a.subjectDeltas&&Object.keys(a.subjectDeltas).length?`<div class="card" style="padding:12px;margin-bottom:14px"><div class="card-title" style="margin-bottom:6px">📊 vs. Class Average, by Subject</div><div style="display:flex;flex-wrap:wrap;gap:6px">${Object.entries(a.subjectDeltas).map(([s,d])=>`<span class="badge" style="background:${d>=0?'var(--c-success)':'var(--c-danger)'}18;color:${d>=0?'var(--c-success)':'var(--c-danger)'}" title="${esc(s)}: ${d>=0?'above':'below'} the class average by ${Math.abs(d)} points">${esc(s)} ${d>=0?"+":""}${d}</span>`).join("")}</div></div>`:""}</div><div style="display:flex;flex-direction:column;gap:10px">${narrativeCard("💬","The Bottom Line","parentMessage",a.parentMessage,st.id)}<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">📈 What's Changed <span style="font-weight:400;color:var(--c-text3);font-size:11px">(computed from the marks table — not editable)</span></div><div style="font-size:13px">${esc(a.trendFacts||"")}</div></div>${a.strengthsLetter?narrativeCard("⭐","Strengths","strengthsLetter",a.strengthsLetter,st.id):""}${narrativeCard("🏠","At Home This Week","homePlan",a.homePlan,st.id)}${!isIndividual&&a.schoolPlan?narrativeCard("🏫","At School","schoolPlan",a.schoolPlan,st.id):""}</div>`);
   $("#modal-overlay").addClass("open");
   _modalLastFocus=document.activeElement;
   setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);
@@ -4950,7 +5003,7 @@ function saveNarrativeField(id,field,btnEl){
   const $ta=$(btnEl).closest(".card").find("textarea.narrative-edit");
   st.analysis[field]=$ta.val();
   $(btnEl).prop("disabled",true);
-  const labels={reportCardComment:"Report card comment",parentSummary:"Parent summary",motivation:"Motivation message",strengthsLetter:"Strengths note",studyPlan:"Study plan",intervention:"Intervention note"};
+  const labels={parentMessage:"The Bottom Line",strengthsLetter:"Strengths note",homePlan:"Home plan",schoolPlan:"School plan"};
   toast((labels[field]||"Field")+" saved for "+st.name.split(" ")[0]+".","success");
 }
 function showSampleFiles(){
@@ -5114,8 +5167,8 @@ function buildStudentPDF(doc,st){
     {key:"marks",label:"Marks Table",exists:!!(s.tests&&s.tests.length&&s.subjects&&s.subjects.length)},
     {key:"trend",label:"Trend",exists:a.testAvgs.filter(v=>v!==null).length>=2&&s.tests&&s.tests.length>=2},
     {key:"flags",label:"Alerts",exists:!!(st.flags&&st.flags.length)},
-    {key:"messages",label:"Messages",exists:[a.reportCardComment,a.parentSummary,a.strengthsLetter,a.motivation].some(Boolean)},
-    {key:"studyPlan",label:"Study Plan",exists:!!a.studyPlan},
+    {key:"messages",label:"Messages",exists:[a.parentMessage,a.strengthsLetter,a.trendFacts].some(Boolean)},
+    {key:"studyPlan",label:"Plan",exists:!!(a.homePlan||a.schoolPlan)},
   ].filter(c=>c.exists);
   const navBarY=y;
   doc.setFillColor(242,244,252);doc.roundedRect(8,y,W-16,9,2,2,"F");
@@ -5274,14 +5327,17 @@ function buildStudentPDF(doc,st){
       }
     });
     y+=3;
-    // Where this child stands — tied directly to the table above, not just
-    // the KPI cards at the top of the page. Percentile gets a one-line
-    // clarifier inline (it's a rank, not a score — easy to misread; see
-    // the "Percentile" FAQ entry) rather than only being explained in the
-    // FAQ where a parent reading just this PDF would never see it.
+    // Where this child stands — tied directly to the table above. Below 12
+    // students, percentile math implies false precision (e.g. "14th
+    // percentile" out of 8 kids), so just state rank + a plain point
+    // difference from the class average instead.
     if(studentsForClassAvg){
       doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(90,96,122);
-      doc.text(st.name.split(" ")[0]+" ranks #"+a.rank+" of "+studentsForClassAvg.length+" in this class ("+a.percentile+"th percentile — meaning better than "+a.percentile+"% of classmates by overall average; percentile is a ranking, not a percentage score).",10,y,{maxWidth:W-16});
+      const classAvgAll=(()=>{const vals=studentsForClassAvg.map(s2=>s2.analysis&&s2.analysis.overallAvg).filter(v=>v!==undefined&&v!==null);return vals.length?Math.round(vals.reduce((x,y)=>x+y,0)/vals.length):null;})();
+      const line=studentsForClassAvg.length>=12
+        ?st.name.split(" ")[0]+" ranks #"+a.rank+" of "+studentsForClassAvg.length+" in this class ("+a.percentile+"th percentile — meaning better than "+a.percentile+"% of classmates by overall average; percentile is a ranking, not a percentage score)."
+        :st.name.split(" ")[0]+" ranks #"+a.rank+" of "+studentsForClassAvg.length+" in this class"+(classAvgAll!==null?", "+Math.abs(a.overallAvg-classAvgAll)+" points "+(a.overallAvg>=classAvgAll?"above":"below")+" the class average of "+classAvgAll+"%.":".");
+      doc.text(line,10,y,{maxWidth:W-16});
       y+=9;
     }
     y+=5;
@@ -5330,11 +5386,16 @@ function buildStudentPDF(doc,st){
     y+=10;
   }
   // ── NARRATIVE SECTIONS (visually boxed) ──
+  // Redesigned: one merged "The Bottom Line" message (was three overlapping
+  // cards — Report Card Comment / For Parents / Motivation — repeating the
+  // same score+trend sentence), a factual computed "What's Changed" box,
+  // and Strengths only when a genuine one exists (previously always
+  // printed, falling back to filler text like "is working hard to build
+  // strengths" when nothing qualified).
   const sections=[
-    {title:"Report Card Comment",text:a.reportCardComment,bg:[253,246,230],border:[230,161,58]},
-    {title:"For Parents",text:a.parentSummary,bg:[238,240,253],border:[67,97,238]},
+    {title:"The Bottom Line",text:a.parentMessage,bg:[238,240,253],border:[67,97,238]},
+    {title:"What's Changed",text:a.trendFacts,bg:[244,246,251],border:[140,148,180]},
     {title:"Strengths",text:a.strengthsLetter,bg:[230,249,247],border:[46,196,182]},
-    {title:"Motivation",text:a.motivation,bg:[240,235,248],border:[123,94,167]},
   ];
   sections.filter(s=>s.text).forEach((sec,idx)=>{
     if(y>255){doc.addPage();y=20;}
@@ -5352,28 +5413,26 @@ function buildStudentPDF(doc,st){
     doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(40,40,40);
     doc.text(lines,14,y+13);y+=bh+5;
   });
-  // ── STUDY PLAN (always on its own visual block) ──
-  if(a.studyPlan){
+  // ── AT HOME (always on its own visual block) ──
+  if(a.homePlan){
     if(y>240){doc.addPage();y=20;}
     nav.studyPlan=doc.internal.getCurrentPageInfo().pageNumber;
     doc.setFont("helvetica","normal");doc.setFontSize(8.5);
-    const lines=doc.splitTextToSize(a.studyPlan,W-28);const bh=lines.length*4.5+18;
+    const lines=doc.splitTextToSize(a.homePlan,W-28);const bh=lines.length*4.5+13;
     doc.setFillColor(255,244,224);doc.setDrawColor(249,168,38);doc.roundedRect(8,y,W-16,bh,2,2,"FD");
     doc.setFillColor(249,168,38);doc.rect(8,y,3,bh,"F");
-    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(154,98,0);doc.text("Personalised Study Plan",14,y+7);
-    const weakS=Object.entries(a.subjectAvgs||{}).filter(([,v])=>v<60).map(([s])=>s);
-    if(weakS.length){doc.setFontSize(8);doc.setTextColor(154,98,0);doc.text("Focus subjects: "+weakS.join(" · "),14,y+13);doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(40,40,40);doc.text(lines,14,y+19);}
-    else{doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(40,40,40);doc.text(lines,14,y+13);}
+    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(154,98,0);doc.text("At Home This Week",14,y+7);
+    doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(40,40,40);doc.text(lines,14,y+13);
     y+=bh+5;
   }
-  // ── INTERVENTION (if flagged) ──
-  if(a.intervention&&st.flags&&st.flags.length){
+  // ── AT SCHOOL (Institution mode only, and only if there's something to say) ──
+  if(!isIndividual&&a.schoolPlan){
     if(y>252){doc.addPage();y=20;}
     doc.setFont("helvetica","normal");doc.setFontSize(8.5);
-    const lines=doc.splitTextToSize(a.intervention,W-28);const bh=lines.length*4.5+12;
+    const lines=doc.splitTextToSize(a.schoolPlan,W-28);const bh=lines.length*4.5+12;
     doc.setFillColor(253,236,234);doc.setDrawColor(242,92,84);doc.roundedRect(8,y,W-16,bh,2,2,"FD");
     doc.setFillColor(242,92,84);doc.rect(8,y,3,bh,"F");
-    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(192,57,43);doc.text(isIndividual?"Coaching Note":"Teacher Intervention Note",14,y+7);
+    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(192,57,43);doc.text("At School",14,y+7);
     doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(40,40,40);doc.text(lines,14,y+13);y+=bh+5;
   }
   // ── WIRE UP QUICK NAVIGATION LINKS ──
