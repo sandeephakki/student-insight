@@ -3332,7 +3332,7 @@ function renderAICheckboxes(){
   makeGrid(AI_FEATURES.perf,"ai-perf-checks");makeGrid(AI_FEATURES.warn,"ai-warn-checks");makeGrid(AI_FEATURES.narr,"ai-narr-checks");makeGrid(AI_FEATURES.well,"ai-well-checks");makeGrid(AI_FEATURES.mgmt,"ai-mgmt-checks");updateAICount();
 }
 function toggleAI(id,el){if(APP.aiFeatures.has(id))APP.aiFeatures.delete(id);else APP.aiFeatures.add(id);$(el).toggleClass("selected",APP.aiFeatures.has(id));$(el).find("input[type=checkbox]").prop("checked",APP.aiFeatures.has(id));updateAICount();}
-function selectAllAI(){Object.values(AI_FEATURES).flat().forEach(f=>APP.aiFeatures.add(f.id));renderAICheckboxes();toast("All "+APP.aiFeatures.size+" AI features selected.","success");}
+function selectAllAI(silent){Object.values(AI_FEATURES).flat().forEach(f=>APP.aiFeatures.add(f.id));renderAICheckboxes();if(!silent)toast("All "+APP.aiFeatures.size+" AI features selected.","success");}
 function clearAllAI(){APP.aiFeatures.clear();renderAICheckboxes();}
 function updateAICount(){$("#ai-selected-count").text(APP.aiFeatures.size+" features selected");}
 
@@ -3347,7 +3347,7 @@ async function runAnalysis(){
   if(!APP.setup.subjects.length||!APP.setup.tests.length){autoInferSetup();}
   if(!APP.setup.subjects.length){const isIndividual=APP.setup.mode==="individual";toast(isIndividual?"We couldn't find your subjects — go back to Setup and re-generate the template.":"Cannot detect subjects. Check SETUP tab or fill Step 1.","warn");return;}
   if(!APP.setup.tests.length){const isIndividual=APP.setup.mode==="individual";toast(isIndividual?"We couldn't find your tests — go back to Setup and re-generate the template.":"Cannot detect tests. Check SETUP tab or fill Step 1.","warn");return;}
-  if(!APP.aiFeatures.size)selectAllAI();
+  if(!APP.aiFeatures.size)selectAllAI(true);
   // Data validation
   const _vw=validateData();
   if(_vw.some(w=>w.e)){
@@ -4148,7 +4148,7 @@ function updateCompareContinueButton(){
 async function runCompareAnalysisCore(){
   const validSections=APP.sections.filter(s=>s.valid);
   if(validSections.length<2){toast("Upload at least 2 valid sections first (Step 2).","warn");return;}
-  if(!APP.aiFeatures.size)selectAllAI();
+  if(!APP.aiFeatures.size)selectAllAI(true);
   $("#ai-loader").show();
   $("#btn-analyse").prop("disabled",true).removeClass("btn-glow");
   scrollToEl(document.getElementById("ai-loader"));
@@ -5645,7 +5645,7 @@ $(function(){
   if(location.protocol!=="file:"){const ml=document.createElement("link");ml.rel="manifest";ml.href="manifest.json";document.head.appendChild(ml);}
   // Stateless design: wipe any previously stored session data on load
   try{localStorage.removeItem("sia_sessions");localStorage.removeItem("sia_auth");localStorage.removeItem("sia_gs_url");}catch(e){}
-  renderAICheckboxes();selectAllAI();initEnvBadge();applyCompareModeUI();
+  renderAICheckboxes();selectAllAI(true);initEnvBadge();applyCompareModeUI();
   setUsageMode("institution",true); // default card visuals before any Setup interaction
   goStep("home"); // always shows clean home
   // v1.8: the first-load Institution/Individual popup (v1.4-v1.7) was
