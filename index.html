@@ -28,7 +28,7 @@
 -->
 <!--
 ════════════════════════════════════════════════════════════════════════
- STUDENT INSIGHT — PROJECT INTELLIGENCE BLOCK (PIB)                v1.7
+ STUDENT INSIGHT — PROJECT INTELLIGENCE BLOCK (PIB)                v1.8
  (Master index — update this block on every version bump, per the same
  convention used in Spend-na's index.html)
 ════════════════════════════════════════════════════════════════════════
@@ -169,6 +169,24 @@
    the stepper but left the old institution name showing. Both now call
    `$("#session-name-badge").hide().text("")` alongside their state reset.
 
+   COLLECT-ON-ENTER-DATA-STEP (v1.8 fix): goStep() calls
+   collectSetupForm() whenever the "data" step is entered — correct for
+   the normal single-project flow (the Setup form is the source of
+   truth there) but WRONG in Compare Mode, where the shared schema is
+   instead auto-adopted from the first uploaded file's own SETUP tab
+   (§18) and the visible Setup form is never filled in. This used to
+   silently wipe the adopted schema back to empty every time a teacher
+   navigated back to "Upload Data". Now skipped whenever
+   APP.compareMode is true.
+
+   LOCK/UNLOCK SYMMETRY (v1.8): unlockStep(s) always had a mirror,
+   lockStep(s), added in v1.8 — used by parseWorkbook() and Compare
+   Mode's invalidateStaleComparison() to re-lock Dashboard/Export
+   whenever the underlying data changes after an analysis has already
+   run (new file uploaded, or a Compare Mode section added/removed),
+   so those steps can never show results computed for stale/different
+   data. See §8/§9 CHANGELOG v1.8 items h.
+
 5. DATA IMPORT PIPELINE (Step 1 Setup → Step 2 Upload)
    generateTemplate() (~line 1696): builds a downloadable .xlsx scaffold
    from the current Setup form (institution/class/subjects/tests) with
@@ -308,22 +326,45 @@
      drive the card grid; APP.filter and APP.sort are the single source
      of truth — always re-render through these rather than touching the
      DOM directly when adding new filter/sort options.
+   - v1.8: the All/At-Risk/Improving/Declining/Flagged filter chips
+     (#db-filter-bar) only ever affect the Students and Heatmap tabs
+     (filterStudents() → renderStudentCards()+renderHeatmap()). They now
+     stay hidden on the Analytics/Alerts/Wellbeing/Insights tabs — see
+     switchDbTab() — since they had no effect there and looked broken.
+     If a filter is ever wired into another tab's rendering, add that
+     tab's name to switchDbTab()'s visibility condition.
    - openStudentModal(id) is the per-student detail view; closeModal()/
      _modalFocusTrap()/dbTabKeyNav() handle basic a11y (Escape to close,
      focus trap, arrow-key tab navigation) for #modal-overlay generally
      (also reused by the Sample Files modal, showSampleFiles()).
 
 9. PDF EXPORT (Step 5) — jsPDF, no server rendering
-   - buildStudentPDF(doc,st)  (~line 2995) — one student's report card.
-   - buildTeacherPDF(doc)     (~line 3148) — class-wide teacher summary.
-   - buildMgmtPDF(doc)        (~line 3265) — management/institution report,
-     ends with a fixed footer band ("Student Insight — Free & Open Source
-     | Privacy-First | Confidential" + "MANAGEMENT CONFIDENTIAL").
+   - buildStudentPDF(doc,st)  (~line 4620) — one student's report card.
+     v1.8 additions: a full per-test × per-subject marks table (heat-
+     coloured, not just a chart), a "Quick Navigation" chip bar with real
+     internal jsPDF links (page-level granularity — see §15 v1.8 note d),
+     and — like the other two builders — no longer has its own inline
+     footer; it delegates to stampFooterAllPages() (below).
+   - buildTeacherPDF(doc)     (~line 4780) — class-wide teacher summary.
+   - buildMgmtPDF(doc)        (~line 4900) — management/institution report.
+   - stampFooterAllPages(doc,confidentialLabel) (~line 4610, v1.8) —
+     shared footer helper called once at the end of each of the three
+     builders above. Loops every page via doc.internal.getNumberOfPages()
+     and stamps the branded footer bar on ALL of them (previously only
+     the page the content happened to end on got a footer at all), plus
+     a real clickable link ("Student Insight" → https://studin.in/) via
+     doc.textWithLink(), plus a "Page X of Y" indicator when the report
+     spans more than one page. Change footer branding/link here once.
+   - exportComparisonReportPDF() (~line 4130, Compare Mode's "Section
+     Comparison Report") also now calls stampFooterAllPages() — it never
+     had a footer at all before v1.8.
    - fitText(doc,text,maxW) / addPDFHeader(doc,title) are shared layout
-     helpers used across all three builders — change fonts/branding here
+     helpers used across all builders — change fonts/branding here
      once rather than in each build*PDF function.
-   - All three assume APP.students/APP.classStats are already populated
-     (i.e. Step 3 has run) — none of them re-run analysis themselves.
+   - All builders assume APP.students/APP.classStats (or, in Compare
+     Mode, APP.sectionComparison) are already populated (i.e. Step 3/
+     Compare "Run Comparison Analysis" has run) — none of them re-run
+     analysis themselves.
    - generateAllPDFs() (~line 2937) is the entry point (the "Generate &
      Download ZIP" button): guards on 0 students AND (v1.1) on
      APP.dataIssues.length>0 — the latter is a defense-in-depth backstop
@@ -775,6 +816,131 @@
       thing that's easy to silently break with an innocuous-looking edit.
 
 15. CHANGELOG
+    v1.8 (this session) — content/copy pass + 8 bug fixes + Management
+      View feature. No HTML/CSS structural changes, no removed
+      functions; every fix below is traceable to a specific reported
+      symptom and was verified against the actual root cause in code,
+      not guessed:
+        a. Copy pass: Home hero title/subtitle, hero privacy badge,
+           Setup/Data-Upload/Run-Analysis/Export step intros, dashboard
+           heatmap legend wording, one KPI label, and the Export panel's
+           card descriptions rewritten to match the agreed tone/
+           terminology guide. Deliberately did NOT touch About/FAQ (already
+           authentic and on-tone) or deep JS toast/validation strings tied
+           to real functional state (mode-specific messages, "Exact
+           Formulas" methodology) — rewriting those risked losing
+           functional accuracy the copy brief didn't have equivalents for.
+        b. Bug: Setup's "💾 Save" button (~old line 1374) did nothing
+           except pop a toast explaining that the app doesn't persist
+           data — confusing, since it looked like a real save action.
+           Removed the button entirely. Also found it was firing that
+           same "we don't save" toast automatically right after a
+           successful data import AND right after analysis completed —
+           an unrelated warning appearing after a success action. Both
+           automatic triggers removed; saveSession() is now reachable
+           only via Ctrl+S (where explaining "your file is the save"
+           actually makes sense — it also suppresses the browser's
+           native Save-Page dialog).
+        c. Bug: importing a file left stale red-border "required field"
+           warnings visible even after the fields were populated.
+           Root cause: fillSetupForm() populates fields via jQuery
+           .val(), which does not fire the oninput event that
+           validateSetup() is normally wired to. Fixed by having
+           fillSetupForm() call validateSetup() itself at the end, so
+           any caller (import, Home reset, etc.) always leaves the form
+           in a visually-consistent state.
+        d. Bug: clicking Home then "New Project" showed the PREVIOUS
+           project's data still sitting in the Setup form fields, even
+           though the underlying APP.setup object had already been
+           reset. Root cause: renderHomePage() reset the data model but
+           never re-synced the actual <input> elements (#subjects-list/
+           #tests-list/institution name/etc. were never a target of
+           that reset). Fixed by calling fillSetupForm(APP.setup) right
+           after the reset in renderHomePage() (and, defensively, in the
+           otherwise-unused startNewSession()). Confirmed via code trace
+           that browser refresh was already clean by design (no
+           localStorage — see §1) and didn't need a fix.
+        e. Bug: on the Dashboard, the All/At-Risk/Improving/Declining/
+           Flagged filter chips (§8) only ever affect renderStudentCards()
+           and renderHeatmap() — clicking them while on the Analytics,
+           Alerts, Wellbeing, or Insights tab silently did nothing,
+           looking like the app had frozen. Rather than wire the filter
+           into four more tabs' rendering (a much larger, riskier
+           change), switchDbTab() (~line 5215) now hides the filter bar
+           entirely except on the Students/Heatmap tabs where it's
+           actually functional — matching the existing pattern of
+           hiding it outright in Individual mode.
+        f. Bug: the Analytics tab's Chart.js charts (§8) were gated
+           behind a window._chartsBuilt flag meant to avoid rebuilding
+           on every tab click — but it fired only ONCE per page load,
+           globally, not once per dataset. Re-running analysis (e.g.
+           after editing a Compare-Mode section list) or switching
+           between Compare sections left the tab permanently blank/stale
+           after the first visit. Fixed by rebuilding on every visit to
+           the tab — renderCharts() already calls destroyCharts() first,
+           so repeat calls are always safe/cheap; the flag added no real
+           value and is removed.
+        g. Bug (Compare Mode, §18): navigating back to "Upload Data" via
+           the top stepper silently WIPED the shared subjects/tests
+           schema back to empty every time. Root cause: goStep() (~line
+           2136) unconditionally calls collectSetupForm() on entering
+           the "data" step — correct for the normal single-project flow,
+           where the Setup form IS the source of truth, but wrong for
+           Compare Mode, where the schema is instead auto-adopted
+           directly from the first uploaded file's own SETUP tab (§18)
+           and the visible Setup form is never filled in at all. Fixed
+           by skipping collectSetupForm() when APP.compareMode is true.
+        h. Bug (data integrity, both modes): re-uploading a different
+           file in Step 2 after analysis had already run once — without
+           going through Home first — left the OLD analysis results
+           reachable. Dashboard/Export stayed unlocked and would keep
+           showing the previous file's/section-set's results while the
+           new upload sat unanalysed. Root cause: neither parseWorkbook()
+           (single-file path) nor addCompareSection()/
+           removeCompareSection() (Compare Mode) ever invalidated
+           APP.students/APP.sectionComparison or re-locked those steps
+           when the underlying data changed. Fixed with a new lockStep(s)
+           helper (mirrors the existing unlockStep()) plus: parseWorkbook()
+           now clears APP.students/classStats/genderAnalysis and re-locks
+           Dashboard/Export whenever a new file is loaded on top of an
+           existing analysis; a new invalidateStaleComparison() helper
+           does the equivalent for Compare Mode, called from both
+           addCompareSection() and removeCompareSection(). Both paths
+           toast an explanation ("previous analysis cleared — run
+           Analysis again") rather than failing silently.
+        i. Bug (Compare Mode): uploading the exact same file twice
+           silently added it as a second, separate section — double-
+           counting those students in every downstream average/pass-
+           rate/at-risk count with no warning. Fixed with two layers in
+           processCompareFile()/addCompareSection(): an exact-filename
+           check before the file is even read, plus a content
+           fingerprint (fingerprintRawData(), hashing the parsed marks
+           sheet) that also catches a renamed copy of an already-added
+           file's data. Both reject outright (not just warn), naming
+           which existing section matched.
+        j. New: Management View for Compare Mode (parseClassSection(),
+           computeManagementGrid(), renderManagementGrid() — ~line 4040).
+           Rather than rebuild Setup/Upload to support a formal multi-
+           class data model, this parses the free-text section labels
+           already in use (e.g. "Class 7 - C") to detect a Class ×
+           Section structure, and activates automatically only when 2+
+           distinct classes are detected among the uploaded sections —
+           otherwise the existing flat section-ranking view is used
+           unchanged. When active, the Compare Overview dashboard gains
+           a school-wide KPI strip, a colour-coded Class × Section
+           heatmap grid (click a cell to drill into that section), a
+           weighted school-wide weakest-subjects ranking, and a flagged-
+           sections list. exportComparisonReportPDF() gains a matching
+           executive-summary page (same grid/KPIs/weak-subjects/flagged
+           list) automatically prepended when multi-class is detected.
+           Verified the label parser and weighted-average math against
+           a hand-built Class 7 / Class 8 sample in a standalone Node
+           harness before wiring into the UI.
+      Every fix in this entry was traced to an exact function/line before
+      being changed — none were guessed from the symptom alone; where a
+      root cause could not be confirmed (see the Bug 1 "compare 3rd file"
+      report earlier in this session), a screenshot was requested instead
+      of patching speculatively.
     v1.7 (this session) — Sample Files: added Compare Sections trio (§12):
         a. Samples 7/8/9 added — Class 7 Sections A/B/C, identical
            Subjects/Tests/Max Marks, 10 different students each — badged
@@ -1746,7 +1912,7 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
     <!-- COMPARE MODE: comparison report + per-section export (hidden unless APP.compareMode) -->
     <div id="compare-export-card" class="card" style="display:none">
       <div class="card-title"><span class="icon">🏫</span> Section Comparison Report</div>
-      <div style="font-size:12.5px;color:var(--c-text2);margin-bottom:12px">One management-level PDF ranking every section side by side, with subject-wise averages — separate from each section's own reports below.</div>
+      <div style="font-size:12.5px;color:var(--c-text2);margin-bottom:12px">One management-level PDF ranking every section side by side, with subject-wise averages — separate from each section's own reports below. If your section labels span multiple classes (e.g. "Class 7 - C", "Class 8 - A"), an executive summary with a Class × Section grid, school-wide weak subjects and flagged sections is automatically added at the front.</div>
       <button class="btn btn-primary btn-glow" onclick="exportComparisonReportPDF()">📊 Download Comparison Report (PDF)</button>
     </div>
     <div id="compare-per-section-export-card" class="card" style="display:none">
@@ -3793,6 +3959,17 @@ function handleCompareFileDrop(e){
 function processCompareFile(file){
   const err=validateUploadFile(file,["xlsx","xls"]);
   if(err){toast(file.name+": "+err,"error");return;}
+  // Bug fix: the same file could be uploaded twice with zero validation —
+  // it would silently get added as a second, separate section, double-
+  // counting those students in the comparison (and their averages moving
+  // the school-wide/class numbers) with no warning it had happened.
+  // Cheapest, most common case: reject on an exact filename match before
+  // even reading the file. A content-based check below (in
+  // addCompareSection) also catches a renamed copy of the same data.
+  if(APP.sections.some(s=>s.fileName.toLowerCase()===file.name.toLowerCase())){
+    toast(file.name+" was already uploaded for this comparison. Remove it first if you want to re-add it.","warn");
+    return;
+  }
   const reader=new FileReader();
   reader.onload=e=>{
     try{
@@ -3891,13 +4068,27 @@ function validateSectionAgainstSetup(peek){
   }
   return errors;
 }
+// Cheap content fingerprint for a section's marks data — used to catch a
+// duplicate upload even when the file was renamed (the filename check in
+// processCompareFile only catches an exact name match).
+function fingerprintRawData(rawData){
+  const markKey=Object.keys(rawData).find(k=>k.includes("MARK")&&k.includes("CONTEXT"))||Object.keys(rawData).find(k=>k.includes("MARK"))||"";
+  const rows=rawData["MARKS+CONTEXT"]||rawData["MARKS_CONTEXT"]||rawData[markKey]||[];
+  return JSON.stringify(rows);
+}
 function addCompareSection(fileName,rawData,peek){
   const errors=validateSectionAgainstSetup(peek);
+  const fp=fingerprintRawData(rawData);
+  const dup=APP.sections.find(s=>s._fp===fp&&fp!=="[]");
+  if(dup){
+    toast(fileName+": this has the same student data as \""+dup.label+"\" (already added under a different filename) — skipped to avoid double-counting.","warn");
+    return;
+  }
   const id="sec"+(++_compareSectionSeq);
   const markKey=Object.keys(rawData).find(k=>k.includes("MARK")&&k.includes("CONTEXT"))||Object.keys(rawData).find(k=>k.includes("MARK"))||"";
   const rowCount=(rawData["MARKS+CONTEXT"]||rawData["MARKS_CONTEXT"]||rawData[markKey]||[]).length;
   APP.sections.push({id,fileName,rawData,label:peek.label||fileName.replace(/\.[^.]+$/,""),
-    valid:errors.length===0,errors,rowCount,students:null,classStats:null,genderAnalysis:null,dataIssues:null});
+    valid:errors.length===0,errors,rowCount,students:null,classStats:null,genderAnalysis:null,dataIssues:null,_fp:fp});
   renderCompareSectionsList();
   updateCompareContinueButton();
   invalidateStaleComparison();
@@ -4084,10 +4275,63 @@ function selectCompareView(val){
     $("#db-mode-badge").text("🏫 "+sec.label);
   }
 }
+function renderManagementGrid(mg){
+  if(!mg)return "";
+  const kpis=`<div class="grid-4" style="margin-bottom:16px">
+    <div class="kpi-card"><div class="kpi-label">Classes × Sections</div><div class="kpi-val">${mg.classes.length} × ${mg.sectionKeys.length}</div></div>
+    <div class="kpi-card"><div class="kpi-label">School Avg</div><div class="kpi-val" style="color:${mg.schoolAvg>=60?"var(--c-success)":mg.schoolAvg>=35?"var(--c-warn)":"var(--c-danger)"}">${mg.schoolAvg}%</div></div>
+    <div class="kpi-card"><div class="kpi-label">School Pass Rate</div><div class="kpi-val">${mg.schoolPassRate}%</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total At-Risk</div><div class="kpi-val" style="color:${mg.totalAtRisk>0?"var(--c-danger)":"inherit"}">${mg.totalAtRisk}</div></div>
+  </div>`;
+  const cellColor=v=>v>=80?"#e3f9f2":v>=60?"#eef1fe":v>=35?"#fff6e5":"#fdecea";
+  const cellText=v=>v>=80?"#0e7a63":v>=60?"#3346a8":v>=35?"#8a5b00":"#b23328";
+  const headerRow=`<tr><th style="text-align:left">Class</th>${mg.sectionKeys.map(sk=>`<th>${esc(sk)}</th>`).join("")}<th>Class Avg</th></tr>`;
+  const bodyRows=mg.classes.map(c=>{
+    const cells=mg.sectionKeys.map(sk=>{
+      const row=c.secs.find(r=>r.sec===sk);
+      if(!row)return `<td style="text-align:center;color:var(--c-text3)">—</td>`;
+      return `<td style="text-align:center;cursor:pointer" onclick="selectCompareView('${row.id}')" title="Click to open ${esc(row.label)}">
+        <div style="background:${cellColor(row.avg)};color:${cellText(row.avg)};border-radius:6px;padding:6px 4px;font-weight:700">${row.avg}%<div style="font-size:9px;font-weight:500;opacity:.8">${row.n} students</div></div>
+      </td>`;
+    }).join("");
+    return `<tr><td style="font-weight:700;white-space:nowrap">${esc(c.cls)}</td>${cells}<td style="text-align:center;font-weight:800;color:${cellText(c.avg)}">${c.avg}%</td></tr>`;
+  }).join("");
+  const grid=`<div class="card" style="margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:4px">🏫 Class × Section Overview</div>
+    <div style="font-size:11.5px;color:var(--c-text2);margin-bottom:12px">Colour = average score. Click any cell to open that section's full dashboard.</div>
+    <div class="tbl-wrap"><table class="data-table"><thead>${headerRow}</thead><tbody>${bodyRows}</tbody></table></div>
+  </div>`;
+  const weakest=mg.subjSchoolAvg.slice(0,5);
+  const weakBars=weakest.map(w=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <div style="width:110px;font-size:11px;color:var(--c-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(w.subject)}</div>
+    <div style="flex:1;background:var(--c-surface2);border-radius:4px;height:14px;overflow:hidden"><div style="width:${w.avg}%;background:${w.avg<35?"var(--c-danger)":w.avg<60?"var(--c-warn)":"var(--c-primary)"};height:100%"></div></div>
+    <div style="width:38px;font-size:11px;font-weight:700;text-align:right">${w.avg}%</div>
+  </div>`).join("");
+  const weakCard=weakest.length?`<div class="card" style="margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:4px">📉 School-wide Weakest Subjects</div>
+    <div style="font-size:11.5px;color:var(--c-text2);margin-bottom:10px">Averaged across every class &amp; section, weighted by student count.</div>
+    ${weakBars}
+  </div>`:"";
+  const bestClass=mg.classes[0],worstClass=mg.classes[mg.classes.length-1];
+  const flagged=mg.parsed.filter(r=>r.avg<(APP.setup.passThreshold||35)||r.atRisk>=Math.max(3,Math.round(r.n*0.2)));
+  const flagCard=flagged.length?`<div class="card" style="margin-bottom:16px;border-left:3px solid var(--c-danger)">
+    <div class="card-title" style="margin-bottom:8px">🚩 Sections Needing Attention</div>
+    ${flagged.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--c-border);cursor:pointer" onclick="selectCompareView('${r.id}')">
+      <span style="font-weight:600">${esc(r.label)}</span>
+      <span style="font-size:12px;color:var(--c-text2)">${r.avg}% avg · ${r.atRisk} at-risk of ${r.n}</span>
+    </div>`).join("")}
+  </div>`:"";
+  return `<div class="card" style="margin-bottom:16px;background:linear-gradient(135deg,#1e3a5f,#2a4a7f);color:#fff">
+    <div style="font-weight:800;font-size:15px;margin-bottom:2px">Management Summary — All Classes &amp; Sections</div>
+    <div style="font-size:11.5px;opacity:.85">Best performing class: ${esc(bestClass.cls)} (${bestClass.avg}%) · Needs most attention: ${esc(worstClass.cls)} (${worstClass.avg}%)</div>
+  </div>`+kpis+grid+weakCard+flagCard;
+}
 function renderCompareOverview(){
   const rows=APP.sectionComparison||[];
   const wrap=$("#compare-overview-panel");
   if(!rows.length){wrap.html('<div class="card">No analysed sections yet.</div>');return;}
+  const mg=computeManagementGrid();
+  const mgHtml=renderManagementGrid(mg);
   const best=rows[0],worst=rows[rows.length-1];
   const kpis=`<div class="grid-4" style="margin-bottom:16px">
     <div class="kpi-card"><div class="kpi-label">Sections Compared</div><div class="kpi-val">${rows.length}</div></div>
@@ -4120,7 +4364,7 @@ function renderCompareOverview(){
     }).join("");
     return `<div class="card" style="margin-bottom:12px"><div class="card-title" style="margin-bottom:10px">${esc(sub)}</div>${bars}</div>`;
   }).join("");
-  wrap.html(kpis+table+`<div class="card-title" style="margin:4px 0 10px">Subject-wise Comparison</div>`+subjectCards);
+  wrap.html(mgHtml+kpis+table+`<div class="card-title" style="margin:4px 0 10px">Subject-wise Comparison</div>`+subjectCards);
 }
 
 /* ── Compare Export: comparison PDF + per-section report bundles ── */
@@ -4163,6 +4407,74 @@ async function exportComparisonReportPDF(){
   doc.text("Generated: "+new Date().toLocaleDateString(),W-10,17,{align:"right"});
   doc.setTextColor(40,40,40);
   let y=32;
+  const mg=computeManagementGrid();
+  if(mg){
+    doc.setFont("helvetica","bold");doc.setFontSize(13);doc.text("Executive Summary — All Classes & Sections",10,y);y+=9;
+    doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(90,96,122);
+    doc.text(mg.classes.length+" classes × "+mg.sectionKeys.length+" sections · "+mg.totalStudents+" students total",10,y);y+=8;
+    // KPI strip
+    const kpiBoxes=[["School Avg",mg.schoolAvg+"%"],["Pass Rate",mg.schoolPassRate+"%"],["Total At-Risk",String(mg.totalAtRisk)],["Best Class",mg.classes[0].cls]];
+    const bw=(W-20-3*4)/4;
+    kpiBoxes.forEach((kb,i)=>{
+      const bx=10+i*(bw+4);
+      doc.setFillColor(242,244,252);doc.roundedRect(bx,y,bw,16,2,2,"F");
+      doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(110,116,142);doc.text(kb[0],bx+3,y+6);
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(26,29,46);doc.text(fitText(doc,kb[1],bw-6),bx+3,y+12.5);
+    });
+    y+=24;
+    // Class x Section grid
+    doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(26,29,46);doc.text("Class × Section Grid (avg %)",10,y);y+=6;
+    const gCols=mg.sectionKeys.length,firstW=32,cellW=(W-20-firstW)/Math.max(1,gCols);
+    doc.setFillColor(30,58,95);doc.rect(10,y,W-20,6,"F");
+    doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(255,255,255);
+    doc.text("Class",12,y+4.2);
+    mg.sectionKeys.forEach((sk,i)=>doc.text(sk,10+firstW+i*cellW+cellW/2,y+4.2,{align:"center"}));
+    y+=6;
+    mg.classes.forEach((c,ci)=>{
+      if(y>270){doc.addPage();y=20;}
+      doc.setFillColor(ci%2===0?248:255,ci%2===0?249:255,ci%2===0?255:255);doc.rect(10,y,W-20,6,"F");
+      doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(26,29,46);
+      doc.text(fitText(doc,c.cls,firstW-4),12,y+4.2);
+      mg.sectionKeys.forEach((sk,i)=>{
+        const row=c.secs.find(r=>r.sec===sk);
+        const cx=10+firstW+i*cellW;
+        if(!row){doc.setTextColor(190,196,214);doc.text("—",cx+cellW/2,y+4.2,{align:"center"});return;}
+        const cc=row.avg>=80?[46,196,182]:row.avg>=60?[67,97,238]:row.avg>=35?[201,151,30]:[242,92,84];
+        doc.setTextColor(...cc.map(v=>Math.max(0,v-60)));doc.text(row.avg+"%",cx+cellW/2,y+4.2,{align:"center"});
+      });
+      y+=6;
+    });
+    y+=6;
+    // Weakest subjects
+    if(mg.subjSchoolAvg.length){
+      if(y>250){doc.addPage();y=20;}
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(26,29,46);doc.text("School-wide Weakest Subjects",10,y);y+=6;
+      doc.setFont("helvetica","normal");doc.setFontSize(8.5);
+      mg.subjSchoolAvg.slice(0,5).forEach(w=>{
+        if(y>278){doc.addPage();y=20;}
+        doc.setTextColor(40,40,40);doc.text(fitText(doc,w.subject,55),10,y-1.5);
+        doc.setFillColor(230,230,240);doc.rect(70,y-3.5,100,3.5,"F");
+        doc.setFillColor(w.avg<35?242:67,w.avg<35?92:97,w.avg<35?84:238);doc.rect(70,y-3.5,w.avg,3.5,"F");
+        doc.text(w.avg+"%",174,y-1.5);
+        y+=6;
+      });
+      y+=4;
+    }
+    // Flagged sections
+    const flagged=mg.parsed.filter(r=>r.avg<(APP.setup.passThreshold||35)||r.atRisk>=Math.max(3,Math.round(r.n*0.2)));
+    if(flagged.length){
+      if(y>250){doc.addPage();y=20;}
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(178,51,40);doc.text("Sections Needing Attention",10,y);y+=6;
+      doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(40,40,40);
+      flagged.forEach(r=>{
+        if(y>278){doc.addPage();y=20;}
+        doc.text("• "+fitText(doc,r.label+" — "+r.avg+"% avg, "+r.atRisk+" at-risk of "+r.n,180),12,y);
+        y+=5.5;
+      });
+      y+=4;
+    }
+    doc.addPage();y=20;
+  }
   doc.setFont("helvetica","bold");doc.setFontSize(12);doc.text("Section Ranking",10,y);y+=8;
   doc.setFontSize(9);doc.setFont("helvetica","bold");
   const cols=[["Rank",10],["Section",26],["Students",84],["Avg %",106],["Pass %",128],["At-Risk",150],["Topper",170]];
@@ -4196,6 +4508,7 @@ async function exportComparisonReportPDF(){
     });
     y+=4;
   });
+  stampFooterAllPages(doc,"MANAGEMENT CONFIDENTIAL");
   const fname=safeFileName((APP.setup.instName||"StudentInsight")+"_Section_Comparison")+".pdf";
   doc.save(fname);
   toast("Comparison report downloaded: "+fname,"success");
