@@ -6,6 +6,13 @@
 <meta name="theme-color" content="#4361ee"/>
 <meta name="description" content="Student Insight — Privacy-first, in-browser student analytics. Free forever."/>
 <title>Student Insight — Privacy-first Student Analytics</title>
+<!-- Cloudflare Web Analytics: cookieless, no personal data collected/stored.
+     Replace YOUR_UNIQUE_TOKEN below with the token from your Cloudflare
+     Web Analytics dashboard (Analytics & Logs > Web Analytics > Add site,
+     "I'll add the JavaScript snippet myself" / manual setup). -->
+<!-- Cloudflare Web Analytics -->
+ <script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "5d1b88ed8f544c49995869f42e8d127c"}'></script>
+ <!-- End Cloudflare Web Analytics -->
 <!--
   "Offline-first"/"privacy-first" in this app's copy = data never leaves
   the device (no server upload, no localStorage persistence of student
@@ -1348,12 +1355,14 @@ input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shad
         <div class="about-no-item"><span class="x">✕</span> User accounts</div>
         <div class="about-no-item"><span class="x">✕</span> Cloud synchronization</div>
         <div class="about-no-item"><span class="x">✕</span> Remote databases</div>
-        <div class="about-no-item"><span class="x">✕</span> Telemetry</div>
-        <div class="about-no-item"><span class="x">✕</span> Tracking</div>
-        <div class="about-no-item"><span class="x">✕</span> Analytics collection</div>
-        <div class="about-no-item"><span class="x">✕</span> Background uploads</div>
+        <div class="about-no-item"><span class="x">✕</span> Cookies or fingerprinting</div>
+        <div class="about-no-item"><span class="x">✕</span> Personal data collection</div>
+        <div class="about-no-item"><span class="x">✕</span> Background uploads of your files</div>
       </div>
-      <div class="about-prose" style="margin-top:12px"><p>The browser simply processes the data that you choose to open.</p></div>
+      <div class="about-prose" style="margin-top:12px">
+        <p>The browser simply processes the data that you choose to open — your uploaded spreadsheets and student records never leave your device.</p>
+        <p>To understand how many people use Student Insight, the site uses <strong>Cloudflare Web Analytics</strong> — a cookieless, aggregate-only visit counter that does not use fingerprinting and collects no personal data. It only ever sees anonymous page-view counts, never anything from the files you upload or analyze.</p>
+      </div>
     </details>
 
     <details class="about-acc">
