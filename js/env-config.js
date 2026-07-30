@@ -15,8 +15,11 @@
   var ENVS = {
     prod: {
       label: "PROD",
-      // Sample .xlsx files + anything else served from the site root
-      assetBase: "https://studin.in/",
+      // Sample .xlsx files live under /samples/ on prod too — same repo
+      // structure as QA/local. Previously pointed at site root, which
+      // 404'd on every "Try Now" click. Fixed after verifying prod
+      // actually serves the repo's /samples/ folder unflattened.
+      assetBase: "https://studin.in/samples/",
       projectPageUrl: "https://studin.in/"
     },
     qa: {
