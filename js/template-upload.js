@@ -606,7 +606,13 @@ function handleHomeImport(file){
       parseWorkbookSheets(wb);
 
       // Auto-read SETUP tab
-      autoInferSetup();
+      const inferOk=autoInferSetup();
+      // autoInferSetup() returns false (and sets APP.rawData=null) only when
+      // the user explicitly cancelled the "switch project mode?" confirm —
+      // stop here so that deliberate cancel doesn't fall through to
+      // resolveMarksRows(null) below and surface as a scary "Import failed"
+      // error. autoInferSetup() already showed its own "cancelled" toast.
+      if(!inferOk){statusEl.style.display="none";statusEl.innerHTML="";return;}
 
       // Validate SETUP completeness
       const errs=validateSetupData();
