@@ -574,6 +574,7 @@ const SR_STRINGS_EN={
   smart_v2_legacy_link:"Prefer tap-to-ask? Open Classic Smart Search",
   student_picker_prompt:"Type a student's name to see their full report.",
   subject_picker_prompt:"Pick a subject to see how the class did.",
+  lang_ai_disclosure_notice:"These language translations were done using AI. If any words or sentences seem meaningless or incorrectly translated, please reach out to sandeep@hakki.in with details of the change needed, and we will get it corrected.",
 };
 // v3.9 — Phase 3 i18n. SR_STRINGS_EN above stays inline in this file as
 // the EMERGENCY FALLBACK (per explicit direction: "English sits in html
@@ -630,6 +631,31 @@ function loadLanguage(code){
       }
       toast("Couldn't load that language — staying on "+(SR_LANG_TABLES_LABEL(window.SR_LANG))+".","warn");
     });
+}
+// AI-translation disclosure popup — shown whenever the user switches from
+// India/English into any regional language (see onLanguageChange in
+// js/state-nav.js). Displays the fixed disclosure message in both English
+// and the newly selected language so non-English readers can still verify
+// the sender/purpose in a language they're confident in. Reuses the
+// existing generic #modal-overlay/#modal-box, same as Sample Files and
+// Student Detail modals elsewhere in the app.
+function showAiTranslationNotice(langCode){
+  const enTable = window.I18N_TABLES.en || SR_STRINGS_EN;
+  const nativeTable = window.I18N_TABLES[langCode] || {};
+  const enText = enTable["lang_ai_disclosure_notice"] || "";
+  const nativeText = nativeTable["lang_ai_disclosure_notice"] || "";
+  const nativeLabel = (nativeTable._meta && nativeTable._meta.label) || langCode;
+  $("#modal-content").html(`
+    <h3 style="font-family:var(--font-display);font-size:16px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+      <svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z'/><path d='M2 12h20M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z'/></svg>
+      AI Translation Notice
+    </h3>
+    <div style="font-size:13px;color:var(--c-text2);line-height:1.5;margin-bottom:12px">${enText}</div>
+    <div style="font-size:13px;color:var(--c-text2);line-height:1.5;padding-top:12px;border-top:1px solid var(--c-border)" lang="${langCode}">${nativeText}</div>
+    <div style="font-size:10px;color:var(--c-text3);margin-top:10px;text-transform:uppercase;letter-spacing:.4px">${nativeLabel}</div>
+  `);
+  $("#modal-overlay").addClass("open");
+  setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);
 }
 function SR_LANG_TABLES_LABEL(code){
   const t = window.I18N_TABLES[code];

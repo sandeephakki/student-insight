@@ -191,6 +191,15 @@ function onCountryChange(countryCode){
   loadLanguage(country.defaultLang);
 }
 function onLanguageChange(langCode){
-  loadLanguage(langCode);
+  const prevLang = window.SR_LANG;
+  loadLanguage(langCode).then(()=>{
+    // AI-translation disclosure: shown every time the user moves from
+    // India/English to any regional (non-English) language, so they always
+    // see the "these translations are AI-generated" notice for the
+    // language they just landed on, not just the first time.
+    if(prevLang==="en" && langCode!=="en" && window.SR_LANG===langCode){
+      showAiTranslationNotice(langCode);
+    }
+  });
 }
 

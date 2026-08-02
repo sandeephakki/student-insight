@@ -624,5 +624,9 @@
   "faq_a_terms_20": "<strong>Full form:</strong> Central Board of Secondary Education / Indian Certificate of Secondary Education — the two major Indian school-board systems, each with its own grading conventions the app's thresholds may need to be checked against.",
   "smart_search_pro_notice": "Smart Search feature is coming in StudIn Pro.",
   "shell_hint_features_peek": "Tap for page info & help",
-  "shell_hint_properties_peek": "Tap for tools & actions"
+  "shell_hint_properties_peek": "Tap for tools & actions",
+  "home_hero_position": "Not a school management system or an app to sign up for — no accounts, no data upload, works the moment you open it.",
+  "home_trust_badge": "Privacy First • Browser Based • No Student Data Uploaded ▾",
+  "home_trust_detail": "Nothing to comply with, because nothing is transmitted — all computation happens on the device, marks and names never leave the browser, there's no server to breach.",
+  "lang_ai_disclosure_notice": "These language translations were done using AI. If any words or sentences seem meaningless or incorrectly translated, please reach out to sandeep@hakki.in with details of the change needed, and we will get it corrected."
 }
