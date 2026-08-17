@@ -1,3 +1,6 @@
+import { srT, weakestSubjectsInfo } from './render-i18n.js';
+import { APP } from './state-nav.js';
+
 /* ============================================================
    Student Insight — Smart Query v2
    Free-text-capable question matching + answer engine, layered on top
@@ -19,7 +22,7 @@
 ============================================================ */
 
 const SmartQueryV2 = (function(){
-  console.log("%c[SmartQueryV2] file version: v4.29-debug-marker","background:#4361ee;color:#fff;padding:2px 6px;border-radius:4px");
+  window.SIA_DEBUG_LOG("%c[SmartQueryV2] file version: v4.29-debug-marker","background:#2b3a67;color:#fff;padding:2px 6px;border-radius:4px");
 
 
   let _bank = null;         // parsed knowledge/smart-questions.json
@@ -151,12 +154,12 @@ const SmartQueryV2 = (function(){
      data-driven and translatable. ── */
   function answerQuestionImpl(questionId){
     const q = flatQuestions().find(x => x.id === questionId);
-    if(!q) return { ok:false, text: "That question isn't in the current question bank." };
+    if(!q) return { ok:false, text: srT("smart_question_not_in_bank") };
     if(!questionAiFeatureOk(q)){
-      return { ok:false, text: q.unavailableMessage || "This needs an AI feature that isn't enabled — turn it on from the AI panel first." };
+      return { ok:false, text: q.unavailableMessage || srT("smart_needs_ai_feature") };
     }
     if(q._requires && !evalRequires(q._requires)){
-      return { ok:false, text: q.unavailableMessage || "Not enough data yet to answer this." };
+      return { ok:false, text: q.unavailableMessage || srT("smart_not_enough_data") };
     }
 
     const student = (currentMode()==="individual" && window.APP && APP.students && APP.students[0]) || null;
@@ -171,45 +174,45 @@ const SmartQueryV2 = (function(){
     // mirroring the per-question logic js/smart-engine.js already gets right
     // (same notes/thresholds), just filled into this engine's template/vars.
     if(q._categoryId === "per_student"){
-      if(!student) return { ok:false, text: "Select a student first." };
+      if(!student) return { ok:false, text: srT("smart_select_student_first") };
       const a = student.analysis || {};
       switch(q.id){
         case "rank_gap":
           vars.rank = a.rank; vars.n = (APP.students||[]).length; vars.topperGap = Math.round(a.topperGap);
-          vars.gapNote = a.topperGap<=5 ? "Very close to the top — small, consistent gains could close this gap." :
-                         a.topperGap<=20 ? "A moderate gap — steady improvement in weaker subjects should narrow this." :
-                         "A significant gap — worth a focused improvement plan rather than broad effort.";
+          vars.gapNote = a.topperGap<=5 ? srT("smart_close_to_top") :
+                         a.topperGap<=20 ? srT("smart_moderate_gap") :
+                         srT("smart_significant_gap");
           return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
         case "trend":
           vars.trend = a.trend;
-          vars.trendNote = a.trend==="improving" ? "Keep reinforcing what's working." :
-                            a.trend==="declining" ? "Worth a check-in before this becomes a pattern." :
-                            "Performance is stable — fine unless a change is expected soon.";
+          vars.trendNote = a.trend==="improving" ? srT("smart_keep_reinforcing") :
+                            a.trend==="declining" ? srT("smart_worth_checkin") :
+                            srT("smart_performance_stable");
           return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
         case "predicted_next":
-          if(a.predictedNext==null) return { ok:false, text: q.unavailableMessage || "Needs at least 2 tests recorded to project a next score." };
+          if(a.predictedNext==null) return { ok:false, text: q.unavailableMessage || srT("smart_needs_2_tests_project") };
           vars.predictedNext = a.predictedNext;
-          vars.predictionNote = a.predictedNext < ((APP.setup||{}).passThreshold) ? "This projection is below the pass threshold — worth early attention." : "";
+          vars.predictionNote = a.predictedNext < ((APP.setup||{}).passThreshold) ? srT("smart_projection_below_threshold") : "";
           return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
         case "consistency":
           vars.consistencyScore = a.consistencyScore;
-          vars.consistencyNote = a.consistencyScore>=80 ? "Very steady — a reliable performer test to test." :
-                                  a.consistencyScore>=50 ? "Reasonably steady, with some fluctuation." :
-                                  "Quite volatile — investigating what's causing the swings may help more than more content.";
+          vars.consistencyNote = a.consistencyScore>=80 ? srT("smart_very_steady") :
+                                  a.consistencyScore>=50 ? srT("smart_reasonably_steady") :
+                                  srT("smart_quite_volatile");
           return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
         case "weakest_subject_student": {
           const info = (typeof weakestSubjectsInfo==="function") ? weakestSubjectsInfo(student) : null;
-          if(!info || !info.weakest || !info.weakest.length) return { ok:false, text: "Not enough subject data for this student yet." };
-          vars.subjectOrSubjects = info.weakest.length>1 ? "subjects are" : "subject is";
+          if(!info || !info.weakest || !info.weakest.length) return { ok:false, text: srT("smart_not_enough_subject_data") };
+          vars.subjectOrSubjects = info.weakest.length>1 ? srT("smart_subjects_are") : srT("smart_subject_is");
           vars.isAre = ""; vars.subjectList = info.weakest.join(", ");
-          vars.broadNote = info.broad ? "This is spread evenly rather than one weak spot — a broader support plan may help more than single-subject tutoring." : "";
+          vars.broadNote = info.broad ? srT("smart_spread_evenly") : "";
           return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
         }
         case "wellbeing":
           vars.wellbeingFlag = a.wellbeingFlag; vars.stressScore = a.stressScore;
-          vars.wellbeingNote = a.wellbeingFlag==="high" ? "Worth a supportive conversation soon — academics aside." :
-                                a.wellbeingFlag==="moderate" ? "Keep an eye on this — not urgent, but worth noting." :
-                                "No particular concern at this time.";
+          vars.wellbeingNote = a.wellbeingFlag==="high" ? srT("smart_worth_supportive_conv") :
+                                a.wellbeingFlag==="moderate" ? srT("smart_keep_an_eye") :
+                                srT("smart_no_particular_concern");
           return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
         case "health_score":
           vars.healthScore = a.healthScore; vars.healthBand = a.healthBand;
@@ -217,13 +220,13 @@ const SmartQueryV2 = (function(){
         case "subject_deltas": {
           const deltas = a.subjectDeltas || {};
           const parts = Object.entries(deltas).map(([subj,d]) => subj + " (" + (d>=0?"+":"") + d + ")");
-          if(!parts.length) return { ok:false, text: "No subject comparison data available yet." };
+          if(!parts.length) return { ok:false, text: srT("smart_no_subject_comparison_data") };
           vars.deltaSummary = parts.join(", ");
           return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
         }
         case "rank_movement_student":
-          if(a.rankMovement==null) return { ok:false, text: q.unavailableMessage || "Needs at least 2 tests recorded to compare rank movement." };
-          vars.direction = a.rankMovement>0 ? "moved up" : a.rankMovement<0 ? "moved down" : "not changed";
+          if(a.rankMovement==null) return { ok:false, text: q.unavailableMessage || srT("smart_needs_2_tests_rank") };
+          vars.direction = a.rankMovement>0 ? srT("smart_moved_up") : a.rankMovement<0 ? srT("smart_moved_down") : srT("smart_not_changed");
           vars.absMovement = Math.abs(a.rankMovement);
           return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
       }
@@ -232,7 +235,7 @@ const SmartQueryV2 = (function(){
     const value = resolveComputeKey(q.computeKey);
 
     if(value === undefined || value === null || (Array.isArray(value) && value.length===0)){
-      return { ok:false, text: q.emptyMessage || q.unavailableMessage || "Nothing to report here yet — needs more data." };
+      return { ok:false, text: q.emptyMessage || q.unavailableMessage || srT("smart_nothing_to_report") };
     }
 
     // Shape-specific var extraction. Kept intentionally simple/explicit
@@ -304,7 +307,7 @@ const SmartQueryV2 = (function(){
 
   function match(queryText, limit){
     limit = limit || 5;
-    if(!_bank) return { ok:false, results:[], deflected:false, text:"Question bank not loaded yet." };
+    if(!_bank) return { ok:false, results:[], deflected:false, text:srT("smart_question_bank_not_loaded") };
     const qTokens = tokenize(queryText);
     if(!qTokens.length) return { ok:false, results:[], deflected:false, text:"" };
 
@@ -359,7 +362,7 @@ const SmartQueryV2 = (function(){
   function answerQuestion(questionId){
     const q = flatQuestions().find(x => x.id === questionId);
     const r = answerQuestionImpl(questionId);
-    console.log("SmartQueryV2:"+questionId, {computeKey: q&&q.computeKey, value: q&&resolveComputeKey(q.computeKey)}, r);
+    window.SIA_DEBUG_LOG("SmartQueryV2:"+questionId, {computeKey: q&&q.computeKey, value: q&&resolveComputeKey(q.computeKey)}, r);
     return r;
   }
 
@@ -379,3 +382,15 @@ const SmartQueryV2 = (function(){
 })();
 
 if(typeof window !== "undefined") window.SmartQueryV2 = SmartQueryV2;
+
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { SmartQueryV2 };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window.SmartQueryV2=SmartQueryV2;}

@@ -1,3 +1,7 @@
+import { getStudentContinuityContext } from './compute-continuity.js';
+import { generateHomePlan, generateSchoolPlan, srT } from './render-i18n.js';
+import { APP } from './state-nav.js';
+
 /* ============================================================
    DISABLED PENDING REVIEW (vs-shell-plan-v2 Task 2) — this file's
    original header below cited a non-existent spec section
@@ -33,14 +37,14 @@ const StoryDeck = (function(){
 #sdeck-card{background:#fff;border-radius:16px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(10,15,40,.35);overflow:hidden;font-family:Inter,sans-serif}
 #sdeck-progress{display:flex;gap:5px;padding:14px 18px 0}
 .sdeck-dot{flex:1;height:4px;border-radius:99px;background:#e2e5f1}
-.sdeck-dot.sdeck-dot-done{background:#4361ee}
+.sdeck-dot.sdeck-dot-done{background:#2b3a67}
 #sdeck-body{padding:20px 22px}
-#sdeck-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:16px;color:#1a1d2e;margin-bottom:10px}
+#sdeck-title{font-family:'Source Serif 4',serif;font-weight:800;font-size:16px;color:#1a1d2e;margin-bottom:10px}
 #sdeck-content{font-size:14px;color:#1a1d2e;line-height:1.65}
-#sdeck-content .sdeck-stat{font-size:26px;font-weight:800;color:#4361ee}
+#sdeck-content .sdeck-stat{font-size:26px;font-weight:800;color:#2b3a67}
 #sdeck-footer{display:flex;justify-content:space-between;align-items:center;padding:14px 22px 18px;border-top:1px solid #f0f2fa}
 .sdeck-btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
-.sdeck-btn-primary{background:#4361ee;color:#fff}
+.sdeck-btn-primary{background:#2b3a67;color:#fff}
 .sdeck-btn-primary:hover{background:#3451d1}
 .sdeck-btn-ghost{background:none;color:#9ba4c0}
 .sdeck-btn-ghost:hover{color:#5a607a}
@@ -67,7 +71,7 @@ const StoryDeck = (function(){
     document.getElementById("sdeck-title").textContent=slide.title;
     document.getElementById("sdeck-content").innerHTML=slide.html;
     const isLast=s.idx===s.slides.length-1;
-    document.getElementById("sdeck-next").textContent=isLast?"Show full dashboard":"Next";
+    document.getElementById("sdeck-next").textContent=isLast?srT("sdeck_show_full_dashboard"):srT("sdeck_next");
   }
 
   function next(){
@@ -110,8 +114,8 @@ const StoryDeck = (function(){
         '<div id="sdeck-progress"></div>'+
         '<div id="sdeck-body"><div id="sdeck-title"></div><div id="sdeck-content"></div></div>'+
         '<div id="sdeck-footer">'+
-          '<button class="sdeck-btn sdeck-btn-ghost" id="sdeck-skip" type="button">Skip to full dashboard</button>'+
-          '<button class="sdeck-btn sdeck-btn-primary" id="sdeck-next" type="button">Next</button>'+
+          '<button class="sdeck-btn sdeck-btn-ghost" id="sdeck-skip" type="button">'+escapeHtml(srT("sdeck_skip_full_dashboard"))+'</button>'+
+          '<button class="sdeck-btn sdeck-btn-primary" id="sdeck-next" type="button">'+escapeHtml(srT("sdeck_next"))+'</button>'+
         '</div>'+
       '</div>';
     document.body.appendChild(overlay);
@@ -134,21 +138,21 @@ const StoryDeck = (function(){
       { title:"Overview", html:
         '<div class="sdeck-stat">'+escapeHtml(a.overallAvg)+'%</div>'+
         '<div>Grade <b>'+escapeHtml(a.grade||"-")+'</b> · '+escapeHtml(name)+' is currently trending <b>'+escapeHtml(a.trend||"steady")+'</b>.</div>' },
-      { title:"The story so far", html:
-        (a.bestTest?('Best result so far: <b>'+escapeHtml(a.bestTest.name)+'</b> ('+escapeHtml(a.bestTest.pct)+'%).<br>'):'')+
-        (a.worstTest?('Toughest test: <b>'+escapeHtml(a.worstTest.name)+'</b> ('+escapeHtml(a.worstTest.pct)+'%).'):'No test-to-test comparison available yet.') },
+      { title:srT("sdeck_story_so_far"), html:
+        (a.bestTest?(escapeHtml(srT('sdeck_best_result_so_far'))+' <b>'+escapeHtml(a.bestTest.name)+'</b> ('+escapeHtml(a.bestTest.pct)+'%).<br>'):'')+
+        (a.worstTest?(escapeHtml(srT('sdeck_toughest_test'))+' <b>'+escapeHtml(a.worstTest.name)+'</b> ('+escapeHtml(a.worstTest.pct)+'%).'):escapeHtml(srT('sdeck_no_test_comparison'))) },
       { title:"Strengths & gaps", html:
         (function(){
           const subs=a.subjectAvgs||{};
           const keys=Object.keys(subs);
-          if(!keys.length) return "No subject breakdown available yet.";
+          if(!keys.length) return srT("sdeck_no_subject_breakdown");
           const sorted=keys.slice().sort((x,y)=>subs[y]-subs[x]);
           const best=sorted[0],worst=sorted[sorted.length-1];
-          return 'Strongest: <b>'+escapeHtml(best)+'</b> ('+escapeHtml(subs[best])+'%)<br>Needs the most attention: <b>'+escapeHtml(worst)+'</b> ('+escapeHtml(subs[worst])+'%)';
+          return escapeHtml(srT('sdeck_strongest'))+' <b>'+escapeHtml(best)+'</b> ('+escapeHtml(subs[best])+'%)<br>'+escapeHtml(srT('sdeck_needs_most_attention'))+' <b>'+escapeHtml(worst)+'</b> ('+escapeHtml(subs[worst])+'%)';
         })() },
-      { title:"What to do next", html:
-        (typeof generateHomePlan==="function"?escapeHtml(generateHomePlan(st)):"") +
-        ((APP.setup&&APP.setup.mode!=="individual"&&typeof generateSchoolPlan==="function")?('<br><br>'+escapeHtml(generateSchoolPlan(st))):"") }
+      { title:srT("sdeck_what_to_do_next"), html:
+        (typeof generateHomePlan==="function"?escapeHtml(generateHomePlan(st,typeof getStudentContinuityContext==="function"?getStudentContinuityContext(st.id):null)):"") +
+        ((APP.setup&&APP.setup.mode!=="individual"&&typeof generateSchoolPlan==="function")?('<br><br>'+escapeHtml(generateSchoolPlan(st,typeof getStudentContinuityContext==="function"?getStudentContinuityContext(st.id):null))):"") }
     ];
   }
 
@@ -157,15 +161,15 @@ const StoryDeck = (function(){
     return [
       { title:"Overview", html:
         '<div class="sdeck-stat">'+escapeHtml(cs.mean)+'%</div>'+
-        '<div>Class average across '+escapeHtml(cs.n||0)+' students. Median '+escapeHtml(cs.median)+'%.</div>' },
+        '<div>'+escapeHtml(srT('sdeck_class_average_across',{n:cs.n||0}))+' '+escapeHtml(srT('sdeck_median_pct',{median:cs.median}))+'</div>' },
       { title:"Spread", html:
         'Highest: <b>'+escapeHtml(cs.max)+'%</b> · Lowest: <b>'+escapeHtml(cs.min)+'%</b><br>'+
-        'Standard deviation: '+escapeHtml(cs.sd)+' — '+((cs.sd>15)?"a fairly wide spread across the class.":"a fairly tight spread across the class.") },
-      { title:"Where the gaps are", html:
+        escapeHtml(srT('sdeck_standard_deviation'))+' '+escapeHtml(cs.sd)+' — '+((cs.sd>15)?escapeHtml(srT('sdeck_wide_spread')):escapeHtml(srT('sdeck_tight_spread'))) },
+      { title:srT("sdeck_where_gaps_are"), html:
         (function(){
           const sw=(cs.subjectWeakness||[])[0];
-          if(!sw) return "No subject-level data yet.";
-          return 'Needs the most attention: <b>'+escapeHtml(sw.subject)+'</b> — '+escapeHtml(sw.pctBelow)+'% of the class is below the pass threshold.';
+          if(!sw) return srT("sdeck_no_subject_level_data");
+          return escapeHtml(srT('sdeck_needs_most_attention'))+' <b>'+escapeHtml(sw.subject)+'</b> — '+escapeHtml(srT('sdeck_pct_below_pass',{pct:sw.pctBelow}));
         })() }
     ];
   }
@@ -173,22 +177,22 @@ const StoryDeck = (function(){
   function helpSlides(students){
     const list=students||[];
     return [
-      { title:"Who needs help", html:
+      { title:srT("sdeck_who_needs_help"), html:
         list.length
-          ? (list.length+' student'+(list.length===1?"":"s")+' currently flagged — '+list.slice(0,5).map(s=>escapeHtml(s.name)).join(", ")+(list.length>5?", …":""))
-          : "No one is currently flagged — nothing urgent to review right now." },
-      { title:"Why they're flagged", html:
-        "Flags come from a mix of signals — low averages, sharp drops between tests, or repeated near-fails in a specific subject. Open a student below for their individual detail." }
+          ? escapeHtml(srT('sdeck_students_flagged',{n:list.length}))+' — '+list.slice(0,5).map(s=>escapeHtml(s.name)).join(", ")+(list.length>5?", …":"")
+          : escapeHtml(srT('sdeck_no_one_flagged')) },
+      { title:srT("sdeck_why_flagged"), html:
+        escapeHtml(srT("sdeck_flags_explanation")) }
     ];
   }
 
   function topSlides(students){
     const list=students||[];
     return [
-      { title:"Top performers", html:
+      { title:srT("sdeck_top_performers"), html:
         list.length
           ? (list.slice(0,5).map(s=>escapeHtml(s.name)+' ('+escapeHtml(s.analysis&&s.analysis.overallAvg)+'%)').join("<br>"))
-          : "No standout performers to show yet." }
+          : escapeHtml(srT("sdeck_no_standout_performers")) }
     ];
   }
 
@@ -208,3 +212,15 @@ const StoryDeck = (function(){
 })();
 
 if(typeof window !== "undefined") window.StoryDeck = StoryDeck;
+
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { StoryDeck };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window.StoryDeck=StoryDeck;}

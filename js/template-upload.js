@@ -1,3 +1,14 @@
+import { esc, toast, validateSetup } from './app-utils-init.js';
+import { applyCompareModeUI, computeCompareGroups, processCompareFile, renderHomeFileList, resolveMarksRows } from './compute-compare.js';
+import { parseStudents, runAnalysis, scrollToEl } from './compute-stats.js';
+import { collectSetupForm, fillSetupForm, lockUsageMode, setUsageMode, startCompareMode, unlockStep } from './project-setup.js';
+import { buildDashboardControlsHtml } from './render-buckets.js';
+import { closeModal, showSampleFiles, updateExportGate } from './render-core.js';
+import { i18nLabel, srT } from './render-i18n.js';
+import { swGoto } from './setup-wizard.js';
+import { APP, goStep } from './state-nav.js';
+import { renderShellRightRail } from './vs-shell.js';
+
 /* ════ EXCEL TEMPLATE GENERATION ════ */
 // Style constants for generateTemplate() — requires xlsx-js-style (see
 // top-of-file library note) since stock SheetJS Community can only READ
@@ -28,6 +39,23 @@ function safeSheetName(name,usedNames){
   usedNames.add(candidate);
   return candidate;
 }
+// Builds "<Class/Batch><Section>" (e.g. "Sem1", "Class7A") for prefixing
+// test-tab names and SETUP's Test N Name in lockstep — same readability
+// convention already used across samples/ (see samples/README.md's "Tab
+// naming convention"), now applied to templates actually downloaded from
+// the live wizard too, not just the static samples. Idempotent: if a
+// test's name already starts with this prefix (e.g. re-downloading after
+// an earlier "Add Test" round-trip), it's left alone instead of doubling
+// up into "Sem1-Sem1-Test 1".
+function classPrefixForTabs(){
+  let base=(String(APP.setup.className||"")+String(APP.setup.section||"")).replace(/[^a-zA-Z0-9]/g,"");
+  if(!base)base="Class";
+  return base.slice(0,18); // leaves room for a reasonably long test name within Excel's 31-char sheet-name limit
+}
+function applyTabPrefix(tests){
+  const prefix=classPrefixForTabs();
+  tests.forEach(t=>{if(!t.name.startsWith(prefix+"-"))t.name=prefix+"-"+t.name;});
+}
 /* Shared by generateTemplate() (fresh workbook) and generateMergedTemplate()
    (existing workbook + new test columns) — both need the exact same SETUP
    tab, built from whatever's currently in APP.setup, so there's a single
@@ -54,17 +82,66 @@ function buildSetupSheet(){
   });
   return wsSetup;
 }
-// NEW SCHEMA — Tab 2: STUDENTS roster. Student ID mandatory, Full Name
-// optional (app falls back to printing the ID wherever a name would show
-// once this reaches the parser/UI layer — that fallback is a parsing-layer
-// change, tracked separately from this template-generation piece), Gender
-// mandatory (M/F).
+// prompt-02-nperiod-import-fork.md "Start a new class/semester" fork —
+// writes SETUP's repeated "Period N ..." block format (same one
+// parseContinuityPeriods()/extractPeriodBlocks() above read) instead of
+// buildSetupSheet()'s flat single-period format. `periods` is the FULL
+// list — every period being kept (copied through verbatim if the source
+// was already multi-period, or reconstructed from the old file's flat
+// SETUP if this is the first fork on a legacy single-period file) PLUS
+// the new one the user just filled in via the normal Setup form. Scoring
+// Config stays flat/global (Pass Threshold etc) rather than per-period —
+// parseContinuityPeriods() never reads a per-period scoring block, only
+// the flat one, so writing one per period would just be dead data nothing
+// reads back.
+function buildContinuitySetupSheet(periods){
+  const rows=[["MODE",""],["Usage Mode",APP.setup.mode||"institution"],
+    ["INSTITUTION",""],["Institution Name",APP.setup.instName],["Type",APP.setup.instType||""],
+    ["Location",APP.setup.location||""],["Contact",APP.setup.contact||""],
+    ["CONTINUITY",""],["Period Count",periods.length]];
+  const sectionLabels=new Set(["MODE","INSTITUTION","CONTINUITY","SCORING CONFIG"]);
+  periods.forEach((p,idx)=>{
+    const n=idx+1,sec="PERIOD "+n;
+    sectionLabels.add(sec);
+    rows.push([sec,""]);
+    rows.push(["Period "+n+" Label",p.label]);
+    rows.push(["Period "+n+" Academic Year / Term",p.year||""]);
+    rows.push(["Period "+n+" Teacher / Coordinator",p.teacher||""]);
+    p.subjects.forEach((s,si)=>rows.push(["Period "+n+" Subject "+(si+1),s]));
+    p.tests.forEach((t,ti)=>{
+      rows.push(["Period "+n+" Test "+(ti+1)+" Name",t.name]);
+      rows.push(["Period "+n+" Test "+(ti+1)+" Date",t.date||""]);
+      p.subjects.forEach(s=>rows.push(["Period "+n+" Max Marks - "+s+" (Test "+(ti+1)+")",(t.maxMarks&&t.maxMarks[s])||100]));
+    });
+  });
+  rows.push(["SCORING CONFIG",""]);
+  rows.push(["Scoring Method",Object.keys(APP.setup.scoring).filter(k=>APP.setup.scoring[k]).join(", ")]);
+  rows.push(["Pass Threshold %",APP.setup.passThreshold],["Absent Alert Days",APP.setup.absentAlert],["Sharp Drop Alert %",APP.setup.dropAlert]);
+  const wsSetup=XLSX.utils.aoa_to_sheet(rows);
+  wsSetup["!cols"]=[{wch:34},{wch:28}];
+  wsSetup["!rows"]=rows.map(()=>({hpt:20}));
+  wsSetup["!views"]=[{state:"frozen",ySplit:1,topLeftCell:"A2",activePane:"bottomLeft"}];
+  rows.forEach((row,r)=>{
+    const isSection=sectionLabels.has(row[0]);
+    ["A","B"].forEach(col=>{
+      const addr=col+(r+1),cell=wsSetup[addr];if(!cell)return;
+      cell.s=isSection?TPL_STYLE.section:TPL_STYLE.label;
+    });
+  });
+  return wsSetup;
+}
 function buildStudentsSheet(){
   const hdr=["Student ID","Full Name","Gender"];
   const rows=[hdr];
-  for(let i=1;i<=5;i++)rows.push(["STU00"+i,"","M"]);
+  // Was "STU001".."STU005" — a user who left these untouched and just
+  // filled marks against them got silently-wrong analysis (the "SAMPLE-N"
+  // ID + placeholder name here make that obvious in Excel; the actual
+  // safety net — auto-skipping these if still untouched on import — is
+  // in parseStudents(), js/compute-stats.js, matched against
+  // SAMPLE_STUDENT_IDS below).
+  for(let i=1;i<=5;i++)rows.push(["SAMPLE-"+i,"⚠ Replace this row — delete or overwrite","M"]);
   const ws=XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"]=[{wch:16},{wch:28},{wch:10}];
+  ws["!cols"]=[{wch:16},{wch:34},{wch:10}];
   ws["!rows"]=rows.map((_,r)=>({hpt:r===0?32:20}));
   ws["!views"]=[{state:"frozen",ySplit:1,topLeftCell:"A2",activePane:"bottomLeft"}];
   hdr.forEach((_,c)=>{const cell=ws[colLetter(c)+"1"];if(cell)cell.s=TPL_STYLE.header;});
@@ -79,7 +156,7 @@ function buildTestSheet(test,subjects){
   subjects.forEach(s=>hdr.push(s+" Marks"));
   hdr.push("Absent Days","Chapter","Remark");
   const rows=[hdr];
-  for(let i=1;i<=5;i++)rows.push(["STU00"+i,...Array(hdr.length-1).fill("")]);
+  for(let i=1;i<=5;i++)rows.push(["SAMPLE-"+i,...Array(hdr.length-1).fill("")]);
   const ws=XLSX.utils.aoa_to_sheet(rows);
   ws["!cols"]=hdr.map((_,i)=>({wch:i===0?12:i>=hdr.length-2?24:12}));
   ws["!rows"]=rows.map((_,r)=>({hpt:r===0?32:20}));
@@ -93,14 +170,14 @@ function buildTestSheet(test,subjects){
 // already be used to.
 function buildReadmeSheet(){
   const lines=[
-    ["Student Insight — How this workbook is organised"],
+    [srT("readme_title")],
     [""],
-    ["SETUP — institution, class, subjects, tests, and scoring settings. Edit here if anything needs to change."],
-    ["STUDENTS — your class roster. Student ID is required; Full Name is optional (the ID is shown instead if left blank); Gender is required (M or F)."],
-    ["One tab per test — each test/exam gets its own tab, named after the test. Fill marks, absences, chapter (optional), and remarks there."],
+    [srT("readme_setup_tab")],
+    [srT("readme_students_tab")],
+    [srT("readme_test_tabs")],
     [""],
-    ["Adding a new test later: go to Setup -> Update Existing Template -> upload this file -> add the new test -> re-download."],
-    ["A new tab is added for the new test; every existing tab and its marks are kept exactly as they are."],
+    [srT("readme_add_test")],
+    [srT("readme_add_test_note")],
   ];
   const ws=XLSX.utils.aoa_to_sheet(lines);
   ws["!cols"]=[{wch:110}];
@@ -108,13 +185,22 @@ function buildReadmeSheet(){
 }
 function generateTemplate(){
   collectSetupForm();
-  if(!APP.setup.instName){toast(APP.setup.mode==="individual"?"Fill Student/Aspirant Name first.":"Fill Institution Name first.","warn");return;}
-  if(!APP.setup.subjects.length){toast("Add at least one subject.","warn");return;}
-  if(!APP.setup.tests.length){toast("Add at least one test.","warn");return;}
+  if(!APP.setup.instName){toast(APP.setup.mode==="individual"?srT("val_fill_student_name_first"):srT("val_fill_institution_name_first"),"warn");return;}
+  if(!APP.setup.subjects.length){toast(srT("val_add_one_subject"),"warn");return;}
+  if(!APP.setup.tests.length){toast(srT("val_add_one_test"),"warn");return;}
   // If a previously-filled workbook was loaded via "Update Existing Sheet",
   // append new-test columns onto its real rows instead of building a fresh
   // 5-sample-row workbook that would silently discard those marks.
-  if(APP.mergeMode&&APP.mergeSource){generateMergedTemplate();return;}
+  if(APP.mergeMode&&APP.mergeSource){
+    if(APP.mergeForkChoice==="new_period"){generateContinuityAppendTemplate();return;}
+    generateMergedTemplate();return;
+  }
+  // Bulk sections — a school with 7A/7B/7C shouldn't need to fill this
+  // form 3 times. Scoped to fresh template generation only (not merge
+  // mode) — see the checkbox in index.html's Class/Batch step.
+  const bulkOn=document.getElementById("bulk-sections-toggle");
+  if(bulkOn&&bulkOn.checked){generateBulkSectionTemplates();return;}
+  applyTabPrefix(APP.setup.tests);
   const wb=XLSX.utils.book_new();
   const {subjects,tests,instName}=APP.setup;
   XLSX.utils.book_append_sheet(wb,buildSetupSheet(),"SETUP");
@@ -127,7 +213,7 @@ function generateTemplate(){
   usedNames.add("README");
   XLSX.utils.book_append_sheet(wb,buildReadmeSheet(),"README");
   const fname=(instName+" "+APP.setup.className+" "+APP.setup.year).replace(/[^\w\s-]/g,"").replace(/\s+/g,"_")+".xlsx";
-  XLSX.writeFile(wb,fname);toast("Template downloaded: "+fname,"success");
+  XLSX.writeFile(wb,fname);toast(srT("toast_template_downloaded",{fname:fname}),"success");
   // BUG FIX (v3.9, item #4): Download Template is the real end of this
   // flow — the person leaves to fill the file offline and comes back to
   // Home later. Leaving the wizard's in-memory state sitting around meant
@@ -135,6 +221,77 @@ function generateTemplate(){
   // setup/mergeMode data instead of a clean slate. The download itself is
   // a synchronous blob save, so it's unaffected by the reload that follows.
   setTimeout(()=>location.reload(),900);
+}
+function toggleBulkSectionsUI(checked){
+  const el=document.getElementById("bulk-sections-fields");
+  if(el)el.style.display=checked?"":"none";
+  const err=document.getElementById("err-bulk-sections");
+  if(err)err.style.display="none";
+  // Bulk mode replaces the single Section field's role — hide it rather
+  // than leaving two conflicting "which section?" inputs on screen at
+  // once. #class-section's value is simply unused while bulk is on.
+  const singleGroup=document.getElementById("class-section-group");
+  if(singleGroup)singleGroup.style.display=checked?"none":"";
+}
+// Bulk sections (e.g. Class 7 A/B/C, one Setup form, one ZIP of N files —
+// see the checkbox in index.html's Class/Batch step). Same Institution/
+// Class/Batch/Subjects/Tests/Scoring/Teacher for every file (A3 answer:
+// one shared, editable Teacher field, no per-section override UI — if a
+// section genuinely needs a different teacher, edit that file's SETUP
+// tab after generating); only Section differs, and each file's test tabs
+// get their OWN correctly-prefixed names (Class7A-Test1 vs Class7B-Test1),
+// never sharing mutated state between sections.
+function generateBulkSectionTemplates(){
+  const raw=(document.getElementById("bulk-sections-list")||{}).value||"";
+  const sectionNames=[...new Set(raw.split(",").map(s=>s.trim()).filter(Boolean))];
+  const errEl=document.getElementById("err-bulk-sections");
+  if(sectionNames.length<2){
+    if(errEl)errEl.style.display="";
+    toast(srT("val_bulk_sections_need_two"),"warn");
+    return;
+  }
+  if(errEl)errEl.style.display="none";
+  if(!APP.setup.instName){toast(APP.setup.mode==="individual"?srT("val_fill_student_name_first"):srT("val_fill_institution_name_first"),"warn");return;}
+  if(!APP.setup.subjects.length){toast(srT("val_add_one_subject"),"warn");return;}
+  if(!APP.setup.tests.length){toast(srT("val_add_one_test"),"warn");return;}
+  // Pristine, unprefixed snapshot — each section clones from THIS, never
+  // from another section's already-prefixed tests (applyTabPrefix() is
+  // only idempotent against ITS OWN prefix; feeding it an already-
+  // prefixed name from a DIFFERENT section would double-prefix instead
+  // of correctly re-prefixing).
+  const origTests=APP.setup.tests.map(t=>({name:t.name,date:t.date||"",maxMarks:Object.assign({},t.maxMarks)}));
+  const origSection=APP.setup.section;
+  const zip=new JSZip();
+  sectionNames.forEach(sectionName=>{
+    APP.setup.section=sectionName;
+    const sectionTests=origTests.map(t=>({name:t.name,date:t.date,maxMarks:Object.assign({},t.maxMarks)}));
+    applyTabPrefix(sectionTests);
+    APP.setup.tests=sectionTests; // buildSetupSheet()/buildTestSheet() read APP.setup.tests directly
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,buildSetupSheet(),"SETUP");
+    XLSX.utils.book_append_sheet(wb,buildStudentsSheet(),"STUDENTS");
+    const usedNames=new Set(["SETUP","STUDENTS"]);
+    sectionTests.forEach(t=>{
+      const sheetName=safeSheetName(t.name,usedNames);
+      XLSX.utils.book_append_sheet(wb,buildTestSheet(t,APP.setup.subjects),sheetName);
+    });
+    usedNames.add("README");
+    XLSX.utils.book_append_sheet(wb,buildReadmeSheet(),"README");
+    const fname=(APP.setup.instName+" "+APP.setup.className+sectionName+" "+APP.setup.year).replace(/[^\w\s-]/g,"").replace(/\s+/g,"_")+".xlsx";
+    zip.file(fname,XLSX.write(wb,{bookType:"xlsx",type:"array"}));
+  });
+  APP.setup.section=origSection;
+  APP.setup.tests=origTests; // restore the live form to its pristine, unprefixed state
+  const zipFname=(APP.setup.instName+"_"+APP.setup.className+"_AllSections_TEMPLATES_"+timestampTag()).replace(/[^\w-]/g,"_")+".zip";
+  zip.generateAsync({type:"blob"}).then(blob=>{
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url;link.download=zipFname;
+    document.body.appendChild(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    toast(srT("toast_bulk_templates_downloaded",{n:sectionNames.length,fname:zipFname}),"success");
+    setTimeout(()=>location.reload(),900);
+  });
 }
 
 /* ════ UPDATE EXISTING SHEET (add a new test, keep old marks) ════
@@ -152,7 +309,7 @@ function handleUpdateUpload(input){
   const r=new FileReader();
   r.onload=e=>{
     try{loadMergeSourceFromArrayBuffer(e.target.result,file.name);}
-    catch(err){toast("Error reading file: "+err.message,"error");}
+    catch(err){toast(srT("val_error_reading_file",{msg:err.message}),"error");}
     input.value="";
   };
   r.readAsArrayBuffer(file);
@@ -211,19 +368,19 @@ function loadMergeSourceFromArrayBuffer(arrayBuffer,fileName){
   const isIndividual=APP.setup.mode==="individual";
   const sheetNamesUpper=wb.SheetNames.map(n=>n.toUpperCase().trim());
   if(!sheetNamesUpper.includes("SETUP")||!sheetNamesUpper.includes("STUDENTS")){
-    toast(isIndividual?"That doesn't look like a file downloaded from this app — please upload the same Excel file you filled in earlier, not a different one.":"That file doesn't have SETUP and STUDENTS tabs — can't safely update it. If this is an older single-sheet Student Insight file, please download a fresh template and re-enter your data — sorry for the inconvenience, the file format has been improved to one tab per test.","error");
+    toast(isIndividual?srT("val_not_app_file_individual"):srT("val_missing_setup_students_tabs"),"error");
     return false;
   }
   const studentsSheetName=wb.SheetNames[sheetNamesUpper.indexOf("STUDENTS")];
   const studentsArr=APP.rawData["_arr_"+studentsSheetName]||[];
   const studentsHeader=(studentsArr[0]||[]).map(h=>h===null||h===undefined?"":String(h).trim());
   if(!studentsHeader.some(h=>h==="Student ID")){
-    toast("The STUDENTS tab doesn't have a 'Student ID' column — can't safely update this file.","error");
+    toast(srT("val_students_tab_no_id_col"),"error");
     return false;
   }
   const studentsRows=studentsArr.slice(1).filter(row=>row&&row.some(v=>v!==null&&v!==undefined&&v!==""));
   if(!studentsRows.length){
-    toast(isIndividual?"That file's STUDENTS tab doesn't have any filled-in rows yet — nothing to bring forward. Use Download Template to start fresh instead.":"That file's STUDENTS tab has a header but no student rows yet — nothing to preserve. Use a fresh Download Template instead.","warn");
+    toast(isIndividual?srT("val_students_tab_empty_individual"):srT("val_students_tab_empty"),"warn");
     return false;
   }
   // Duplicate-ID check now lives on the STUDENTS tab, since that's the
@@ -247,31 +404,79 @@ function loadMergeSourceFromArrayBuffer(arrayBuffer,fileName){
     sourceFileName:fileName,
     origSubjects:(APP.setup.subjects||[]).slice(),
     dupeIds:[...new Set(dupeIds)],
+    origSetupKv:buildSetupKv(APP.rawData["SETUP"]||[]), // raw SETUP kv, BEFORE autoInferSetup()/the Setup form can touch it — the "Start a new class/semester" fork needs the untouched original to reconstruct/copy-through old period(s)
   };
+  // prompt-02-nperiod-import-fork.md: "ask exactly one question, only at
+  // that moment, never upfront" — asked HERE, before autoInferSetup() pre-
+  // fills the Setup form with the old file's values, per the product
+  // decision this was built against (fork question comes before the
+  // teacher sees/touches the form at all).
+  renderMergeForkModal();
+  return true;
+}
+// Called once the fork modal's choice is made (chooseMergeFork below).
+// This is everything loadMergeSourceFromArrayBuffer used to do
+// unconditionally after building APP.mergeSource — unchanged for the
+// "Add a test" choice; the "Start a new class/semester" choice needs the
+// exact same Setup-form pre-fill (A2: "keep the values same" as the
+// editable starting point), so both paths share this.
+function continueLoadMergeSource(){
+  const src=APP.mergeSource;if(!src)return;
   APP.mergeMode=true;
   autoInferSetup(); // fills subjects/tests/institution form from the file's SETUP tab (unchanged function)
   APP.mergeSource.origSubjects=(APP.setup.subjects||[]).slice();
-  const testNames=origTestSheetNames.join(", ")||"(none detected)";
-  let bannerHtml=`Loaded <b>${esc(fileName)}</b> — <b>${studentsRows.length}</b> student(s) on the roster, existing test tab(s): <b>${esc(testNames)}</b>. Now click <b>✚ Add Test</b> below for the new test, then use <b><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M17 1l4 4-4 4'/><path d='M3 11V9a4 4 0 0 1 4-4h14'/><path d='M7 23l-4-4 4-4'/><path d='M21 13v2a4 4 0 0 1-4 4H3'/></svg> Update &amp; Download</b> above. Every existing tab is kept exactly as-is — you'll get a summary to review before anything downloads.`;
-  if(APP.mergeSource.dupeIds.length){
-    bannerHtml+=`<div style="margin-top:6px;color:#8b1a1a">⚠ Duplicate Student ID(s) already in the STUDENTS tab: ${esc(APP.mergeSource.dupeIds.join(", "))}. Fix these in the source file for reliable analysis.</div>`;
+  // Snapshot of the OLD (pre-edit) period's full data — needed by
+  // generateContinuityAppendTemplate() to reconstruct Period 1 verbatim
+  // when the source is a legacy single-period file (no existing "Period
+  // N ..." blocks to copy through). Deep-enough copy: tests array holds
+  // its own maxMarks objects, not shared references the user's later
+  // form edits could mutate out from under this snapshot.
+  APP.mergeSource.origPeriodSnapshot={
+    label:APP.setup.className||"",section:APP.setup.section||"",year:APP.setup.year||"",
+    teacher:APP.setup.teacher||"",subjects:(APP.setup.subjects||[]).slice(),
+    tests:(APP.setup.tests||[]).map(t=>({name:t.name,date:t.date||"",maxMarks:Object.assign({},t.maxMarks)})),
+  };
+  // prompt-02-nperiod-import-fork.md: "new subjects/tests/scoring, since a
+  // new period is a new subject set by definition — do not try to reuse
+  // old subjects." Institution Name/Class-Batch/Section/Teacher/Year stay
+  // pre-filled (A2 — legitimately often unchanged, just needs editing/
+  // validating), but Subjects/Tests are cleared to force a genuinely
+  // fresh start. Bug found via screenshot: leaving the OLD period's 4
+  // tests sitting pre-filled meant a user who only meant to add ONE new
+  // test (clicked ✚ Add Test, typed it, didn't think to also delete the
+  // 3 old ones still shown) got all 4 silently created as new, empty
+  // tabs for the new period. fillSetupForm() re-called so the Setup
+  // form UI actually reflects the now-empty Subjects/Tests, not just
+  // the underlying APP.setup state.
+  if(APP.mergeForkChoice==="new_period"){
+    APP.setup.subjects=[];
+    APP.setup.tests=[];
+    fillSetupForm(APP.setup);
+  }
+  const testNames=src.origTestSheetNames.join(", ")||"(none detected)";
+  let bannerHtml=srT("merge_banner_loaded",{fileName:esc(src.sourceFileName),count:src.studentsRows.length,tests:esc(testNames)})+` <b><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M17 1l4 4-4 4'/><path d='M3 11V9a4 4 0 0 1 4-4h14'/><path d='M7 23l-4-4 4-4'/><path d='M21 13v2a4 4 0 0 1-4 4H3'/></svg> `+esc(srT("merge_update_download"))+`</b> `+esc(srT("merge_banner_tail"));
+  if(APP.mergeForkChoice==="new_period"){
+    bannerHtml=srT("merge_fork_new_period_banner",{fileName:esc(src.sourceFileName),count:src.studentsRows.length})||bannerHtml;
+  }
+  if(src.dupeIds.length){
+    bannerHtml+=`<div style="margin-top:6px;color:#8b1a1a">⚠ `+esc(srT("val_dupe_ids_students_fix",{ids:esc(src.dupeIds.join(", "))}))+`</div>`;
   }
   $("#merge-banner-text").html(bannerHtml);
   $("#merge-banner").show();
   $("#btn-download-template").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M17 1l4 4-4 4'/><path d='M3 11V9a4 4 0 0 1 4-4h14'/><path d='M7 23l-4-4 4-4'/><path d='M21 13v2a4 4 0 0 1-4 4H3'/></svg> Update & Download").prop("disabled",false).css({opacity:1,cursor:"pointer"}).addClass("btn-glow");
   $("#btn-load-existing").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 21V9'/><polyline points='7 14 12 9 17 14'/><path d='M4 21h16'/></svg> "+i18nLabel("setup_btn_load_different","Load a Different Sheet"));
-  toast("Existing sheet loaded — add your new test, then click Update & Download.","success");
+  toast(srT("toast_existing_sheet_loaded"),"success");
   APP.setupCard1Choice='update';
   if(typeof swGoto==="function") swGoto(2);
   return true;
 }
 function cancelMergeMode(){
-  APP.mergeMode=false;APP.mergeSource=null;APP._pendingMerge=null;
+  APP.mergeMode=false;APP.mergeSource=null;APP._pendingMerge=null;APP.mergeForkChoice=null;
   $("#merge-banner").hide();
   $("#btn-download-template").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 3v12'/><polyline points='7 10 12 15 17 10'/><path d='M4 21h16'/></svg> "+i18nLabel("setup_btn_download_template","Download Template"));
   $("#btn-load-existing").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 21V9'/><polyline points='7 14 12 9 17 14'/><path d='M4 21h16'/></svg> "+i18nLabel("setup_btn_load_existing","Load Existing Filled Sheet"));
   validateSetup();
-  toast("Merge cancelled — back to a fresh template.","info");
+  toast(srT("toast_merge_cancelled"),"info");
 }
 // yyyyMMdd_HHmm in local time, for collision-proof, always-newest-sorts-last
 // filenames — repeated updates (Test 2 today, Test 3 next month) never
@@ -346,8 +551,9 @@ function generateMergedTemplate(){
   const src=APP.mergeSource;
   const origTestNamesUpper=new Set(src.origTestSheetNames.map(n=>n.toUpperCase().trim()));
   const newTests=tests.filter(t=>!origTestNamesUpper.has(t.name.toUpperCase().trim()));
+  applyTabPrefix(newTests);
   if(!newTests.length){
-    toast("No new test found — every test in your Setup form already has a tab in the loaded sheet. Add the new test's name first (✚ Add Test).","warn");
+    toast(srT("val_no_new_test_found"),"warn");
     return;
   }
   // A test that existed in the file but is no longer in the Setup form —
@@ -392,27 +598,147 @@ function generateMergedTemplate(){
   };
   renderMergeConfirmModal();
 }
+// prompt-02-nperiod-import-fork.md "Start a new class/semester" fork.
+// Builds a genuine multi-period continuity workbook: every PRIOR period
+// (copied through verbatim — either the source's own existing "Period N
+// ..." blocks if it was already multi-period, or reconstructed as a
+// single Period 1 from the legacy source's flat SETUP if this is the
+// first fork ever done on it) PLUS the new period the user just filled
+// into the Setup form. Same copy-the-worksheet-object safety guarantee
+// as generateMergedTemplate() — no prior period's marks cells are ever
+// touched, only appended alongside.
+function generateContinuityAppendTemplate(){
+  const src=APP.mergeSource;if(!src)return;
+  const origWb=src.workbook;
+  const existingPeriods=extractPeriodBlocks(src.origSetupKv);
+  const priorPeriods=existingPeriods.length?existingPeriods:[{
+    label:src.origPeriodSnapshot.label,year:src.origPeriodSnapshot.year,
+    teacher:src.origPeriodSnapshot.teacher,subjects:src.origPeriodSnapshot.subjects,
+    tests:src.origPeriodSnapshot.tests,
+  }];
+  const newTests=(APP.setup.tests||[]).map(t=>({name:t.name,date:t.date||"",maxMarks:Object.assign({},t.maxMarks)}));
+  applyTabPrefix(newTests); // "<Class/Batch><Section>-<TestName>", same convention as every other generated tab
+  const newPeriod={
+    label:APP.setup.className||"",year:APP.setup.year||"",teacher:APP.setup.teacher||"",
+    subjects:(APP.setup.subjects||[]).slice(),tests:newTests,
+  };
+  // A2/confirmed: Class/Batch must genuinely differ from the immediately
+  // preceding period (case-insensitive) — Section/Year/Teacher/Subjects/
+  // Tests are all allowed to repeat (a subject can legitimately continue).
+  const prevLabel=priorPeriods[priorPeriods.length-1].label;
+  if(newPeriod.label.trim().toLowerCase()===String(prevLabel||"").trim().toLowerCase()){
+    toast(srT("val_new_period_same_class",{label:esc(newPeriod.label)}),"error");
+    return;
+  }
+  const allPeriods=[...priorPeriods,newPeriod];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,buildContinuitySetupSheet(allPeriods),"SETUP");
+  const usedNames=new Set(["SETUP"]);
+  const studentsWs=origWb.Sheets[src.studentsSheetName];
+  XLSX.utils.book_append_sheet(wb,studentsWs,safeSheetName("STUDENTS",usedNames));
+  // Every prior period's tabs, copied straight through untouched — this
+  // is the ONLY line that reads old marks data, and it never touches a
+  // single cell, only the worksheet object reference.
+  priorPeriods.forEach(p=>{
+    p.tests.forEach(t=>{
+      const ws=origWb.Sheets[t.name];
+      if(ws)XLSX.utils.book_append_sheet(wb,ws,safeSheetName(t.name,usedNames));
+    });
+  });
+  // New period's tabs — empty templates (5 sample rows, same as any
+  // fresh template/newly-added test), ready to fill. Per A3, new joiners
+  // for this period go straight into the STUDENTS tab by hand in Excel —
+  // no UI for it here, to avoid a second, easier-to-desync source of
+  // student identity/uniqueness alongside the sheet itself.
+  newPeriod.tests.forEach(t=>{
+    XLSX.utils.book_append_sheet(wb,buildTestSheet(t,newPeriod.subjects),safeSheetName(t.name,usedNames));
+  });
+  usedNames.add("README");
+  XLSX.utils.book_append_sheet(wb,buildReadmeSheet(),"README");
+  const fname=(APP.setup.instName+" "+newPeriod.label+" "+APP.setup.year).replace(/[^\w\s-]/g,"").replace(/\s+/g,"_")+"_CONTINUITY_"+timestampTag()+".xlsx";
+  APP._pendingMerge={
+    wb,fname,continuityMode:true,
+    studentCount:src.studentsRows.length,
+    periodCount:allPeriods.length,
+    priorPeriodLabels:priorPeriods.map(p=>p.label),
+    newPeriodLabel:newPeriod.label,
+    newTestNames:newPeriod.tests.map(t=>t.name),
+    dupeIds:src.dupeIds||[],
+  };
+  renderMergeConfirmModal();
+}
+// prompt-02-nperiod-import-fork.md: the ONE question asked when a
+// teacher re-uploads an existing sheet, right after it loads (A1: before
+// they touch the Setup form) — "Add a test" is the pre-existing flow,
+// completely unchanged; "Start a new class/semester" is new (see
+// chooseMergeFork/generateContinuityAppendTemplate below).
+function renderMergeForkModal(){
+  const src=APP.mergeSource;if(!src)return;
+  $("#modal-content").html(`
+    <h3 style="font-family:var(--font-display);font-size:17px;margin-bottom:4px">${esc(srT("merge_fork_title"))}</h3>
+    <div style="font-size:12.5px;color:var(--c-text3);margin-bottom:16px">${srT("merge_fork_desc",{fileName:esc(src.sourceFileName)})}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-secondary" style="text-align:left;padding:12px 14px" data-action="chooseMergeFork" data-arg="add_test">
+        <div style="font-weight:700;font-size:13.5px">${esc(srT("merge_fork_add_test_label"))}</div>
+        <div style="font-size:11.5px;color:var(--c-text3);margin-top:2px;font-weight:400">${esc(srT("merge_fork_add_test_desc"))}</div>
+      </button>
+      <button class="btn btn-secondary" style="text-align:left;padding:12px 14px" data-action="chooseMergeFork" data-arg="new_period">
+        <div style="font-weight:700;font-size:13.5px">${esc(srT("merge_fork_new_period_label"))}</div>
+        <div style="font-size:11.5px;color:var(--c-text3);margin-top:2px;font-weight:400">${esc(srT("merge_fork_new_period_desc"))}</div>
+      </button>
+    </div>`);
+  $("#modal-overlay").addClass("open");
+  setTimeout(()=>{const f=document.querySelector('#modal-overlay.open button');if(f)f.focus();},0);
+}
+function chooseMergeFork(choice){
+  if(!APP.mergeSource)return;
+  APP.mergeForkChoice=(choice==="new_period")?"new_period":"add_test";
+  closeModal();
+  continueLoadMergeSource();
+}
 function renderMergeConfirmModal(){
   const p=APP._pendingMerge;if(!p)return;
+  if(p.continuityMode){
+    const warnHtml=(p.dupeIds&&p.dupeIds.length)?`<div style="margin:10px 0;padding:10px 12px;background:#fff4e0;border-radius:var(--r-sm);font-size:12px;color:#8a5a00">⚠ ${esc(srT("val_dupe_ids_students_tab",{ids:esc(p.dupeIds.join(", "))}))}</div>`:"";
+    $("#modal-content").html(`
+      <h3 style="font-family:var(--font-display);font-size:17px;margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M17 1l4 4-4 4'/><path d='M3 11V9a4 4 0 0 1 4-4h14'/><path d='M7 23l-4-4 4-4'/><path d='M21 13v2a4 4 0 0 1-4 4H3'/></svg> ${esc(srT("merge_fork_confirm_title"))}</h3>
+      <div style="font-size:12px;color:var(--c-text3);margin-bottom:14px">${esc(srT("merge_fork_confirm_desc"))}</div>
+      <div class="grid-2" style="gap:10px;margin-bottom:6px">
+        <div class="kpi-card"><div class="kpi-label">${esc(srT("merge_students_on_roster"))}</div><div class="kpi-val" style="font-size:16px">${p.studentCount}</div></div>
+        <div class="kpi-card"><div class="kpi-label">${esc(srT("merge_fork_period_count"))}</div><div class="kpi-val" style="font-size:16px">${p.periodCount}</div></div>
+      </div>
+      <div style="font-size:12.5px;margin:10px 0 4px"><b>${esc(srT("merge_fork_new_period_is"))}</b> ${esc(p.newPeriodLabel)}</div>
+      <div style="font-size:11.5px;color:var(--c-text2);max-height:110px;overflow:auto;background:var(--c-surface2);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:6px">${esc(srT("merge_kept_unchanged"))} SETUP, STUDENTS, ${p.priorPeriodLabels.map(n=>esc(n)).join(", ")}<br>${esc(srT("merge_added_new"))} ${p.newTestNames.map(n=>esc(n)).join(", ")}</div>
+      <div style="font-size:11.5px;color:var(--c-text3);margin-bottom:6px">${esc(srT("merge_fork_new_joiners_note"))}</div>
+      ${warnHtml}
+      <div style="font-size:11px;color:var(--c-text3);margin-bottom:14px">${esc(srT("merge_will_save_as"))} <code>${esc(p.fname)}</code></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary btn-sm" data-action="closeModal">${esc(srT("btn_cancel"))}</button>
+        <button class="btn btn-success btn-sm" data-action="confirmMergedDownload">✔ ${esc(srT("btn_confirm_download"))}</button>
+      </div>`);
+    $("#modal-overlay").addClass("open");
+    setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);
+    return;
+  }
   const warnings=[];
-  if(p.subjectsChanged)warnings.push("Your Subjects list is different from the loaded file's. Existing test tabs are untouched either way, but double-check this was intentional.");
-  if(p.missingOrigTests.length)warnings.push(`Test tab(s) from the loaded file aren't in your current Setup form: <b>${esc(p.missingOrigTests.join(", "))}</b>. That tab and its marks are still kept exactly as-is in the new file — this just means it wasn't recognised as matching a test in your Setup form. If you meant to keep the same test, re-add it with the exact original name instead of a new one.`);
-  if(p.dupeIds.length)warnings.push(`Duplicate Student ID(s) already existed on the STUDENTS tab: ${esc(p.dupeIds.join(", "))}.`);
+  if(p.subjectsChanged)warnings.push(srT("val_subjects_list_changed"));
+  if(p.missingOrigTests.length)warnings.push(srT("val_missing_orig_tests",{names:esc(p.missingOrigTests.join(", "))}));
+  if(p.dupeIds.length)warnings.push(srT("val_dupe_ids_students_tab",{ids:esc(p.dupeIds.join(", "))}));
   const warnHtml=warnings.length?`<div style="margin:10px 0;padding:10px 12px;background:#fff4e0;border-radius:var(--r-sm);font-size:12px;color:#8a5a00">⚠ ${warnings.join("<br>⚠ ")}</div>`:"";
   $("#modal-content").html(`
-    <h3 style="font-family:var(--font-display);font-size:17px;margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M17 1l4 4-4 4'/><path d='M3 11V9a4 4 0 0 1 4-4h14'/><path d='M7 23l-4-4 4-4'/><path d='M21 13v2a4 4 0 0 1-4 4H3'/></svg> Review before downloading</h3>
-    <div style="font-size:12px;color:var(--c-text3);margin-bottom:14px">Nothing has been saved yet. Every existing tab is copied through unchanged — only new blank test tab(s) are added. Check this matches what you expected, then confirm.</div>
+    <h3 style="font-family:var(--font-display);font-size:17px;margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M17 1l4 4-4 4'/><path d='M3 11V9a4 4 0 0 1 4-4h14'/><path d='M7 23l-4-4 4-4'/><path d='M21 13v2a4 4 0 0 1-4 4H3'/></svg> ${esc(srT("merge_review_title"))}</h3>
+    <div style="font-size:12px;color:var(--c-text3);margin-bottom:14px">${esc(srT("merge_review_desc"))}</div>
     <div class="grid-2" style="gap:10px;margin-bottom:6px">
-      <div class="kpi-card"><div class="kpi-label">Students on roster</div><div class="kpi-val" style="font-size:16px">${p.studentCount}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Tabs</div><div class="kpi-val" style="font-size:16px">${p.tabsIn} → ${p.tabsOut}</div></div>
+      <div class="kpi-card"><div class="kpi-label">${esc(srT("merge_students_on_roster"))}</div><div class="kpi-val" style="font-size:16px">${p.studentCount}</div></div>
+      <div class="kpi-card"><div class="kpi-label">${esc(srT("merge_tabs_label"))}</div><div class="kpi-val" style="font-size:16px">${p.tabsIn} → ${p.tabsOut}</div></div>
     </div>
-    <div style="font-size:12.5px;margin:10px 0 4px"><b>New test tab(s) being added:</b> ${esc(p.newTestNames.join(", "))}</div>
-    <div style="font-size:11.5px;color:var(--c-text2);max-height:110px;overflow:auto;background:var(--c-surface2);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:6px">Kept unchanged: SETUP, STUDENTS, ${p.keptTestNames.map(n=>esc(n)).join(", ")||"(no prior test tabs)"}<br>Added new: ${p.newTestNames.map(n=>esc(n)).join(", ")}</div>
+    <div style="font-size:12.5px;margin:10px 0 4px"><b>${esc(srT("merge_new_test_tabs_being_added"))}</b> ${esc(p.newTestNames.join(", "))}</div>
+    <div style="font-size:11.5px;color:var(--c-text2);max-height:110px;overflow:auto;background:var(--c-surface2);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:6px">${esc(srT("merge_kept_unchanged"))} SETUP, STUDENTS, ${p.keptTestNames.map(n=>esc(n)).join(", ")||esc(srT("merge_no_prior_test_tabs"))}<br>${esc(srT("merge_added_new"))} ${p.newTestNames.map(n=>esc(n)).join(", ")}</div>
     ${warnHtml}
-    <div style="font-size:11px;color:var(--c-text3);margin-bottom:14px">Will save as: <code>${esc(p.fname)}</code></div>
+    <div style="font-size:11px;color:var(--c-text3);margin-bottom:14px">${esc(srT("merge_will_save_as"))} <code>${esc(p.fname)}</code></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-secondary btn-sm" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-success btn-sm" onclick="confirmMergedDownload()">✔ Confirm & Download</button>
+      <button class="btn btn-secondary btn-sm" data-action="closeModal">${esc(srT("btn_cancel"))}</button>
+      <button class="btn btn-success btn-sm" data-action="confirmMergedDownload">✔ ${esc(srT("btn_confirm_download"))}</button>
     </div>`);
   $("#modal-overlay").addClass("open");
   setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);
@@ -420,7 +746,7 @@ function renderMergeConfirmModal(){
 function confirmMergedDownload(){
   const p=APP._pendingMerge;if(!p){closeModal();return;}
   XLSX.writeFile(p.wb,p.fname);
-  toast(`Updated file downloaded: ${p.fname} — ${p.studentCount} student(s) kept as-is, added ${p.newTestNames.length} new test tab(s).`,"success");
+  toast(srT("toast_updated_file_downloaded",{fname:p.fname,count:p.studentCount,newCount:p.newTestNames.length}),"success");
   unlockStep("data");
   $("#btn-download-template").removeClass("btn-glow");
   $("#btn-setup-next").addClass("btn-glow");
@@ -428,7 +754,7 @@ function confirmMergedDownload(){
   // Exit merge mode — the just-downloaded file is now the new baseline; if
   // the teacher wants to add yet another test later, they load that file
   // in fresh via "Load Existing Filled Sheet" again.
-  APP.mergeMode=false;APP.mergeSource=null;APP._pendingMerge=null;
+  APP.mergeMode=false;APP.mergeSource=null;APP._pendingMerge=null;APP.mergeForkChoice=null;
   $("#merge-banner").hide();
   $("#btn-download-template").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 3v12'/><polyline points='7 10 12 15 17 10'/><path d='M4 21h16'/></svg> "+i18nLabel("setup_btn_download_template","Download Template"));
   $("#btn-load-existing").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 21V9'/><polyline points='7 14 12 9 17 14'/><path d='M4 21h16'/></svg> "+i18nLabel("setup_btn_load_existing","Load Existing Filled Sheet"));
@@ -443,10 +769,10 @@ function confirmMergedDownload(){
    drop-zone) so file-size and extension guards can't silently apply to
    only one of them. */
 function validateUploadFile(f,allowedExts){
-  if(!f)return "No file selected.";
-  if(f.size>50*1024*1024)return "File too large (max 50MB).";
+  if(!f)return srT("val_no_file_selected");
+  if(f.size>50*1024*1024)return srT("val_file_too_large");
   const ext=(f.name.split(".").pop()||"").toLowerCase();
-  if(!allowedExts.includes(ext))return "Unsupported file. Use "+allowedExts.map(e=>"."+e).join(", ");
+  if(!allowedExts.includes(ext))return srT("val_unsupported_file",{exts:allowedExts.map(e=>"."+e).join(", ")});
   return null;
 }
 
@@ -533,7 +859,7 @@ function parseWorkbookSheets(wb){
    instead of a <input type=file>, and success chains straight into
    runAnalysis() (which defaults to "select all AI features" when none
    have been chosen) so the teacher never has to click through Setup/
-   Data/AI Analysis manually. Sample_4 (School Class Teacher) was picked
+   Data/AI Analysis manually. Sample_02 (School Class Teacher) was picked
    as the default because it's a plain single-section Institution-mode
    class, the closest match to the non-power-user persona this feature
    is designed around. */
@@ -577,7 +903,7 @@ function afterAllCompareFilesLoaded(){
   statusEl.innerHTML=`<div class="card" style="border-color:var(--c-warn)">
     <b style="color:var(--c-warn)">Can't analyse these files</b>
     <div style="font-size:12.5px;color:var(--c-text2);margin-top:6px">${esc(detail)}</div>
-    <div style="margin-top:10px;font-size:11px"><button type="button" onclick="resetHomeImport()" style="background:none;border:none;padding:0;font:inherit;cursor:pointer;color:var(--c-text3);text-decoration:underline">↺ Start over — pick different files</button></div>
+    <div style="margin-top:10px;font-size:11px"><button type="button" data-action="resetHomeImport" style="background:none;border:none;padding:0;font:inherit;cursor:pointer;color:var(--c-text3);text-decoration:underline">↺ Start over — pick different files</button></div>
   </div>`;
   statusEl.style.display="block";
   scrollToEl(statusEl);
@@ -624,8 +950,8 @@ function handleHomeImport(file){
             <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--c-danger)"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><circle cx='12' cy='12' r='10'/><line x1='15' y1='9' x2='9' y2='15'/><line x1='9' y1='9' x2='15' y2='15'/></svg> Setup Incomplete — ${errs.length} issue(s) found in SETUP tab</div>
             ${errHtml}
             <div style="margin-top:10px;font-size:12px;color:var(--c-text2)">Fix the required fields in your Excel SETUP tab and re-import.</div>
-            <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="goStep('setup')">Edit Setup in App</button>
-            <div style="margin-top:10px;font-size:11px"><button type="button" onclick="resetHomeImport()" style="background:none;border:none;padding:0;font:inherit;cursor:pointer;color:var(--c-text3);text-decoration:underline">↺ Not this file — start over / import a different one</button></div>
+            <button class="btn btn-secondary btn-sm" style="margin-top:10px" data-action="goStep" data-arg="setup">Edit Setup in App</button>
+            <div style="margin-top:10px;font-size:11px"><button type="button" data-action="resetHomeImport" style="background:none;border:none;padding:0;font:inherit;cursor:pointer;color:var(--c-text3);text-decoration:underline">↺ Not this file — start over / import a different one</button></div>
           </div>`;
           statusEl.style.display="block";
           scrollToEl(statusEl);
@@ -683,25 +1009,35 @@ function showHomeRunAnalysisButton(){
 /* ════ SETUP COMPLETENESS VALIDATION ════ */
 function validateSetupData(){
   const s=APP.setup;const errs=[];
-  if(!s.instName){errs.push({required:true,msg:"Institution Name is missing from SETUP tab"});}
-  if(!s.className){errs.push({required:true,msg:"Class / Batch Name is missing from SETUP tab"});}
-  if(!s.year){errs.push({required:true,msg:"Academic Year is missing from SETUP tab"});}
-  if(!s.subjects||!s.subjects.length){errs.push({required:true,msg:"No subjects found. Add 'Subject 1', 'Subject 2'... rows to SETUP tab"});}
-  if(!s.tests||!s.tests.length){errs.push({required:true,msg:"No tests/assessments found. Add 'Test 1 Name'... rows to SETUP tab"});}
-  if(!s.teacher){errs.push({required:false,msg:"Class Teacher name not set (optional but recommended)"});}
-  if(!s.passThreshold){errs.push({required:false,msg:"Pass Threshold % not set — defaulting to 35%"});}
+  if(!s.instName){errs.push({required:true,msg:srT("val_setup_missing_institution")});}
+  if(!s.className){errs.push({required:true,msg:srT("val_setup_missing_class")});}
+  if(!s.year){errs.push({required:true,msg:srT("val_setup_missing_year")});}
+  if(!s.subjects||!s.subjects.length){errs.push({required:true,msg:srT("val_setup_no_subjects")});}
+  if(!s.tests||!s.tests.length){errs.push({required:true,msg:srT("val_setup_no_tests")});}
+  if(!s.teacher){errs.push({required:false,msg:srT("val_setup_teacher_not_set")});}
+  if(!s.passThreshold){errs.push({required:false,msg:srT("val_setup_pass_threshold_not_set")});}
+  // Individual mode is one workbook per child — Subjects/Max Marks in
+  // SETUP are workbook-global, so a second child in the same STUDENTS tab
+  // silently inherits the first child's subject list and max-marks scale
+  // (wrong for two kids in different grades). Enforced here, the same
+  // choke point every import path (Home quick-import, Step 2 drop-zone,
+  // sample-file load) already runs through.
+  if(s.mode==="individual"){
+    const rosterRows=(APP.rawData&&APP.rawData["STUDENTS"])||[];
+    if(rosterRows.length>1){errs.push({required:true,msg:srT("val_individual_one_child_per_file")});}
+  }
   // Duplicate subject/test names (case-insensitive) silently corrupt
   // per-subject aggregation downstream since it's keyed by name — flag
   // as a warning rather than blocking, since the import can still proceed.
   const findDupes=list=>{const seen=new Set(),dupes=new Set();(list||[]).forEach(v=>{const k=String(v).toLowerCase();if(seen.has(k))dupes.add(v);seen.add(k);});return[...dupes];};
   const dupeSubjects=findDupes(s.subjects);
   const dupeTests=findDupes((s.tests||[]).map(t=>t.name));
-  if(dupeSubjects.length)errs.push({required:false,msg:"Duplicate subject name(s) in SETUP tab: "+dupeSubjects.join(", ")+" — their data will overwrite each other"});
-  if(dupeTests.length)errs.push({required:false,msg:"Duplicate test name(s) in SETUP tab: "+dupeTests.join(", ")+" — their data will overwrite each other"});
+  if(dupeSubjects.length)errs.push({required:false,msg:srT("val_setup_dupe_subjects",{names:dupeSubjects.join(", ")})});
+  if(dupeTests.length)errs.push({required:false,msg:srT("val_setup_dupe_tests",{names:dupeTests.join(", ")})});
   // Check that tests have subjects with max marks
   (s.tests||[]).forEach((t,i)=>{
     const missing=(s.subjects||[]).filter(sub=>!t.maxMarks||!t.maxMarks[sub]);
-    if(missing.length)errs.push({required:false,msg:`Test "${t.name}": Max Marks not set for ${missing.join(", ")} — defaulting to 100`});
+    if(missing.length)errs.push({required:false,msg:srT("val_setup_max_marks_not_set",{test:t.name,subjects:missing.join(", ")})});
   });
   return errs;
 }
@@ -776,9 +1112,147 @@ function resetHomeImport(){
 // (handleHomeImportFiles → processCompareFile) is the only upload path
 // now, for 1 file or many alike. CSV upload support (accepted here, never
 // by Home's .xlsx/.xls-only zone) is dropped along with this panel.
+// prompt-01-schema-foundation-2period.md / prompt-02-nperiod-import-fork.md's
+// designed multi-period SETUP schema, parsed for real. Reads the repeated
+// "Period N Label" / "Period N Subject i" / "Period N Test t Name" /
+// "Period N Max Marks - <Subject> (Test t)" blocks kv already holds (same
+// flat-row SETUP-sheet scan autoInferSetup always did — nothing new about
+// HOW these get read, just WHICH keys). Two things happen:
+//   1. APP.continuity gets built — {periods, subjectsByPeriod, students:
+//      [{id,name,pctByPeriod}]} — the exact shape js/continuity-dashboard.js
+//      already reads (built against fixture data originally; this is the
+//      first time anything real produces that shape).
+//   2. The CURRENT period (always the last one, per prompt-02) has its
+//      Subject/Test/Max-Marks keys ALIASED onto kv's plain "Subject i" /
+//      "Test t Name" / "Max Marks - X (Test t)" keys — so every line of
+//      autoInferSetup below this call, and parseStudents() after it, run
+//      completely unchanged and parse the current period as if it were an
+//      ordinary single-period file. Only the current period gets full
+//      detailed analysis (KPIs/heatmap/flags/wellbeing) — earlier periods
+//      only feed the lighter Continuity dashboard's per-period % — exactly
+//      the split prompt-02 specified, achieved by NOT touching that
+//      pipeline at all rather than teaching it about periods.
+// extractPeriodBlocks(kv) — pure read of the repeated "Period N ..."
+// blocks, no side effects (no APP.* writes). Shared by parseContinuityPeriods
+// (below) and generateContinuityAppendTemplate() (the "Start a new class/
+// semester" fork, which needs an ALREADY-multi-period source's existing
+// blocks copied through verbatim when appending yet another period).
+// Returns [] when Period Count is absent/1 — a plain legacy single-period
+// source, not an error.
+function extractPeriodBlocks(kv){
+  const periodCount=parseInt(kv["Period Count"])||0;
+  if(periodCount<2)return [];
+  const periods=[];
+  for(let p=1;p<=periodCount;p++){
+    const label=kv[`Period ${p} Label`]||`Period ${p}`;
+    const year=kv[`Period ${p} Academic Year / Term`]||"";
+    const teacher=kv[`Period ${p} Teacher / Coordinator`]||"";
+    const subjects=[];let si=1;
+    while(kv[`Period ${p} Subject ${si}`]){subjects.push(kv[`Period ${p} Subject ${si}`]);si++;}
+    const tests=[];let ti=1;
+    while(kv[`Period ${p} Test ${ti} Name`]){
+      const tname=kv[`Period ${p} Test ${ti} Name`];
+      const date=kv[`Period ${p} Test ${ti} Date`]||"";
+      const maxMarks={};
+      subjects.forEach(s=>{maxMarks[s]=parseInt(kv[`Period ${p} Max Marks - ${s} (Test ${ti})`])||100;});
+      tests.push({name:tname,date,maxMarks});
+      ti++;
+    }
+    periods.push({label,year,teacher,subjects,tests});
+  }
+  return periods;
+}
+function parseContinuityPeriods(kv){
+  const periods=extractPeriodBlocks(kv);
+  if(!periods.length)return;
+  const periodCount=periods.length;
+  APP.setup.periodCount=periodCount; // gates the Continuity rail item (js/render-buckets.js buildDashboardControlsHtml)
+
+  // Alias the CURRENT (last) period's flat keys — "current period = last
+  // period in file, always, no manual override this phase" (prompt-02).
+  const cur=periods[periods.length-1];
+  if(!kv["Class / Batch"])kv["Class / Batch"]=cur.label;
+  if(!kv["Academic Year"]&&cur.year)kv["Academic Year"]=cur.year;
+  cur.subjects.forEach((s,i)=>{kv[`Subject ${i+1}`]=s;});
+  cur.tests.forEach((t,i)=>{
+    kv[`Test ${i+1} Name`]=t.name;
+    cur.subjects.forEach(s=>{kv[`Max Marks - ${s} (Test ${i+1})`]=String(t.maxMarks[s]);});
+  });
+
+  // Build APP.continuity — per-student overall % per period, present-only
+  // (absence is a real gap, never zero-filled — same rule the dashboard's
+  // cohort chart and roster badges already enforce, now fed real data
+  // instead of only the fixture in js/continuity-dashboard.js).
+  const rosterRows=APP.rawData["STUDENTS"]||[];
+  const rosterIds=[],rosterNames={};
+  rosterRows.forEach(row=>{
+    const id=String(row["Student ID"]||"").trim();
+    if(!id||id in rosterNames)return;
+    rosterIds.push(id);rosterNames[id]=String(row["Full Name"]||"").trim()||id;
+  });
+  const students=rosterIds.map(id=>({id,name:rosterNames[id],pctByPeriod:periods.map(()=>null)}));
+  const idxOf={};students.forEach((s,i)=>{idxOf[s.id]=i;});
+
+  periods.forEach((p,pIdx)=>{
+    const acc={}; // id -> {sum,cnt} of per-test average %, across this period's tests
+    p.tests.forEach(t=>{
+      const sheet=APP.rawData[t.name];
+      if(!sheet)return;
+      sheet.forEach(row=>{
+        const id=String(row["Student ID"]||"").trim();
+        if(!id||!(id in idxOf))return;
+        let sum=0,cnt=0;
+        p.subjects.forEach(s=>{
+          const raw=row[s+" Marks"]!==undefined?row[s+" Marks"]:row[s];
+          if(raw===undefined||raw===null||raw==="")return;
+          const n=parseFloat(String(raw).replace(/[^0-9.-]/g,""));
+          if(isNaN(n))return;
+          const mx=t.maxMarks[s]||100;
+          sum+=Math.max(0,Math.min(100,(n/mx)*100));cnt++;
+        });
+        if(!cnt)return;
+        if(!acc[id])acc[id]={sum:0,cnt:0};
+        acc[id].sum+=sum/cnt;acc[id].cnt+=1;
+      });
+    });
+    Object.keys(acc).forEach(id=>{students[idxOf[id]].pctByPeriod[pIdx]=Math.round(acc[id].sum/acc[id].cnt);});
+  });
+
+  APP.continuity={periods:periods.map(p=>({label:p.label,year:p.year})),
+    subjectsByPeriod:periods.map(p=>p.subjects.slice()),students,institutionType:kv["Type"]||""};
+}
+
+// Shared by autoInferSetup() and the "Start a new class/semester" fork
+// (loadMergeSourceFromArrayBuffer/generateContinuityAppendTemplate) — both
+// need the same flat key->value scan of a SETUP sheet's raw rows.
+function buildSetupKv(setupSheet){
+  const kv={};
+  (setupSheet||[]).forEach(row=>{const k=String(Object.values(row)[0]||"").trim();const v=String(Object.values(row)[1]||"").trim();if(k&&v)kv[k]=v;});
+  return kv;
+}
 function autoInferSetup(){
   const setupSheet=APP.rawData["SETUP"]||[];if(!setupSheet.length)return true;
-  const kv={};setupSheet.forEach(row=>{const k=String(Object.values(row)[0]||"").trim();const v=String(Object.values(row)[1]||"").trim();if(k&&v)kv[k]=v;});
+  const kv=buildSetupKv(setupSheet);
+  // ── CONTINUITY: multi-period SETUP (prompt-01/02's designed schema,
+  // finally wired up — see PIB §9 continuity-schema-not-built-yet for
+  // the long history of this being flagged as missing). If "Period
+  // Count" is absent or 1, this is a complete no-op and every line below
+  // runs exactly as it always has — zero behavior change for any
+  // existing single-period file, legacy or otherwise.
+  if((parseInt(kv["Period Count"])||0)>1)parseContinuityPeriods(kv);
+  // Free-text SETUP fields had no length cap at all — unlike Full Name
+  // (120) and Remark (1000), a huge pasted blob into e.g. Institution
+  // Name could still distort PDF/table headers with no warning. Same
+  // pattern as those: truncate, keep going (never block import over
+  // this), surface ONE consolidated toast naming which fields got cut.
+  const FIELD_MAX=120;
+  const truncatedFields=[];
+  const capField=(raw,max,label)=>{
+    const s=String(raw);
+    if(s.length<=max)return s;
+    truncatedFields.push(label);
+    return s.slice(0,max);
+  };
   if(kv["Usage Mode"]){
     const fileMode=kv["Usage Mode"]==="individual"?"individual":"institution";
     // E1: a session already in progress (has a name typed in, or students
@@ -788,25 +1262,25 @@ function autoInferSetup(){
     // session's mode and swallowing the other file's data un-labeled.
     const sessionInProgress=!!(APP.setup.instName||APP.students.length);
     if(sessionInProgress&&fileMode!==APP.setup.mode){
-      const fileLabel=fileMode==="individual"?"Individual":"Institution",curLabel=APP.setup.mode==="individual"?"Individual":"Institution";
-      const proceed=confirm(`This file was created in ${fileLabel} mode, but this session is currently in ${curLabel} mode. Switch this session to ${fileLabel} mode and load the file?\n\nCancel to keep ${curLabel} mode and abort this import.`);
-      if(!proceed){toast("Import cancelled — session mode unchanged.","warn");APP.rawData=null;return false;}
+      const fileLabel=fileMode==="individual"?srT("val_mode_individual"):srT("val_mode_institution"),curLabel=APP.setup.mode==="individual"?srT("val_mode_individual"):srT("val_mode_institution");
+      const proceed=confirm(srT("val_mode_mismatch_confirm",{fileLabel:fileLabel,curLabel:curLabel}));
+      if(!proceed){toast(srT("toast_import_cancelled"),"warn");APP.rawData=null;return false;}
     }
     APP.setup.mode=fileMode;
     lockUsageMode(); // a real file's data now defines this mode — no more switching without a new project
   }
-  if(kv["Institution Name"])APP.setup.instName=kv["Institution Name"];
+  if(kv["Institution Name"])APP.setup.instName=capField(kv["Institution Name"],FIELD_MAX,"Institution Name");
   if(kv["Type"])APP.setup.instType=kv["Type"];
-  if(kv["Location"])APP.setup.location=kv["Location"];
-  if(kv["Contact"])APP.setup.contact=kv["Contact"];
-  if(kv["Class / Batch"])APP.setup.className=kv["Class / Batch"];
-  if(kv["Section"])APP.setup.section=kv["Section"];
-  if(kv["Academic Year"])APP.setup.year=kv["Academic Year"];
+  if(kv["Location"])APP.setup.location=capField(kv["Location"],FIELD_MAX,"Location");
+  if(kv["Contact"])APP.setup.contact=capField(kv["Contact"],FIELD_MAX,"Contact");
+  if(kv["Class / Batch"])APP.setup.className=capField(kv["Class / Batch"],FIELD_MAX,"Class / Batch");
+  if(kv["Section"])APP.setup.section=capField(kv["Section"],FIELD_MAX,"Section");
+  if(kv["Academic Year"])APP.setup.year=capField(kv["Academic Year"],FIELD_MAX,"Academic Year");
   // Support "Teacher Name" variant BEFORE reading Class Teacher, so either label works
   if(kv["Teacher Name"]&&!kv["Class Teacher"])kv["Class Teacher"]=kv["Teacher Name"];
   // Absent alert: "Absent Alert (days)" variant — also resolve before use
   if(kv["Absent Alert (days)"]&&!kv["Absent Alert Days"])kv["Absent Alert Days"]=kv["Absent Alert (days)"];
-  if(kv["Class Teacher"])APP.setup.teacher=kv["Class Teacher"];
+  if(kv["Class Teacher"])APP.setup.teacher=capField(kv["Class Teacher"],FIELD_MAX,"Class Teacher");
   const clampImportedNum=(raw,min,max,fallback)=>{const n=parseInt(raw);return isNaN(n)?fallback:Math.min(max,Math.max(min,n));};
   if(kv["Pass Threshold %"])APP.setup.passThreshold=clampImportedNum(kv["Pass Threshold %"],0,100,35);
   if(kv["Absent Alert Days"])APP.setup.absentAlert=clampImportedNum(kv["Absent Alert Days"],0,365,3);
@@ -843,6 +1317,7 @@ function autoInferSetup(){
   // subjects/tests — lock here too so a later mode-card click can't silently
   // orphan the data just loaded.
   if(subjects.length||tests.length)lockUsageMode();
+  if(truncatedFields.length)toast(srT("val_setup_fields_truncated",{fields:truncatedFields.join(", "),max:FIELD_MAX}),"warn");
   fillSetupForm(APP.setup);$("#session-name-badge").text(APP.setup.instName||"Session").show();
   return true;
 }
@@ -907,7 +1382,7 @@ function renderAICheckboxes(){
   // instead of reading f.label/f.sub directly — AI_FEATURES itself stays
   // English-only as the canonical fallback/data source; the display text
   // comes from the current language's i18n table when available.
-  function makeGrid(items,cid){$("#"+cid).html(items.map(f=>`<div class="ai-check-item ${APP.aiFeatures.has(f.id)?"selected":""}" onclick="toggleAI('${f.id}',this)"><input type="checkbox" ${APP.aiFeatures.has(f.id)?"checked":""} onclick="event.stopPropagation();toggleAI('${f.id}',this.closest('.ai-check-item'))"/><div><div class="ai-check-label">${i18nLabel("ai_"+f.id+"_label",f.label)}</div><div class="ai-check-sub">${i18nLabel("ai_"+f.id+"_sub",f.sub)}</div></div></div>`).join(""));}
+  function makeGrid(items,cid){$("#"+cid).html(items.map(f=>`<div class="ai-check-item ${APP.aiFeatures.has(f.id)?"selected":""}" data-action="toggleAI" data-arg="${f.id}"><input type="checkbox" ${APP.aiFeatures.has(f.id)?"checked":""} data-action="toggleAI" data-arg="${f.id}"/><div><div class="ai-check-label">${i18nLabel("ai_"+f.id+"_label",f.label)}</div><div class="ai-check-sub">${i18nLabel("ai_"+f.id+"_sub",f.sub)}</div></div></div>`).join(""));}
   makeGrid(AI_FEATURES.perf,"ai-perf-checks");makeGrid(AI_FEATURES.warn,"ai-warn-checks");makeGrid(AI_FEATURES.narr,"ai-narr-checks");makeGrid(AI_FEATURES.well,"ai-well-checks");makeGrid(AI_FEATURES.mgmt,"ai-mgmt-checks");updateAICount();
 }
 function toggleAI(id,el){if(APP.aiFeatures.has(id))APP.aiFeatures.delete(id);else APP.aiFeatures.add(id);$(el).toggleClass("selected",APP.aiFeatures.has(id));$(el).find("input[type=checkbox]").prop("checked",APP.aiFeatures.has(id));updateAICount();}
@@ -919,3 +1394,14 @@ function updateAICount(){$("#ai-selected-count").text(APP.aiFeatures.size+" feat
   if(typeof renderShellRightRail==="function" && APP.currentStep==="ai") renderShellRightRail("ai");
 }
 
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { AI_FEATURES, TPL_STYLE, afterAllCompareFilesLoaded, afterImportSuccess, applyTabPrefix, autoInferSetup, buildReadmeSheet, buildSetupSheet, buildStudentsSheet, buildTestSheet, cancelMergeMode, chooseMergeFork, classPrefixForTabs, clearAllAI, colLetter, confirmMergedDownload, generateBulkSectionTemplates, generateMergedTemplate, generateTemplate, handleHomeImport, handleHomeImportFiles, handleUpdateUpload, loadMergeSourceFromArrayBuffer, parseContinuityPeriods, parseWorkbookSheets, renderAICheckboxes, renderHomePage, renderMergeConfirmModal, resetHomeImport, safeSheetName, selectAllAI, showHomeRunAnalysisButton, timestampTag, toggleAI, toggleBulkSectionsUI, updateAICount, validateSetupData, validateUploadFile };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window.AI_FEATURES=AI_FEATURES;window.TPL_STYLE=TPL_STYLE;window.afterAllCompareFilesLoaded=afterAllCompareFilesLoaded;window.afterImportSuccess=afterImportSuccess;window.applyTabPrefix=applyTabPrefix;window.autoInferSetup=autoInferSetup;window.buildReadmeSheet=buildReadmeSheet;window.buildSetupSheet=buildSetupSheet;window.buildStudentsSheet=buildStudentsSheet;window.buildTestSheet=buildTestSheet;window.cancelMergeMode=cancelMergeMode;window.chooseMergeFork=chooseMergeFork;window.classPrefixForTabs=classPrefixForTabs;window.clearAllAI=clearAllAI;window.colLetter=colLetter;window.confirmMergedDownload=confirmMergedDownload;window.generateBulkSectionTemplates=generateBulkSectionTemplates;window.generateMergedTemplate=generateMergedTemplate;window.generateTemplate=generateTemplate;window.handleHomeImport=handleHomeImport;window.handleHomeImportFiles=handleHomeImportFiles;window.handleUpdateUpload=handleUpdateUpload;window.loadMergeSourceFromArrayBuffer=loadMergeSourceFromArrayBuffer;window.parseContinuityPeriods=parseContinuityPeriods;window.parseWorkbookSheets=parseWorkbookSheets;window.renderAICheckboxes=renderAICheckboxes;window.renderHomePage=renderHomePage;window.renderMergeConfirmModal=renderMergeConfirmModal;window.resetHomeImport=resetHomeImport;window.safeSheetName=safeSheetName;window.selectAllAI=selectAllAI;window.showHomeRunAnalysisButton=showHomeRunAnalysisButton;window.timestampTag=timestampTag;window.toggleAI=toggleAI;window.toggleBulkSectionsUI=toggleBulkSectionsUI;window.updateAICount=updateAICount;window.validateSetupData=validateSetupData;window.validateUploadFile=validateUploadFile;}

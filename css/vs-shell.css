@@ -31,7 +31,7 @@
      it earns its own duration/easing pair instead of overloading
      --dur-slow. ease-out-quint: fast start, long gentle settle — reads as
      a deliberate slide, not a snap. */
-  --dur-sheet:.42s;
+  --dur-sheet:.55s;
   --ease-sheet:cubic-bezier(.22,1,.36,1);
 }
 
@@ -431,3 +431,69 @@
     50%{opacity:1;width:52px}
   }
 }
+
+/* ════ CONTINUITY — Cohort Dashboard (prompt-03-cohort-dashboard-ui.md) ════
+   Ports continuity-dashboard-prototype.jsx's layout using this app's real
+   design tokens (var(--c-*), same ones core.css already defines for both
+   light and dark mode) instead of the prototype's hardcoded hex values. */
+.continuity-period-strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
+.continuity-period-chip{flex:0 0 auto;min-width:110px;padding:8px 14px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--c-border);background:var(--c-surface);text-align:left;font-family:inherit}
+.continuity-period-chip.continuity-period-current{background:var(--c-primary-soft)}
+.continuity-period-chip.continuity-period-active{border:1.5px solid var(--c-primary)}
+.continuity-period-label{display:block;font-size:13px;font-weight:700;color:var(--c-text)}
+.continuity-period-current .continuity-period-label{color:var(--c-primary)}
+.continuity-period-year{display:block;font-size:10px;color:var(--c-text3)}
+.continuity-period-current-tag{display:block;font-size:9px;font-weight:700;color:var(--c-primary);
+  margin-top:2px;text-transform:uppercase;letter-spacing:.3px}
+
+.continuity-body{display:flex;gap:16px;flex-wrap:wrap}
+.continuity-roster-col{flex:1 1 280px;min-width:260px}
+.continuity-cohort-col{flex:2 1 460px;min-width:300px}
+.continuity-panel-title{font-size:13px;font-weight:700;color:var(--c-text2);margin-bottom:8px;
+  text-transform:uppercase;letter-spacing:.3px}
+.continuity-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-card);
+  padding:16px;margin-bottom:14px}
+.continuity-roster-list{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-card);
+  overflow:hidden}
+.continuity-roster-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;
+  border-bottom:1px solid var(--c-border)}
+.continuity-roster-row:last-child{border-bottom:none}
+.continuity-roster-name{font-size:13.5px;font-weight:600;color:var(--c-text)}
+.continuity-roster-sub{display:flex;align-items:center;gap:6px;margin-top:3px}
+.continuity-roster-id{font-size:11px;color:var(--c-text3)}
+.continuity-roster-trend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--c-text2);font-weight:600}
+.continuity-trend-up{color:var(--c-success)}
+.continuity-trend-down{color:var(--c-danger)}
+.continuity-trend-flat{color:var(--c-text3)}
+
+.continuity-badge{font-size:10px;font-weight:700;padding:1.5px 7px;border-radius:99px}
+.continuity-badge-continuing{background:var(--c-surface2);color:var(--c-text2)}
+.continuity-badge-joined{background:var(--c-success-bg);color:var(--c-success-text)}
+.continuity-badge-left{background:var(--c-danger-bg);color:var(--c-danger-text)}
+.continuity-badge-none{background:var(--c-surface2);color:var(--c-text3)}
+
+.continuity-diff-stats{display:flex;gap:18px;flex-wrap:wrap}
+.continuity-stat{text-align:left}
+.continuity-stat-num{font-size:16px;font-weight:700;color:var(--c-text);line-height:1.1}
+.continuity-stat-label{font-size:10.5px;color:var(--c-text3)}
+
+.continuity-chip-row{margin-bottom:10px}
+.continuity-chip-row-label{font-size:11px;color:var(--c-text3);margin-bottom:5px}
+.continuity-chips{display:flex;gap:6px;flex-wrap:wrap}
+.continuity-chip{font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:99px}
+.continuity-chip-carried{background:var(--c-surface2);color:var(--c-text2)}
+.continuity-chip-added{background:var(--c-success-bg);color:var(--c-success-text)}
+.continuity-chip-dropped{background:var(--c-danger-bg);color:var(--c-danger-text)}
+
+/* ---- Prompt 04: student trajectory + trend projection ---- */
+.continuity-roster-row{cursor:pointer}
+.continuity-roster-row.continuity-roster-row-active{background:var(--c-primary-soft)}
+.continuity-detail-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;gap:10px}
+.continuity-detail-name{font-size:15px;font-weight:700;color:var(--c-text)}
+.continuity-projection-toggle{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--c-text2);cursor:pointer;white-space:nowrap}
+.continuity-disclaimer{display:flex;flex-direction:column;gap:4px;margin-top:8px;font-size:11.5px;color:var(--c-text3)}
+.continuity-disclaimer-note{font-style:italic}
+.continuity-lowconf-badge{display:inline-block;width:fit-content;font-size:10.5px;font-weight:700;padding:2px 8px;
+  border-radius:99px;background:var(--c-warn-bg);color:var(--c-warn-text)}
+.continuity-empty-state{font-size:12.5px;color:var(--c-text3);padding:4px 0}

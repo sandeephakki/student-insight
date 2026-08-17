@@ -1,3 +1,14 @@
+import { esc, toast } from './app-utils-init.js';
+import { populateExportSectionPicker, renderHomeFileList } from './compute-compare.js';
+import { runAnalysis } from './compute-stats.js';
+import { collectSetupForm } from './project-setup.js';
+import { renderBuckets } from './render-buckets.js';
+import { renderCharts, showSampleFiles } from './render-core.js';
+import { loadLanguage, reapplyI18nStrings, showAiTranslationNotice, srT } from './render-i18n.js';
+import { swGoto } from './setup-wizard.js';
+import { autoInferSetup, generateMergedTemplate, generateTemplate, renderAICheckboxes, renderHomePage } from './template-upload.js';
+import { renderShellLeftRail, renderShellRightRail, setShellRailsOpen } from './vs-shell.js';
+
 
 /* ════ APP STATE ════ */
 const APP={currentStep:"home",setup:{mode:"institution",modeLocked:false,instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]},rawData:null,students:[],classStats:null,genderAnalysis:null,filter:"all",sort:"rank",aiFeatures:new Set(),individualSelectedId:null,
@@ -25,7 +36,17 @@ const APP={currentStep:"home",setup:{mode:"institution",modeLocked:false,instNam
   homeSingleFile:null
   ,setupWizardStep:1  // 1–4, session-only
 };
-let _charts={},subjectCount=0,testCount=0,_unsaved=false,_compareSectionSeq=0;
+// FIX (module-system conversion, HANDOVER #4): this line used to declare
+// and _compareSectionSeq —
+// state-nav.js never actually used any of them; they were only declared
+// here because, in the old sloppy-global-script model, declaring `let`
+// in the first-loaded file made the names available as bare globals to
+// every later file. Under ES modules, imported bindings are read-only
+// live views — you can't reassign an imported `let` (and all 5 of these
+// get reassigned, not just mutated, in their real usage sites) — so each
+// now lives in the file that actually owns/mutates it instead:
+// _charts -> render-core.js -> compute-compare.js,
+// subjectCount/testCount/_unsaved -> project-setup.js.
 
 /* ════ THEME TOGGLE ════ */
 function setThemeChoice(choice){
@@ -70,13 +91,13 @@ function goStep(step){
   // the nav items themselves also get a "disabled" look + tooltip via
   // updateNavHomeOnlyState() below so this rarely even gets clicked.
   if((APP.currentStep==="dashboard"||APP.currentStep==="export")&&(step==="setup"||step==="about"||step==="faq")){
-    toast("Available only from the Home screen.","warn");
+    toast(srT("val_home_only"),"warn");
     return;
   }
-  if(step==="ai"&&!APP.compareMode&&!APP.rawData){toast("Upload a file on Home first.","warn");return;}
-  if(step==="ai"&&APP.compareMode&&APP.sections.filter(s=>s.valid).length<1){toast("Upload at least 1 valid file on Home first.","warn");return;}
-  if((step==="dashboard"||step==="export")&&!APP.compareMode&&!APP.students.length){toast("Run Analysis first.","warn");return;}
-  if((step==="dashboard"||step==="export")&&APP.compareMode&&!APP.sections.some(s=>s.valid&&s.students&&s.students.length)){toast("Run Analysis first.","warn");return;}
+  if(step==="ai"&&!APP.compareMode&&!APP.rawData){toast(srT("val_upload_file_home_first"),"warn");return;}
+  if(step==="ai"&&APP.compareMode&&APP.sections.filter(s=>s.valid).length<1){toast(srT("val_upload_1_valid_file_home_first"),"warn");return;}
+  if((step==="dashboard"||step==="export")&&!APP.compareMode&&!APP.students.length){toast(srT("val_run_analysis_first"),"warn");return;}
+  if((step==="dashboard"||step==="export")&&APP.compareMode&&!APP.sections.some(s=>s.valid&&s.students&&s.students.length)){toast(srT("val_run_analysis_first"),"warn");return;}
   APP.currentStep=step;
   // vs-shell-plan-v2 Task 4/5: single hook for all 7 panels instead of one
   // call added per render function — same effect, smaller diff.
@@ -96,7 +117,12 @@ function goStep(step){
   }catch(err){
     console.error("Shell rail render failed for step:",step,err);
   }
-  $(".panel").removeClass("active");$("#panel-"+step).addClass("active");
+  $(".panel").removeClass("active screen-fade-in");$("#panel-"+step).addClass("active screen-fade-in");
+  // Tell vs-shell.js's #main scroll guard this is a real panel switch
+  // (should land at the top), as opposed to a same-panel selection
+  // refresh (should keep the user's scroll position). See
+  // initMainScrollGuard() in vs-shell.js for the fix this supports.
+  document.dispatchEvent(new CustomEvent("stepnav:panelchanged", {detail:{step:step}}));
   $(".step-item").removeClass("active").removeAttr("aria-current");$("[data-step='"+step+"']").addClass("active").removeClass("locked").attr("aria-current","step");
   updateNavHomeOnlyState();
   // v4.2: re-render AI feature checkboxes fresh in the current language on
@@ -191,15 +217,24 @@ function onCountryChange(countryCode){
   loadLanguage(country.defaultLang);
 }
 function onLanguageChange(langCode){
-  const prevLang = window.SR_LANG;
   loadLanguage(langCode).then(()=>{
-    // AI-translation disclosure: shown every time the user moves from
-    // India/English to any regional (non-English) language, so they always
-    // see the "these translations are AI-generated" notice for the
-    // language they just landed on, not just the first time.
-    if(prevLang==="en" && langCode!=="en" && window.SR_LANG===langCode){
+    // AI-translation disclosure: shown every single time the user selects
+    // any non-English language — including regional-to-regional switches
+    // (e.g. Hindi -> Tamil), not just the first English -> regional switch.
+    if(langCode!=="en" && window.SR_LANG===langCode){
       showAiTranslationNotice(langCode);
     }
   });
 }
 
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { APP, COUNTRY_LANGUAGES, DEFAULT_COUNTRY, goStep, initThemeToggle, onCountryChange, onLanguageChange, populateCountryDropdown, populateLanguageDropdown, setThemeChoice, updateNavHomeOnlyState };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window.APP=APP;window.COUNTRY_LANGUAGES=COUNTRY_LANGUAGES;window.DEFAULT_COUNTRY=DEFAULT_COUNTRY;window.goStep=goStep;window.initThemeToggle=initThemeToggle;window.onCountryChange=onCountryChange;window.onLanguageChange=onLanguageChange;window.populateCountryDropdown=populateCountryDropdown;window.populateLanguageDropdown=populateLanguageDropdown;window.setThemeChoice=setThemeChoice;window.updateNavHomeOnlyState=updateNavHomeOnlyState;}

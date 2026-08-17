@@ -1,3 +1,10 @@
+import { validateSetup } from './app-utils-init.js';
+import { collectSetupForm } from './project-setup.js';
+import { APP, goStep } from './state-nav.js';
+import { srT } from './render-i18n.js';
+import { generateTemplate } from './template-upload.js';
+import { renderShellRightRail } from './vs-shell.js';
+
 /* ════ SETUP WIZARD (studin-setup-redesign-prompt v2.0) ════
    Navigation-only layer over the existing #panel-setup fields. No business
    logic, no analysis — collectSetupForm()/validateSetup()/generateTemplate()
@@ -58,7 +65,7 @@ function swRefresh(){
 
 function swValidateStep(n){
   if(n===1){
-    if(!APP.setupCard1Choice) return {ok:false,msg:"Choose an option to continue."};
+    if(!APP.setupCard1Choice) return {ok:false,msg:srT("val_choose_option_continue")};
     return {ok:true};
   }
   if(n===2){
@@ -67,19 +74,31 @@ function swValidateStep(n){
     if(instName&&instName===(instNameEl.attr("placeholder")||"").trim())instName="";
     if(!instName){
       const isIndividual=APP.setup.mode==="individual";
-      return {ok:false,msg:isIndividual?"Student / Aspirant name is required.":"Institution name is required."};
+      return {ok:false,msg:isIndividual?srT("val_student_name_required"):srT("val_institution_name_required")};
     }
-    if(!APP.setup.mode) return {ok:false,msg:"Choose who this is for."};
+    if(!APP.setup.mode) return {ok:false,msg:srT("val_choose_who_for")};
     return {ok:true};
   }
   if(n===3){
     const isIndividual=APP.setup.mode==="individual";
     const className=$("#class-name").val().trim();
     const year=$("#class-year").val().trim();
-    if(!isIndividual&&!className) return {ok:false,msg:"Class / Batch is required."};
-    if(!year) return {ok:false,msg:"Academic year is required."};
+    if(!isIndividual&&!className) return {ok:false,msg:srT("val_class_batch_required")};
+    if(!year) return {ok:false,msg:srT("val_academic_year_required")};
     return {ok:true};
   }
   // Step 4 has no Next button — validateSetup() gates Download instead.
   return {ok:true};
 }
+
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { swBack, swGoto, swNext, swRefresh, swValidateStep };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window.swBack=swBack;window.swGoto=swGoto;window.swNext=swNext;window.swRefresh=swRefresh;window.swValidateStep=swValidateStep;}

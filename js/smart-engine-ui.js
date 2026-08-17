@@ -1,3 +1,8 @@
+import { emptyStateHtml, esc, showScreen, toast } from './app-utils-init.js';
+import { srT } from './render-i18n.js';
+import { SmartEngine } from './smart-engine.js';
+import { APP } from './state-nav.js';
+
 /* ════ SMART SEARCH UI (Phase 2, v2) ════
    Full-screen replace pattern, matching #bucket-answer-screen (Screen C)
    exactly — same back-button style, same title style, same row style
@@ -37,7 +42,7 @@ function closeSmartSearchScreen(){
 function renderSmartSearchScreen(){
   const shell = $("#smart-search-screen");
   shell.html(`
-    <button class="bucket-back-btn" onclick="closeSmartSearchScreen()" aria-label="${esc(srT('smart_search_back'))}">
+    <button class="bucket-back-btn" data-action="closeSmartSearchScreen" aria-label="${esc(srT('smart_search_back'))}">
       <svg class="ic" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="margin-right:6px"><path d="m15 18-6-6 6-6"/></svg>
       ${esc(srT('smart_search_back'))}
     </button>
@@ -137,3 +142,15 @@ function toggleSmartAnswer(qId, questionLabel, result){
     document.getElementById("smart-chip-" + qId)?.classList.add("smart-chip-open");
   }
 }
+
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { _smartCategory, _smartEngineLoaded, _smartReturnTo, closeSmartSearchScreen, currentSmartStudent, isQuestionDisabled, openSmartSearchScreen, renderSmartCategorySwitch, renderSmartChips, renderSmartSearchScreen, renderSmartStudentPicker, toggleSmartAnswer };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window._smartCategory=_smartCategory;window._smartEngineLoaded=_smartEngineLoaded;window._smartReturnTo=_smartReturnTo;window.closeSmartSearchScreen=closeSmartSearchScreen;window.currentSmartStudent=currentSmartStudent;window.isQuestionDisabled=isQuestionDisabled;window.openSmartSearchScreen=openSmartSearchScreen;window.renderSmartCategorySwitch=renderSmartCategorySwitch;window.renderSmartChips=renderSmartChips;window.renderSmartSearchScreen=renderSmartSearchScreen;window.renderSmartStudentPicker=renderSmartStudentPicker;window.toggleSmartAnswer=toggleSmartAnswer;}

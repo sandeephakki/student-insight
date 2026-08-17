@@ -47,6 +47,13 @@
   window.APP_CONFIG = {
     env: env.label,
     assetBase: env.assetBase,     // prefix for sample files etc — use directly, always ends in "/" (or is "")
-    projectPageUrl: env.projectPageUrl
+    projectPageUrl: env.projectPageUrl,
+    debug: env.label !== "PROD"   // FIX (review #8): gate debug logging by env instead of shipping unconditionally
   };
+
+  // Shared debug logger — no-ops in prod. Use window.SIA_DEBUG_LOG(...) instead
+  // of a bare console.log(...) for anything that isn't a genuine error/warning.
+  window.SIA_DEBUG_LOG = window.APP_CONFIG.debug
+    ? function(){ console.log.apply(console, arguments); }
+    : function(){};
 })();

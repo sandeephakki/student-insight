@@ -37,7 +37,13 @@ Still NOT covered — remains English-only regardless of language selected:
   best reviewed carefully rather than machine-translated in bulk)
 - Export / PDF generation screens
 - Most Dashboard labels, table headers, button text outside buckets
-- Error messages, toasts, validation text
+- Error messages, toasts, validation text — includes the new
+  `val_individual_one_child_per_file` key (individual-mode "one child per
+  workbook" enforcement) and the corrected `sample_5_desc` /
+  `setup_multi_child_hint` / `setup_indiv_multichild_hint` strings (the
+  Sample 15 content changed from two children to one — old per-language
+  translations describing two children were removed rather than left
+  stale; they fall back to the corrected English text until retranslated)
 - The Institution "Type" dropdown (`#inst-type`) — intentionally left
   English-only. Its `<option>` text doubles as the stored value written
   into the exported Excel SETUP sheet (no separate `value=` attribute),

@@ -1,3 +1,16 @@
+import { esc, toast, validateSetup } from './app-utils-init.js';
+import { applyCompareModeUI } from './compute-compare.js';
+import { computeAnalysis } from './compute-stats.js';
+import { i18nLabel, srT } from './render-i18n.js';
+import { APP, goStep } from './state-nav.js';
+import { handleHomeImportFiles } from './template-upload.js';
+
+// FIX (module-system conversion, HANDOVER #4): moved here from state-nav.js
+// (never used there) — this file is the real owner, reading/reassigning
+// all three throughout setup form handling. See the matching note in
+// state-nav.js.
+let subjectCount = 0, testCount = 0, _unsaved = false;
+
 /* ════ PROJECT LIFECYCLE — stateless, no persistence ════ */
 function startNewSession(){
   /* "New Project" — reset everything, go to Setup form.
@@ -118,13 +131,13 @@ initFAQAccordion();
 /* ════ SETUP FORM ════ */
 function addSubject(name=""){
   subjectCount++;
-  const row=$(`<div class="subj-row" data-subj="subj-${subjectCount}"><span class="row-num">${subjectCount}</span><input type="text" value="${esc(name)}" placeholder="e.g. Mathematics" oninput="updateTestSubjectCols();markDirty();validateSetup()"/><button class="del-btn" onclick="$(this).closest('.subj-row').remove();updateTestSubjectCols();markDirty();validateSetup()">✕</button></div>`);
+  const row=$(`<div class="subj-row" data-subj="subj-${subjectCount}"><span class="row-num">${subjectCount}</span><input type="text" value="${esc(name)}" placeholder="e.g. Mathematics" oninput="updateTestSubjectCols();markDirty();validateSetup()"/><button class="del-btn" data-action="deleteSubjectRow">✕</button></div>`);
   $("#subjects-list").append(row);updateTestSubjectCols();
 }
 function addTest(name="",date=""){
   testCount++;const id="test-"+testCount;const subjects=getSubjects();
   const mmCols=subjects.map((s,i)=>`<div class="mm-chip"><label>${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="100" min="1" oninput="markDirty()"/></div>`).join("");
-  const row=$(`<div class="test-row-wrap" data-test="${id}"><div class="test-row"><span class="row-num">${testCount}</span><input type="text" class="test-name-inp" value="${esc(name)}" placeholder="e.g. Unit Test 1" oninput="markDirty();validateSetup()"/><input type="date" class="test-date-inp" value="${date}" oninput="markDirty()"/><button class="del-btn" onclick="$(this).closest('.test-row-wrap').remove();markDirty();validateSetup()">✕</button></div><div style="font-size:11px;color:var(--c-text3);margin:6px 0 2px 30px">Max marks per subject:</div><div class="mm-grid">${mmCols}</div></div>`);
+  const row=$(`<div class="test-row-wrap" data-test="${id}"><div class="test-row"><span class="row-num">${testCount}</span><input type="text" class="test-name-inp" value="${esc(name)}" placeholder="e.g. Unit Test 1" oninput="markDirty();validateSetup()"/><input type="date" class="test-date-inp" value="${date}" oninput="markDirty()"/><button class="del-btn" data-action="deleteTestRow">✕</button></div><div style="font-size:11px;color:var(--c-text3);margin:6px 0 2px 30px">${esc(srT("setup_max_marks_per_subject"))}</div><div class="mm-grid">${mmCols}</div></div>`);
   $("#tests-list").append(row);
 }
 function getSubjects(){return $("#subjects-list .subj-row input").map(function(){return $(this).val().trim();}).get().filter(Boolean);}
@@ -137,10 +150,20 @@ function updateTestSubjectCols(){
   });
 }
 function collectSetupForm(){
-  APP.setup.instName=$("#inst-name").val().trim();APP.setup.instType=$("#inst-type").val();
-  APP.setup.location=$("#inst-location").val().trim();APP.setup.contact=$("#inst-contact").val().trim();
-  APP.setup.className=$("#class-name").val().trim();APP.setup.section=$("#class-section").val().trim();
-  APP.setup.year=$("#class-year").val().trim();APP.setup.teacher=$("#class-teacher").val().trim();
+  // Same length-cap defense as autoInferSetup() (js/template-upload.js) —
+  // a maxlength HTML attribute helps but isn't guaranteed against every
+  // paste path, and this keeps both ingestion routes consistent.
+  const FIELD_MAX=120;
+  const capField=(raw,label)=>{
+    const s=String(raw||"");
+    if(s.length<=FIELD_MAX)return s;
+    toast(srT("val_setup_fields_truncated",{fields:label,max:FIELD_MAX}),"warn");
+    return s.slice(0,FIELD_MAX);
+  };
+  APP.setup.instName=capField($("#inst-name").val().trim(),"Institution Name");APP.setup.instType=$("#inst-type").val();
+  APP.setup.location=capField($("#inst-location").val().trim(),"Location");APP.setup.contact=capField($("#inst-contact").val().trim(),"Contact");
+  APP.setup.className=capField($("#class-name").val().trim(),"Class / Batch");APP.setup.section=capField($("#class-section").val().trim(),"Section");
+  APP.setup.year=capField($("#class-year").val().trim(),"Academic Year");APP.setup.teacher=capField($("#class-teacher").val().trim(),"Class Teacher");
   // clampNum: the HTML min/max attributes on these <input type="number">
   // fields are visual hints only — most browsers don't strictly enforce
   // them on typed or pasted values — so a pasted "-20" or "500" would
@@ -201,8 +224,8 @@ function setUsageMode(mode,skipDirty){
   // switch and explain why, rather than letting the UI drift out of sync
   // with an already-committed template/import.
   if(APP.setup.modeLocked&&newMode!==APP.setup.mode){
-    const curLabel=APP.setup.mode==="individual"?"Individual":"Institution";
-    toast("Mode is locked to "+curLabel+" for this project — a template or file is already in use. Start a new project (Home → New Project) to switch modes.","warn");
+    const curLabel=APP.setup.mode==="individual"?srT("val_mode_individual"):srT("val_mode_institution");
+    toast(srT("val_mode_locked_to",{mode:curLabel}),"warn");
     return;
   }
   if(newMode===APP.setup.mode)skipDirty=true; // E7: re-clicking the already-active mode card shouldn't mark dirty
@@ -233,27 +256,27 @@ function applyModeLockUI(){
   $inst.add($indiv).css({opacity:1,cursor:"pointer",pointerEvents:"auto"}).attr("tabindex","0").removeAttr("aria-disabled").removeAttr("title");
   if(locked){
     const $other=activeIsInst?$indiv:$inst;
-    $other.css({opacity:.45,cursor:"not-allowed",pointerEvents:"none"}).attr({tabindex:"-1","aria-disabled":"true",title:"Locked — start a new project to switch modes"});
+    $other.css({opacity:.45,cursor:"not-allowed",pointerEvents:"none"}).attr({tabindex:"-1","aria-disabled":"true",title:srT("val_locked_start_new_project")});
   }
-  $("#mode-lock-note").toggle(locked).html(locked?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='4' y='11' width='16' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/></svg> Mode locked to "+(activeIsInst?"Institution":"Individual")+" for this project — a template or file is already in use. Start a new project (Home → New Project) to switch modes.":"");
+  $("#mode-lock-note").toggle(locked).html(locked?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='4' y='11' width='16' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/></svg> "+esc(srT("val_mode_locked_to",{mode:activeIsInst?srT("val_mode_institution"):srT("val_mode_individual")})):"");
 }
 function applyModeUI(){
   const isIndividual=APP.setup.mode==="individual";
   // --- Setup form: relabel / hide institution-only fields ---
   $("#inst-card-icon").html(isIndividual?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M20 21a8 8 0 1 0-16 0'/><circle cx='12' cy='8' r='4'/></svg>":"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='4' y='3' width='16' height='18' rx='1'/><path d='M9 21V15h6v6'/><path d='M9 7h1M9 11h1M14 7h1M14 11h1'/></svg>");
-  $("#inst-card-title").text(isIndividual?"About":"Institution");
-  $("#inst-name-label").html(isIndividual?'Student / Aspirant Name <span style="color:var(--c-danger)">*</span>':'Institution Name <span style="color:var(--c-danger)">*</span>');
-  $("#inst-name").attr("placeholder",isIndividual?"e.g. Ananya Krishnan":"e.g. Springfield International School");
-  $("#inst-name-hint").toggle(isIndividual).text(isIndividual?"If tracking more than one child, use one workbook per child, or add each as a separate row and re-export per child.":"");
+  $("#inst-card-title").text(isIndividual?srT("setup_about"):srT("val_mode_institution"));
+  $("#inst-name-label").html(isIndividual?esc(srT("setup_student_name_label"))+' <span style="color:var(--c-danger)">*</span>':esc(srT("setup_institution_name_label"))+' <span style="color:var(--c-danger)">*</span>');
+  $("#inst-name").attr("placeholder",isIndividual?srT("setup_eg_student_name"):srT("setup_eg_institution_name"));
+  $("#inst-name-hint").toggle(isIndividual).text(isIndividual?srT("setup_multi_child_hint"):"");
   $("#individual-multi-child-hint").toggle(isIndividual);
   $("#inst-type-group,#inst-location-group,#inst-contact-group").toggle(!isIndividual);
   $("#class-card-icon").html(isIndividual?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='5'/><circle cx='12' cy='12' r='1.3'/></svg>":"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13z'/><path d='M20 17v3H6.5A2.5 2.5 0 0 1 4 17.5'/></svg>");
-  $("#class-card-title").text(isIndividual?"Goal":"Class / Batch");
-  $("#class-name-label").html(isIndividual?"Target Exam / Goal (optional)":'Class / Batch <span style="color:var(--c-danger)">*</span>');
-  $("#class-name").attr("placeholder",isIndividual?"e.g. UPSC CSE 2027":"e.g. Class 9");
+  $("#class-card-title").text(isIndividual?srT("setup_goal"):srT("setup_class_batch"));
+  $("#class-name-label").html(isIndividual?esc(srT("setup_target_exam_goal")):esc(srT("setup_class_batch"))+' <span style="color:var(--c-danger)">*</span>');
+  $("#class-name").attr("placeholder",isIndividual?srT("setup_eg_upsc_goal"):srT("setup_eg_class"));
   $("#class-section-group").toggle(!isIndividual);
-  $("#class-teacher-label").text(isIndividual?"Mentor / Coach (optional)":"Teacher Name");
-  $("#pass-threshold-label").text(isIndividual?"Target %":"Pass %");
+  $("#class-teacher-label").text(isIndividual?srT("setup_mentor_coach"):srT("setup_teacher_name"));
+  $("#pass-threshold-label").text(isIndividual?srT("setup_target_pct"):srT("setup_pass_pct"));
   // clear any stale required-field error styling left over from the other mode
   validateSetup();
 
@@ -263,9 +286,20 @@ function applyModeUI(){
   $("#exp-teacher-card,#exp-mgmt-card,#exp-teacher-option,#exp-mgmt-option").toggle(!isIndividual);
   if(isIndividual){$("#exp-teacher").prop("checked",false);$("#exp-mgmt").prop("checked",false);}
   else if(!$("#exp-teacher-option").is(":visible")){/* re-enabling institution mode restores defaults */}
-  $("#exp-student-card-title").html(isIndividual?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M20 21a8 8 0 1 0-16 0'/><circle cx='12' cy='8' r='4'/></svg> Progress Reports":"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M20 21a8 8 0 1 0-16 0'/><circle cx='12' cy='8' r='4'/></svg> Student Reports");
-  $("#exp-student-card-desc").text(isIndividual?"One PDF per student — personal trend, subject breakdown, coaching notes.":"One PDF per student — scores, trend, narrative, study plan.");
-  $("#exp-student-label").text(isIndividual?"Progress PDFs":"Student PDFs");
+  $("#exp-student-card-title").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M20 21a8 8 0 1 0-16 0'/><circle cx='12' cy='8' r='4'/></svg> "+esc(isIndividual?srT("setup_progress_reports"):srT("setup_student_reports")));
+  $("#exp-student-card-desc").text(isIndividual?srT("setup_progress_pdf_desc"):srT("setup_student_pdf_desc"));
+  $("#exp-student-label").text(isIndividual?srT("setup_progress_pdfs"):srT("setup_student_pdfs"));
   applyModeLockUI();
 }
 
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { _unsaved, addSubject, addTest, applyModeLockUI, applyModeUI, collectSetupForm, fillSetupForm, filterFAQ, getSubjects, initFAQAccordion, lockStep, lockUsageMode, markClean, markDirty, setUsageMode, startCompareMode, startNewSession, subjectCount, testCount, unlockStep, updateTestSubjectCols };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window._unsaved=_unsaved;window.addSubject=addSubject;window.addTest=addTest;window.applyModeLockUI=applyModeLockUI;window.applyModeUI=applyModeUI;window.collectSetupForm=collectSetupForm;window.fillSetupForm=fillSetupForm;window.filterFAQ=filterFAQ;window.getSubjects=getSubjects;window.initFAQAccordion=initFAQAccordion;window.lockStep=lockStep;window.lockUsageMode=lockUsageMode;window.markClean=markClean;window.markDirty=markDirty;window.setUsageMode=setUsageMode;window.startCompareMode=startCompareMode;window.startNewSession=startNewSession;window.subjectCount=subjectCount;window.testCount=testCount;window.unlockStep=unlockStep;window.updateTestSubjectCols=updateTestSubjectCols;}

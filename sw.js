@@ -15,7 +15,7 @@
    no hostname or path string-matching needed anywhere in this file.
 ============================================================ */
 
-const CACHE_VERSION = 'sia-v11.6-robustness';
+const CACHE_VERSION = 'sia-v12.1-wow';
 const CACHE_NAME    = CACHE_VERSION;
 
 // e.g. "https://studin.in/" on prod, or
@@ -50,6 +50,22 @@ self.addEventListener('install', event => {
         console.warn('[SW] Shell cache failed:', err);
       });
     }).then(() => self.skipWaiting())
+  );
+});
+
+// FIX (review #9, partial): CACHE_VERSION above is still a hand-typed string —
+// switching that to a build/content hash needs a build step this static-file
+// project intentionally doesn't have, so left as a manual bump for now (just
+// remember to bump it every deploy, or updates silently won't reach users).
+// What IS added here: a postMessage broadcast on activate so index.html/
+// app-utils-init.js CAN show a "new version available, refresh?" toast instead
+// of the update sitting silently until next full close+reopen. Wire-up on the
+// page side is a small follow-up (registration.addEventListener('controllerchange', ...)).
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    self.clients.matchAll().then(clients => {
+      clients.forEach(c => c.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION }));
+    })
   );
 });
 

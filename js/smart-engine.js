@@ -1,3 +1,6 @@
+import { srT, weakestSubjectsInfo } from './render-i18n.js';
+import { APP } from './state-nav.js';
+
 /* ════ SMART ENGINE (Phase 2) ════
    "AC room vs general table": same computed data as Dashboard, delivered
    one question at a time, in plain sentences, no charts/graphics.
@@ -137,11 +140,11 @@ const SmartEngineLocalProvider = (function(){
 
   function answerClassDistribution(){
     const d = (APP.classStats||{}).distribution;
-    if(!d) return {ok:false,text:"No distribution data available yet."};
+    if(!d) return {ok:false,text:srT("smart_no_distribution_data")};
     const n = APP.classStats.n;
     let note = "";
-    if(d.below>0 && d.below/n>=0.2) note = "More than a fifth of the class is below pass threshold — worth flagging as a class-wide priority, not just individual cases.";
-    else if(d.excellent/n>=0.5) note = "Over half the class is excelling — consider stretch material to keep them engaged.";
+    if(d.below>0 && d.below/n>=0.2) note = srT("smart_note_below_threshold_high");
+    else if(d.excellent/n>=0.5) note = srT("smart_note_excelling_high");
     const text = fmt(findQuestion("class_distribution").answerTemplate, {
       n, excellent:d.excellent, good:d.good, average:d.average, below:d.below, distributionNote: note
     });
@@ -164,7 +167,7 @@ const SmartEngineLocalProvider = (function(){
 
   function answerGenderGap(){
     const q = findQuestion("gender_gap");
-    if(!APP.aiFeatures.has("diversity_analysis")) return {ok:false, text:"Enable the Diversity Analysis AI feature to see this."};
+    if(!APP.aiFeatures.has("diversity_analysis")) return {ok:false, text:srT("smart_enable_diversity_feature")};
     const ga = APP.genderAnalysis;
     if(!ga || !ga.available) return {ok:false, text:(ga&&ga.reason)||q.unavailableMessage};
     if(!ga.leadGroup) return {ok:true, text:q.noGapMessage};
@@ -209,7 +212,7 @@ const SmartEngineLocalProvider = (function(){
   function answerRankGap(student){
     const q = findQuestion("rank_gap");
     const a = student.analysis;
-    const note = a.topperGap<=5 ? "Very close to the top — small, consistent gains could close this gap." :
+    const note = a.topperGap<=5 ? srT("smart_close_to_top") :
                  a.topperGap<=20 ? "A moderate gap — steady improvement in weaker subjects should narrow this." :
                  "A significant gap — worth a focused improvement plan rather than broad effort.";
     const text = fmt(q.answerTemplate, {name: student.name, rank: a.rank, n: APP.students.length, topperGap: Math.round(a.topperGap), gapNote: note});
@@ -219,9 +222,9 @@ const SmartEngineLocalProvider = (function(){
   function answerTrend(student){
     const q = findQuestion("trend");
     const a = student.analysis;
-    const note = a.trend==="improving" ? "Keep reinforcing what's working." :
+    const note = a.trend==="improving" ? srT("smart_keep_reinforcing") :
                  a.trend==="declining" ? "Worth a check-in before this becomes a pattern." :
-                 "Performance is stable — fine unless a change is expected soon.";
+                 srT("smart_performance_stable");
     const text = fmt(q.answerTemplate, {name: student.name, trend: a.trend, trendNote: note});
     return {ok:true, text};
   }
@@ -230,7 +233,7 @@ const SmartEngineLocalProvider = (function(){
     const q = findQuestion("predicted_next");
     const a = student.analysis;
     if(a.predictedNext==null) return {ok:false, text: q.unavailableMessage};
-    const note = a.predictedNext < APP.setup.passThreshold ? "This projection is below the pass threshold — worth early attention." : "";
+    const note = a.predictedNext < APP.setup.passThreshold ? srT("smart_projection_below_threshold") : "";
     const text = fmt(q.answerTemplate, {name: student.name, predictedNext: a.predictedNext, predictionNote: note});
     return {ok:true, text};
   }
@@ -238,9 +241,9 @@ const SmartEngineLocalProvider = (function(){
   function answerConsistency(student){
     const q = findQuestion("consistency");
     const a = student.analysis;
-    const note = a.consistencyScore>=80 ? "Very steady — a reliable performer test to test." :
-                 a.consistencyScore>=50 ? "Reasonably steady, with some fluctuation." :
-                 "Quite volatile — investigating what's causing the swings may help more than more content.";
+    const note = a.consistencyScore>=80 ? srT("smart_very_steady") :
+                 a.consistencyScore>=50 ? srT("smart_reasonably_steady") :
+                 srT("smart_quite_volatile");
     const text = fmt(q.answerTemplate, {name: student.name, consistencyScore: a.consistencyScore, consistencyNote: note});
     return {ok:true, text};
   }
@@ -248,14 +251,14 @@ const SmartEngineLocalProvider = (function(){
   function answerWeakestSubjectStudent(student){
     const q = findQuestion("weakest_subject_student");
     const info = weakestSubjectsInfo(student); // existing function, render-dashboard.js — returns {entries,minVal,weakest,broad}
-    if(!info || !info.weakest || !info.weakest.length) return {ok:false, text:"Not enough subject data for this student yet."};
+    if(!info || !info.weakest || !info.weakest.length) return {ok:false, text:srT("smart_not_enough_subject_data")};
     const multi = info.weakest.length>1;
     const text = fmt(q.answerTemplate, {
       name: student.name,
       subjectOrSubjects: multi?"subjects are":"subject is",
       isAre: "",
       subjectList: info.weakest.join(", "),
-      broadNote: info.broad ? "This is spread evenly rather than one weak spot — a broader support plan may help more than single-subject tutoring." : ""
+      broadNote: info.broad ? srT("smart_spread_evenly") : ""
     });
     return {ok:true, text};
   }
@@ -264,7 +267,7 @@ const SmartEngineLocalProvider = (function(){
     const q = findQuestion("wellbeing");
     const a = student.analysis;
     const note = a.wellbeingFlag==="high" ? "Worth a supportive conversation soon — academics aside." :
-                 a.wellbeingFlag==="moderate" ? "Keep an eye on this — not urgent, but worth noting." :
+                 a.wellbeingFlag==="moderate" ? srT("smart_keep_an_eye") :
                  "No particular concern at this time.";
     const text = fmt(q.answerTemplate, {name: student.name, wellbeingFlag: a.wellbeingFlag, stressScore: a.stressScore, wellbeingNote: note});
     return {ok:true, text};
@@ -316,13 +319,13 @@ const SmartEngineLocalProvider = (function(){
 
   function answer(questionId, context){
     const handler = HANDLERS[questionId];
-    if(!handler) return {ok:false, text:"That question isn't available yet."};
+    if(!handler) return {ok:false, text:srT("smart_question_not_available")};
     if(["rank_gap","trend","predicted_next","consistency","weakest_subject_student","wellbeing","health_score","subject_deltas","rank_movement_student"].includes(questionId) && !context.student){
       return {ok:false, text:"Select a student first."};
     }
     try{
       const result = handler(context);
-      console.log("SmartEngine:"+questionId, context.student ? {student:context.student.name, analysis:context.student.analysis} : {}, result);
+      window.SIA_DEBUG_LOG("SmartEngine:"+questionId, context.student ? {student:context.student.name, analysis:context.student.analysis} : {}, result);
       return result;
     }catch(err){
       console.error("SmartEngineLocalProvider.answer error for", questionId, err);
@@ -338,3 +341,15 @@ const SmartEngineLocalProvider = (function(){
    SmartEngine.setProvider(newProvider) after explicit user consent,
    never automatically. */
 SmartEngine.setProvider(SmartEngineLocalProvider);
+
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { SmartEngine, SmartEngineLocalProvider };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window.SmartEngine=SmartEngine;window.SmartEngineLocalProvider=SmartEngineLocalProvider;}

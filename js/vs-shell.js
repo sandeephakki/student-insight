@@ -1,3 +1,14 @@
+import { emptyStateHtml, esc } from './app-utils-init.js';
+import { selectCompareSection } from './compute-compare.js';
+import { generateAllPDFs } from './export-pdf.js';
+import { buildCompareExportControlsHtml, buildCompareSectionListHtml, buildDashboardControlsHtml, buildIndividualDashboardControlsHtml, buildSmartQueryCannedQuestionsHtml, ensureSmartQueryLoaded, openBucket, renderComparePicker, renderDashboardSmartSearch } from './render-buckets.js';
+import { updateExportGate } from './render-core.js';
+import { renderClassAnswer, renderClusterGroups, renderFilteredList, renderStudentPicker } from './render-findings.js';
+import { i18nLabel, srT } from './render-i18n.js';
+import { openSmartSearchScreen } from './smart-engine-ui.js';
+import { SmartQueryV2 } from './smart-query-v2.js';
+import { APP, goStep } from './state-nav.js';
+
 /* ============================================================
    Student Insight — VS-Style Shell engine
    (vs-shell-plan-v2.md Task 3 skeleton + Task 7 session state)
@@ -27,17 +38,34 @@
   // closure-local var to APP.shellState so it's inspectable the same
   // way other app state is. Survives Home -> Setup -> Dashboard
   // navigation because #app-shell-body itself is never torn down.
-  if(typeof window !== "undefined" && !window.APP) window.APP = {};
-  if(typeof window !== "undefined" && !APP.shellState){
-    APP.shellState = {
-      start: { width: 240, collapsed: mobileDefault },
-      end:   { width: 240, collapsed: mobileDefault }
-    };
+  //
+  // FIX (module-system conversion, HANDOVER #4): this used to read
+  // APP.shellState immediately here, at IIFE top level. Under ES modules,
+  // vs-shell.js <-> state-nav.js form a circular import (vs-shell.js
+  // imports APP from state-nav.js; state-nav.js's own dependency chain
+  // transitively imports vs-shell.js), so this file's top-level code can
+  // run before state-nav.js has finished initializing APP, throwing
+  // "Cannot access 'APP' before initialization". Deferring to first real
+  // call (all 12 usages below are already inside functions invoked after
+  // the full module graph has loaded) breaks the cycle with no behavior
+  // change — same object, same shape, just not read until it's needed.
+  let _state = null;
+  function getState(){
+    if(!_state){
+      if(typeof window !== "undefined" && !window.APP) window.APP = {};
+      if(!APP.shellState){
+        APP.shellState = {
+          start: { width: 240, collapsed: mobileDefault },
+          end:   { width: 240, collapsed: mobileDefault }
+        };
+      }
+      _state = (typeof window !== "undefined") ? APP.shellState : {
+        start: { width: 240, collapsed: false },
+        end:   { width: 240, collapsed: false }
+      };
+    }
+    return _state;
   }
-  const state = (typeof window !== "undefined") ? APP.shellState : {
-    start: { width: 240, collapsed: false },
-    end:   { width: 240, collapsed: false }
-  };
 
   // Small inline icon set for the Home rail's pitch rows (prompt-v4.19
   // follow-up: replace the plain <li> bullet wall with something that
@@ -72,7 +100,7 @@
   function applyWidth(side){
     const el = root();
     if(!el) return;
-    const s = state[side];
+    const s = getState()[side];
     const px = s.collapsed ? COLLAPSED_W : s.width;
     el.style.setProperty(`--panel-${side}-width`, px + "px");
   }
@@ -87,13 +115,13 @@
   }
 
   function syncPanelDOM(side){
-    const s = state[side];
+    const s = getState()[side];
     const panel = document.getElementById(`shell-panel-${side}`);
     const btn = document.getElementById(`shell-panel-${side}-toggle`);
     if(panel) panel.dataset.collapsed = s.collapsed ? "true" : "false";
     if(btn){
       btn.setAttribute("aria-expanded", s.collapsed ? "false" : "true");
-      btn.setAttribute("aria-label", s.collapsed ? "Expand panel" : "Collapse panel");
+      btn.setAttribute("aria-label", s.collapsed ? srT("shell_expand_panel") : srT("shell_collapse_panel"));
     }
   }
 
@@ -101,7 +129,7 @@
     return typeof window !== "undefined" && window.innerWidth <= 768;
   }
   function vsShellToggle(side){
-    const s = state[side];
+    const s = getState()[side];
     s.collapsed = !s.collapsed;
     syncPanelDOM(side);
     applyWidth(side);
@@ -123,7 +151,7 @@
   function setShellRailsOpen(open){
     if(open && isMobileViewport()) return;
     ["start","end"].forEach(function(side){
-      state[side].collapsed = !open;
+      getState()[side].collapsed = !open;
       syncPanelDOM(side);
       applyWidth(side);
     });
@@ -135,7 +163,7 @@
   // Same mobile guard as setShellRailsOpen() above, for the same reason.
   function setShellRailOpen(side, open){
     if(open && isMobileViewport()) return;
-    state[side].collapsed = !open;
+    getState()[side].collapsed = !open;
     syncPanelDOM(side);
     applyWidth(side);
   }
@@ -165,14 +193,14 @@
     if(!content) return;
     content.addEventListener("click", function(e){
       if(!isMobileViewport()) return;
-      if(state[side].collapsed) return;
+      if(getState()[side].collapsed) return;
       if(isTypingTarget(e.target)) return;
       if(!isActionableTarget(e.target)) return;
       // let the tapped control's own onclick/handler run first (navigation,
       // toggling a checkbox, answering a Smart Query chip, etc.), then
       // collapse the sheet back to its strip on the next tick.
       setTimeout(function(){
-        state[side].collapsed = true;
+        getState()[side].collapsed = true;
         syncPanelDOM(side);
         applyWidth(side);
       }, 120);
@@ -194,10 +222,10 @@
     }
 
     function onPointerDown(e){
-      if(state[side].collapsed) return;
+      if(getState()[side].collapsed) return;
       dragging = true;
       startX = e.clientX;
-      startW = state[side].width;
+      startW = getState()[side].width;
       divider.classList.add("shell-divider-active");
       root() && root().classList.add("shell-no-anim");
       divider.setPointerCapture && divider.setPointerCapture(e.pointerId);
@@ -207,7 +235,7 @@
       const raw = e.clientX - startX;
       const delta = side === "start" ? raw * dirSign() : -raw * dirSign();
       const next = Math.min(MAX_W, Math.max(MIN_W, startW + delta));
-      state[side].width = next;
+      getState()[side].width = next;
       applyWidth(side);
     }
     function onPointerUp(e){
@@ -225,14 +253,14 @@
 
     // keyboard resize for the same divider (role="separator"), 10px steps
     divider.addEventListener("keydown", function(e){
-      if(state[side].collapsed) return;
+      if(getState()[side].collapsed) return;
       let step = 0;
       if(e.key === "ArrowLeft") step = -10;
       else if(e.key === "ArrowRight") step = 10;
       else return;
       e.preventDefault();
       const sign = side === "start" ? dirSign() : -dirSign();
-      state[side].width = Math.min(MAX_W, Math.max(MIN_W, state[side].width + step * sign));
+      getState()[side].width = Math.min(MAX_W, Math.max(MIN_W, getState()[side].width + step * sign));
       applyWidth(side);
     });
   }
@@ -260,6 +288,57 @@
     // content), fixes it if goStep() silently no-op'd.
     if(typeof renderShellLeftRail === "function") renderShellLeftRail((window.APP && APP.currentStep) || "home");
     if(typeof renderShellRightRail === "function") renderShellRightRail((window.APP && APP.currentStep) || "home");
+    initMainScrollGuard();
+  }
+
+  // Bug fix (reported 2026-08-17): "any selection scrolls the middle
+  // section up, and it only ever goes up." Root cause: dozens of
+  // selection handlers app-wide (selectIndividualStudent,
+  // selectContinuityStudent, selectCompareSection/Group,
+  // renderCompareResult, switchDbTab, etc.) rebuild content inside
+  // #main via $(...).html(...). When the freshly-rebuilt content is
+  // shorter than what the user had scrolled down into, the browser
+  // clamps #main's scrollTop down to the new max — which reads as an
+  // unwanted snap-to-top, and only ever moves upward since it's a
+  // clamp, never a restore.
+  //
+  // Fix, applied once app-wide instead of patching every handler
+  // individually: track the user's real scroll position on #main via
+  // a plain 'scroll' listener, then after *any* DOM mutation inside
+  // #main, restore scrollTop back to that last known position (clamped
+  // by the browser automatically if the new content is genuinely
+  // shorter — that's expected; what we're removing is the *forced*
+  // reset when the new content is still tall enough to hold the old
+  // position).
+  function initMainScrollGuard(){
+    const main = document.getElementById("main");
+    if(!main || main._scrollGuardInit) return;
+    main._scrollGuardInit = true;
+    let lastScrollTop = main.scrollTop;
+    let restoring = false;
+    main.addEventListener("scroll", function(){
+      if(restoring) return; // don't record our own corrective scroll as "user intent"
+      lastScrollTop = main.scrollTop;
+    }, {passive:true});
+    const observer = new MutationObserver(function(){
+      if(main.scrollTop === lastScrollTop) return;
+      restoring = true;
+      main.scrollTop = lastScrollTop;
+      // Browser may have clamped to a smaller value if content is
+      // genuinely shorter now — keep lastScrollTop in sync with reality
+      // so the next mutation doesn't fight it.
+      lastScrollTop = main.scrollTop;
+      restoring = false;
+    });
+    observer.observe(main, {childList:true, subtree:true});
+    // Explicit navigation (switching Home/Setup/Dashboard/Export/etc. via
+    // goStep()) SHOULD reset to the top of the new panel — that's a real
+    // page change, not a same-panel selection refresh. state-nav.js's
+    // goStep() toggles the .active panel class right before rendering the
+    // new panel's content, so treat that as the one deliberate reset point.
+    document.addEventListener("stepnav:panelchanged", function(){
+      lastScrollTop = 0;
+    });
   }
 
   // mobile fix (still-banging follow-up, 2026-07-30): the CSS height
@@ -329,10 +408,10 @@
     var startToggle = document.getElementById("shell-panel-start-toggle");
     var endToggle = document.getElementById("shell-panel-end-toggle");
     if(startToggle && !startToggle.querySelector(".shell-panel-toggle-hint")){
-      startToggle.insertBefore(buildHintCaption("shell_hint_features_peek","Tap for page info & help"), startToggle.lastElementChild);
+      startToggle.insertBefore(buildHintCaption("shell_hint_features_peek",srT("shell_hint_features_peek")), startToggle.lastElementChild);
     }
     if(endToggle && !endToggle.querySelector(".shell-panel-toggle-hint")){
-      endToggle.insertBefore(buildHintCaption("shell_hint_properties_peek","Tap for tools & actions"), endToggle.lastElementChild);
+      endToggle.insertBefore(buildHintCaption("shell_hint_properties_peek",srT("shell_hint_properties_peek")), endToggle.lastElementChild);
     }
     if(startToggle) startToggle.addEventListener("click", dismissShellHint, {once:true});
     if(endToggle) endToggle.addEventListener("click", dismissShellHint, {once:true});
@@ -346,7 +425,19 @@
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", initShell);
   } else {
-    initShell();
+    // FIX (module-system conversion, HANDOVER #4): module scripts execute
+    // after DOM parsing finishes (like `defer`), so document.readyState is
+    // never actually "loading" here in practice — this branch always ran
+    // initShell() immediately, at module top-level. That's fine for a
+    // classic script, but under ES modules it's a circular-import TDZ
+    // crash: initShell() -> syncPanelDOM() -> getState() needs APP from
+    // state-nav.js, and state-nav.js's own dependency chain transitively
+    // imports vs-shell.js before state-nav.js finishes initializing APP.
+    // Deferring via a microtask lets the full synchronous module-
+    // evaluation phase (including state-nav.js's own top-level code)
+    // finish first. Imperceptible timing change (sub-millisecond) — same
+    // synchronous-feeling init from the user's perspective.
+    Promise.resolve().then(initShell);
   }
 
   /* ==========================================================
@@ -493,9 +584,9 @@
      "Selected features" count is still real and useful, so that part
      of Task 5 is done for the AI panel, the button part is not.
      ========================================================== */
-  function actionBtn(label, onclick){
-    return '<button type="button" class="btn btn-secondary btn-sm shell-action-btn" onclick="'
-      + onclick.replace(/"/g,"&quot;") + '">' + esc(label) + '</button>';
+  function actionBtn(label, action, arg){
+    return '<button type="button" class="btn btn-secondary btn-sm shell-action-btn" data-action="'
+      + action + '"' + (arg !== undefined ? ' data-arg="' + String(arg).replace(/"/g,"&quot;") + '"' : '') + '>' + esc(label) + '</button>';
   }
 
   function renderShellRightRail(step){
@@ -550,7 +641,7 @@
     const hasIssues = !!(APP.dataIssues && APP.dataIssues.length);
     let html = row(srT("shell_right_exports_ready"), hasIssues ? "—" : String(APP.students ? APP.students.length : 0));
     if(hasIssues){
-      html += '<div class="shell-empty-state">Fix the data quality issues shown on the Dashboard, then re-import, before exporting.</div>';
+      html += '<div class="shell-empty-state">'+esc(srT("val_fix_data_quality_before_export"))+'</div>';
     } else {
       const students = APP.students || [];
       const isIndividual = APP.setup && APP.setup.mode === "individual";
@@ -559,20 +650,20 @@
           + '<input type="checkbox" class="exp-student-cb" data-id="' + esc(st.id) + '" checked style="accent-color:var(--c-primary)"> '
           + esc(st.name) + '</label>';
       }).join("");
-      html += '<details class="shell-details" open><summary class="shell-panel-title" style="cursor:pointer">Students</summary>'
+      html += '<details class="shell-details" open><summary class="shell-panel-title" style="cursor:pointer">'+esc(srT("shell_students_label"))+'</summary>'
         + '<div style="display:flex;gap:8px;margin-block-end:8px">'
-        + '<button type="button" class="btn btn-secondary btn-sm" onclick="$(\'.exp-student-cb\').prop(\'checked\',true)">Select All</button>'
-        + '<button type="button" class="btn btn-secondary btn-sm" onclick="$(\'.exp-student-cb\').prop(\'checked\',false)">Unselect All</button>'
+        + '<button type="button" class="btn btn-secondary btn-sm" data-action="selectAllExpStudents">'+esc(srT("btn_select_all"))+'</button>'
+        + '<button type="button" class="btn btn-secondary btn-sm" data-action="unselectAllExpStudents">'+esc(srT("btn_unselect_all"))+'</button>'
         + '</div>'
-        + '<div class="bucket-picker-list" style="max-height:220px">' + (studentRows || emptyStateHtml("No students")) + '</div>'
+        + '<div class="bucket-picker-list" style="max-height:220px">' + (studentRows || emptyStateHtml(srT("val_no_students"))) + '</div>'
         + '</details>';
-      html += '<details class="shell-details" open><summary class="shell-panel-title" style="cursor:pointer">Report Types</summary>'
+      html += '<details class="shell-details" open><summary class="shell-panel-title" style="cursor:pointer">'+esc(srT("shell_report_types"))+'</summary>'
         + (isIndividual ? '' :
-            '<label class="bucket-picker-row" style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="exp-teacher" checked style="accent-color:var(--c-primary)"> Teacher Report</label>'
-          + '<label class="bucket-picker-row" style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="exp-mgmt" checked style="accent-color:var(--c-primary)"> Management Report</label>')
+            '<label class="bucket-picker-row" style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="exp-teacher" checked style="accent-color:var(--c-primary)"> '+esc(srT("shell_teacher_report"))+'</label>'
+          + '<label class="bucket-picker-row" style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="exp-mgmt" checked style="accent-color:var(--c-primary)"> '+esc(srT("shell_management_report"))+'</label>')
         + '<label class="bucket-picker-row" style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="exp-zip" checked style="accent-color:var(--c-primary)"> Bundle as ZIP</label>'
         + '</details>'
-        + '<button type="button" class="btn btn-success btn-glow shell-action-btn shell-action-btn-sticky" id="btn-generate-pdfs" onclick="generateAllPDFs()">' + esc(srT("shell_right_generate_zip")) + '</button>';
+        + '<button type="button" class="btn btn-success btn-glow shell-action-btn shell-action-btn-sticky" id="btn-generate-pdfs" data-action="generateAllPDFs">' + esc(srT("shell_right_generate_zip")) + '</button>';
     }
     setRightRail(html);
     if(typeof updateExportGate === "function") updateExportGate();
@@ -637,8 +728,8 @@
     if(!wrap || !window.SmartQueryV2 || !SmartQueryV2.isReady()) return;
     const qs = SmartQueryV2.availableQuestions().slice(0, 6);
     wrap.innerHTML = qs.map(function(q){
-      return '<button type="button" class="shell-chip" onclick="smartQueryRailAnswer(\''
-        + String(q.id).replace(/'/g,"\\'") + '\')">' + esc(q.label) + '</button>';
+      return '<button type="button" class="shell-chip" data-action="smartQueryRailAnswer" data-arg="'
+        + String(q.id).replace(/"/g,"&quot;") + '">' + esc(q.label) + '</button>';
     }).join("");
   }
 
@@ -677,8 +768,8 @@
       const wrap = document.getElementById("sqv2-rail-chips");
       if(wrap){
         wrap.innerHTML = m.results.map(function(r){
-          return '<button type="button" class="shell-chip" onclick="smartQueryRailAnswer(\''
-            + String(r.id).replace(/'/g,"\\'") + '\')">' + esc(r.label) + '</button>';
+          return '<button type="button" class="shell-chip" data-action="smartQueryRailAnswer" data-arg="'
+            + String(r.id).replace(/"/g,"&quot;") + '">' + esc(r.label) + '</button>';
         }).join("");
       }
       appendAnswerCard(srT("smart_v2_deflection_hint"));
@@ -695,14 +786,32 @@
       + '<input id="sqv2-rail-input" type="text" autocomplete="off" placeholder="'
       + esc(srT("smart_v2_input_placeholder"))
       + '" style="flex:1;min-width:0;padding:7px 9px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:12.5px;font-family:inherit" onkeydown="if(event.key===\'Enter\'){smartQueryRailAsk()}"/>'
-      + '<button type="button" class="btn btn-primary btn-sm" onclick="smartQueryRailAsk()">Ask</button>'
+      + '<button type="button" class="btn btn-primary btn-sm" data-action="smartQueryRailAsk">Ask</button>'
       + '</div>'
       + '<div id="sqv2-rail-chips" class="shell-chip-wrap"></div>'
-      + actionBtn(srT("smart_v2_legacy_link"), "openSmartSearchScreen()");
-    if(canCompare) html += actionBtn(srT("smart_v2_compare_link"), "openBucket('compare')");
+      + actionBtn(srT("smart_v2_legacy_link"), "openSmartSearchScreen");
+    if(canCompare) html += actionBtn(srT("smart_v2_compare_link"), "openBucket", "compare");
     setRightRail(html);
     ensureSmartQueryLoaded(renderSmartQueryChips);
     renderSmartQueryChips();
   }
 
 })();
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+// vs-shell.js is a self-executing IIFE with no top-level lexical
+// declarations, so the automated symbol scan couldn't see its public API —
+// it only ever exposed these via window.X assignment. Re-exporting them here
+// (the IIFE above has already run by this point, so window.X already holds
+// the real function) so other modules can import them properly instead of
+// relying on a bare global that no longer exists under module scoping.
+export const renderExportPropertiesRail = window.renderExportPropertiesRail;
+export const renderShellLeftRail = window.renderShellLeftRail;
+export const renderShellRightRail = window.renderShellRightRail;
+export const setLeftRail = window.setLeftRail;
+export const setRightRail = window.setRightRail;
+export const setShellRailOpen = window.setShellRailOpen;
+export const setShellRailsOpen = window.setShellRailsOpen;
+export const smartQueryRailAnswer = window.smartQueryRailAnswer;
+export const smartQueryRailAsk = window.smartQueryRailAsk;
+export const vsShellToggle = window.vsShellToggle;
