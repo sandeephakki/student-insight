@@ -1198,5 +1198,13 @@
   "smart_query_not_available_page": "ಈ ಪುಟದಲ್ಲಿ Smart Query ಲಭ್ಯವಿಲ್ಲ.",
   "val_upload_file_home_first": "ಮೊದಲು Home ನಲ್ಲಿ ಫೈಲ್ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ.",
   "val_upload_1_valid_file_home_first": "ಮೊದಲು Home ನಲ್ಲಿ ಕನಿಷ್ಠ 1 ಮಾನ್ಯ ಫೈಲ್ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ.",
-  "val_run_analysis_first": "ಮೊದಲು ವಿಶ್ಲೇಷಣೆ ಚಲಾಯಿಸಿ."
+  "val_run_analysis_first": "ಮೊದಲು ವಿಶ್ಲೇಷಣೆ ಚಲಾಯಿಸಿ.",
+  "home_strip_privacy": "ಯಾವುದೇ ಡೇಟಾ ಎಂದಿಗೂ ಅಪ್‌ಲೋಡ್ ಆಗುವುದಿಲ್ಲ",
+  "home_strip_languages": "13 ಭಾಷೆಗಳು",
+  "home_strip_autodetect": "ವಿಷಯ ಮತ್ತು ಪರೀಕ್ಷೆಗಳನ್ನು ಸ್ವಯಂ-ಪತ್ತೆ ಮಾಡುತ್ತದೆ",
+  "home_strip_scale": "ಒಂದು ತರಗತಿ ಅಥವಾ ಹಲವಕ್ಕೂ ಕೆಲಸ ಮಾಡುತ್ತದೆ",
+  "home_preview_label": "ನೀವು ಏನು ನೋಡುತ್ತೀರಿ — ಮಾದರಿ ಪೂರ್ವವೀಕ್ಷಣೆ",
+  "home_preview_avg": "ತರಗತಿ ಸರಾಸರಿ",
+  "home_preview_atrisk": "ಅಪಾಯ ಎಚ್ಚರಿಕೆಗಳು",
+  "home_preview_top": "ಅತ್ಯುತ್ತಮ ಸಾಧಕ"
 }

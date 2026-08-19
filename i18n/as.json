@@ -1198,5 +1198,13 @@
   "smart_query_not_available_page": "এই পৃষ্ঠাত Smart Query উপলব্ধ নহয়।",
   "val_upload_file_home_first": "প্ৰথমে Homeত এটা ফাইল আপল’ড কৰক।",
   "val_upload_1_valid_file_home_first": "প্ৰথমে Homeত কমেও ১টা বৈধ ফাইল আপল’ড কৰক।",
-  "val_run_analysis_first": "প্ৰথমে Run Analysis কৰক।"
+  "val_run_analysis_first": "প্ৰথমে Run Analysis কৰক।",
+  "home_strip_privacy": "কোনো ডেটা কেতিয়াও আপল'ড নহয়",
+  "home_strip_languages": "13টা ভাষা",
+  "home_strip_autodetect": "বিষয় আৰু পৰীক্ষা স্বয়ংক্ৰিয়ভাৱে চিনাক্ত কৰে",
+  "home_strip_scale": "এটা শ্ৰেণী বা বহুতৰ বাবে কাম কৰে",
+  "home_preview_label": "আপুনি কি দেখিব — নমুনা পূৰ্বদৰ্শন",
+  "home_preview_avg": "শ্ৰেণী গড়",
+  "home_preview_atrisk": "বিপদ-সতৰ্কতা",
+  "home_preview_top": "সৰ্বোত্তম প্ৰদৰ্শনকাৰী"
 }

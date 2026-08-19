@@ -1198,5 +1198,13 @@
   "smart_query_not_available_page": "এই পাতায় Smart Query উপলব্ধ নেই।",
   "val_upload_file_home_first": "প্রথমে Home-এ একটি ফাইল আপলোড করুন।",
   "val_upload_1_valid_file_home_first": "প্রথমে Home-এ কমপক্ষে ১টি বৈধ ফাইল আপলোড করুন।",
-  "val_run_analysis_first": "প্রথমে বিশ্লেষণ চালান।"
+  "val_run_analysis_first": "প্রথমে বিশ্লেষণ চালান।",
+  "home_strip_privacy": "কোনো ডেটা কখনো আপলোড হয় না",
+  "home_strip_languages": "১৩টি ভাষা",
+  "home_strip_autodetect": "বিষয় ও পরীক্ষা স্বয়ংক্রিয়ভাবে শনাক্ত করে",
+  "home_strip_scale": "একটি ক্লাস বা অনেকগুলোর জন্য কাজ করে",
+  "home_preview_label": "আপনি কী দেখবেন — নমুনা প্রিভিউ",
+  "home_preview_avg": "ক্লাস গড়",
+  "home_preview_atrisk": "ঝুঁকি সতর্কতা",
+  "home_preview_top": "সেরা পারফর্মার"
 }

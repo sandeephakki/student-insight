@@ -75,17 +75,19 @@
 @font-face{font-family:"SF Pro Text";src:local("SF Pro Text"),local("-apple-system");font-display:swap}
 
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font);background:var(--c-bg);color:var(--c-text);font-size:var(--fs-base);line-height:var(--lh-body);letter-spacing:-.1px;min-height:100vh;display:flex;flex-direction:column;transition:background var(--dur-base) var(--ease-standard),color var(--dur-base) var(--ease-standard);position:relative}
-body::before{
-  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
-  background-repeat:repeat;background-size:480px 320px;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 480 320'%3E%3Ctext x='16' y='70' font-family='sans-serif' font-size='58' font-weight='700' fill='%23EAEAEC'%3E92%3C/text%3E%3Ctext x='360' y='55' font-family='sans-serif' font-size='38' font-weight='700' fill='%23EAEAEC'%3E%25%3C/text%3E%3Ctext x='405' y='140' font-family='sans-serif' font-size='46' font-weight='700' fill='%23EAEAEC'%3EA+%3C/text%3E%3Ctext x='30' y='225' font-family='sans-serif' font-size='32' font-weight='700' fill='%23EAEAEC'%3E7.2%3C/text%3E%3Ctext x='195' y='300' font-family='sans-serif' font-size='58' font-weight='700' fill='%23EAEAEC'%3E63%3C/text%3E%3Ctext x='330' y='280' font-family='sans-serif' font-size='28' font-weight='700' fill='%23EAEAEC'%3Eavg%3C/text%3E%3Ctext x='95' y='150' font-family='sans-serif' font-size='26' font-weight='700' fill='%23EAEAEC'%3E85%3C/text%3E%3C/svg%3E");
-  transition:opacity var(--dur-base) var(--ease-standard);
-}
-[data-theme="dark"] body::before{
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 480 320'%3E%3Ctext x='16' y='70' font-family='sans-serif' font-size='58' font-weight='700' fill='%231C1C1E'%3E92%3C/text%3E%3Ctext x='360' y='55' font-family='sans-serif' font-size='38' font-weight='700' fill='%231C1C1E'%3E%25%3C/text%3E%3Ctext x='405' y='140' font-family='sans-serif' font-size='46' font-weight='700' fill='%231C1C1E'%3EA+%3C/text%3E%3Ctext x='30' y='225' font-family='sans-serif' font-size='32' font-weight='700' fill='%231C1C1E'%3E7.2%3C/text%3E%3Ctext x='195' y='300' font-family='sans-serif' font-size='58' font-weight='700' fill='%231C1C1E'%3E63%3C/text%3E%3Ctext x='330' y='280' font-family='sans-serif' font-size='28' font-weight='700' fill='%231C1C1E'%3Eavg%3C/text%3E%3Ctext x='95' y='150' font-family='sans-serif' font-size='26' font-weight='700' fill='%231C1C1E'%3E85%3C/text%3E%3C/svg%3E");
-}
-@media(prefers-reduced-motion: reduce){body::before{transition:none}}
+body{font-family:var(--font);background:var(--c-bg);color:var(--c-text);font-size:var(--fs-base);line-height:var(--lh-body);letter-spacing:-.1px;min-height:100vh;display:flex;flex-direction:column;transition:background var(--dur-base) var(--ease-standard),color var(--dur-base) var(--ease-standard);position:relative;
+/* mobile's scroll container (css/vs-shell.css's <=768px block makes #main
+   height:auto so body/html scroll naturally instead) — see the matching
+   #main comment in vs-shell.css for why this needs to be off. */
+overflow-anchor:none}
+/* UI redesign (2026-08): removed the body::before "92 / 63 / A+ / avg"
+   tiled watermark that used to sit behind every screen. Intended as a
+   subtle texture, it rendered clearly legible (fill color was too close
+   to --c-bg to disappear, especially against white card backgrounds),
+   read as a stray rendering artifact rather than a design choice, and
+   showed through gaps around the Home panel on real viewports. Removed
+   outright rather than just dimmed further — a data-analytics product's
+   real numbers, shown after upload, are the more credible "wallpaper." */
 #main{flex:1 0 auto}
 a{color:var(--c-primary);text-decoration:none}
 a:visited{color:var(--c-link-visited)}
@@ -170,7 +172,7 @@ textarea:focus-visible,[tabindex]:focus-visible,[role="button"]:focus-visible,
 .panel{display:none}.panel.active{display:block}
 
 /* CARDS — single system; variants layer on top instead of new one-off card styles */
-.card{background:var(--c-bg-raised);border:1px solid var(--c-border);border-radius:var(--r-md);padding:var(--sp-5) var(--sp-6);box-shadow:var(--e-1);margin-bottom:var(--sp-4);transition:box-shadow var(--dur-base) var(--ease-standard),border-color var(--dur-base) var(--ease-standard)}
+.card{background:var(--c-bg-raised);border:1px solid var(--c-border);border-radius:var(--r-md);padding:var(--sp-4) var(--sp-5);box-shadow:var(--e-1);margin-bottom:var(--sp-3);transition:box-shadow var(--dur-base) var(--ease-standard),border-color var(--dur-base) var(--ease-standard)}
 .card-title{font-family:var(--font-display);font-weight:700;font-size:var(--fs-md);margin-bottom:var(--sp-3);display:flex;align-items:center;gap:6px}
 .icon{font-size:16px}
 .ic{vertical-align:-0.15em;flex-shrink:0}

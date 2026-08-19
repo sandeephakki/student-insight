@@ -30,7 +30,19 @@ function openSmartSearchScreen(){
   _smartReturnTo = $("#legacy-dashboard-body").is(":visible") ? "legacy" : "bucket";
   $("#bucket-screen,#bucket-list-screen,#bucket-answer-screen,#legacy-dashboard-body").hide();
   showScreen("#smart-search-screen");
+  // renderSmartSearchScreen() -> renderSmartChips() needs
+  // SmartEngine.getKnowledgeSync() populated, which only happens after
+  // loadKnowledge()'s fetch resolves — load (or reuse the cached load) first,
+  // then render, instead of rendering against a still-null knowledge bank.
   renderSmartSearchScreen();
+  SmartEngine.loadKnowledge().then(function(){
+    if($("#smart-search-screen").is(":visible")){
+      renderSmartCategorySwitch();
+      renderSmartChips();
+    }
+  }).catch(function(){
+    toast(srT("smart_search_load_error"),"warn");
+  });
 }
 
 function closeSmartSearchScreen(){
@@ -41,14 +53,25 @@ function closeSmartSearchScreen(){
 
 function renderSmartSearchScreen(){
   const shell = $("#smart-search-screen");
+  // FIX (same "Smart Search giving no value" report): this rendered only
+  // the static "coming in StudIn Pro" notice — renderSmartCategorySwitch()/
+  // renderSmartStudentPicker()/renderSmartChips() below were already fully
+  // built and wired to real chip click handlers, just never called because
+  // their container elements (#smart-category-switch etc.) were never
+  // rendered into the DOM for them to attach to.
   shell.html(`
     <button class="bucket-back-btn" data-action="closeSmartSearchScreen" aria-label="${esc(srT('smart_search_back'))}">
       <svg class="ic" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="margin-right:6px"><path d="m15 18-6-6 6-6"/></svg>
       ${esc(srT('smart_search_back'))}
     </button>
     <div class="bucket-list-title">${esc(srT('smart_search_title'))}</div>
-    <div class="shell-empty-state" style="padding:48px 20px;text-align:center;font-size:14px" data-i18n="smart_search_pro_notice">${esc(srT('smart_search_pro_notice'))}</div>
+    <div class="bucket-answer-desc" style="padding:0 4px 12px">${esc(srT('smart_search_subtitle'))}</div>
+    <div id="smart-category-switch" style="display:flex;gap:8px;flex-wrap:wrap;padding:0 4px 12px"></div>
+    <div id="smart-student-picker" style="padding:0 4px 12px"></div>
+    <div id="smart-question-chips"></div>
   `);
+  renderSmartCategorySwitch();
+  renderSmartChips();
 }
 
 function renderSmartCategorySwitch(){
@@ -94,8 +117,9 @@ function isQuestionDisabled(q){
 function renderSmartChips(){
   renderSmartStudentPicker();
   const kn = SmartEngine.getKnowledgeSync();
-  const cat = kn.categories.find(c=>c.id===_smartCategory);
   const chipsWrap = $("#smart-question-chips").empty();
+  if(!kn) return; // not loaded yet — openSmartSearchScreen()'s loadKnowledge().then() re-renders once ready
+  const cat = kn.categories.find(c=>c.id===_smartCategory);
   if(!cat) return;
   const student = currentSmartStudent();
   let rendered = 0;

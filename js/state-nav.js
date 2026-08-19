@@ -112,17 +112,23 @@ function goStep(step){
     // Setup, About, or FAQ, auto-restore leaving them — reuses the exact
     // same setShellRailsOpen() car-mirror, just keyed off three steps now
     // instead of one.
-    const railsCollapseOnThisStep = (step==="setup"||step==="about"||step==="faq");
+    // UI redesign (2026-08): Home added to this list too — on first
+    // landing, both rails were duplicating the same "what this app does"
+    // pitch as plain bullet lists on either side of a small upload box.
+    // That copy now lives as a compact single-row icon strip + sample
+    // stat tiles inside the Home panel itself (index.html #panel-home),
+    // so the rails default closed here and the upload dropzone gets the
+    // full width as the actual hero of the page. Rails are still fully
+    // functional if the user manually reopens them (renderShellLeftRail/
+    // renderShellRightRail above still populate the same pitch-row
+    // content for step==="home" — nothing removed, just no longer forced
+    // open by default).
+    const railsCollapseOnThisStep = (step==="setup"||step==="about"||step==="faq"||step==="home");
     if(typeof setShellRailsOpen==="function") setShellRailsOpen(!railsCollapseOnThisStep);
   }catch(err){
     console.error("Shell rail render failed for step:",step,err);
   }
   $(".panel").removeClass("active screen-fade-in");$("#panel-"+step).addClass("active screen-fade-in");
-  // Tell vs-shell.js's #main scroll guard this is a real panel switch
-  // (should land at the top), as opposed to a same-panel selection
-  // refresh (should keep the user's scroll position). See
-  // initMainScrollGuard() in vs-shell.js for the fix this supports.
-  document.dispatchEvent(new CustomEvent("stepnav:panelchanged", {detail:{step:step}}));
   $(".step-item").removeClass("active").removeAttr("aria-current");$("[data-step='"+step+"']").addClass("active").removeClass("locked").attr("aria-current","step");
   updateNavHomeOnlyState();
   // v4.2: re-render AI feature checkboxes fresh in the current language on

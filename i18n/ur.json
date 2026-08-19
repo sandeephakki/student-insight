@@ -1199,5 +1199,13 @@
   "smart_query_not_available_page": "Smart Query اس صفحے پر دستیاب نہیں۔",
   "val_upload_file_home_first": "پہلے Home پر ایک فائل اپ لوڈ کریں۔",
   "val_upload_1_valid_file_home_first": "پہلے Home پر کم از کم 1 درست فائل اپ لوڈ کریں۔",
-  "val_run_analysis_first": "پہلے Run Analysis کریں۔"
+  "val_run_analysis_first": "پہلے Run Analysis کریں۔",
+  "home_strip_privacy": "کوئی ڈیٹا کبھی اپ لوڈ نہیں ہوتا",
+  "home_strip_languages": "13 زبانیں",
+  "home_strip_autodetect": "مضامین اور ٹیسٹ خودکار طور پر شناخت کرتا ہے",
+  "home_strip_scale": "ایک کلاس یا کئی کے لیے کام کرتا ہے",
+  "home_preview_label": "آپ کیا دیکھیں گے — نمونہ پیش منظر",
+  "home_preview_avg": "کلاس اوسط",
+  "home_preview_atrisk": "خطرے کی وارننگز",
+  "home_preview_top": "بہترین کارکردگی دکھانے والا"
 }

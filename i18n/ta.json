@@ -1198,5 +1198,13 @@
   "smart_query_not_available_page": "இந்த பக்கத்தில் Smart Query கிடைக்கவில்லை.",
   "val_upload_file_home_first": "முதலில் Home இல் ஒரு கோப்பை பதிவேற்றவும்.",
   "val_upload_1_valid_file_home_first": "முதலில் Home இல் குறைந்தது 1 சரியான கோப்பை பதிவேற்றவும்.",
-  "val_run_analysis_first": "முதலில் பகுப்பாய்வை இயக்கவும்."
+  "val_run_analysis_first": "முதலில் பகுப்பாய்வை இயக்கவும்.",
+  "home_strip_privacy": "தரவு எதுவும் ஒருபோதும் பதிவேற்றப்படாது",
+  "home_strip_languages": "13 மொழிகள்",
+  "home_strip_autodetect": "பாடங்கள் மற்றும் தேர்வுகளை தானாக கண்டறியும்",
+  "home_strip_scale": "ஒரு வகுப்பு அல்லது பலவற்றிற்கும் பொருந்தும்",
+  "home_preview_label": "நீங்கள் காணப்போவது — மாதிரி முன்னோட்டம்",
+  "home_preview_avg": "வகுப்பு சராசரி",
+  "home_preview_atrisk": "ஆபத்து எச்சரிக்கைகள்",
+  "home_preview_top": "சிறந்த மாணவர்"
 }

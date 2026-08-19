@@ -1198,5 +1198,13 @@
   "smart_query_not_available_page": "Smart Query ਇਸ ਪੇਜ 'ਤੇ ਉਪਲਬਧ ਨਹੀਂ।",
   "val_upload_file_home_first": "ਪਹਿਲਾਂ Home 'ਤੇ ਇੱਕ ਫ਼ਾਈਲ ਅਪਲੋਡ ਕਰੋ।",
   "val_upload_1_valid_file_home_first": "ਪਹਿਲਾਂ Home 'ਤੇ ਘੱਟੋ-ਘੱਟ 1 ਵੈਧ ਫ਼ਾਈਲ ਅਪਲੋਡ ਕਰੋ।",
-  "val_run_analysis_first": "ਪਹਿਲਾਂ Run Analysis ਕਰੋ।"
+  "val_run_analysis_first": "ਪਹਿਲਾਂ Run Analysis ਕਰੋ।",
+  "home_strip_privacy": "ਕੋਈ ਡੇਟਾ ਕਦੇ ਅਪਲੋਡ ਨਹੀਂ ਹੁੰਦਾ",
+  "home_strip_languages": "13 ਭਾਸ਼ਾਵਾਂ",
+  "home_strip_autodetect": "ਵਿਸ਼ੇ ਅਤੇ ਟੈਸਟ ਆਪਣੇ ਆਪ ਪਛਾਣਦਾ ਹੈ",
+  "home_strip_scale": "ਇੱਕ ਕਲਾਸ ਜਾਂ ਕਈਆਂ ਲਈ ਕੰਮ ਕਰਦਾ ਹੈ",
+  "home_preview_label": "ਤੁਸੀਂ ਕੀ ਦੇਖੋਗੇ — ਨਮੂਨਾ ਝਲਕ",
+  "home_preview_avg": "ਕਲਾਸ ਔਸਤ",
+  "home_preview_atrisk": "ਜੋਖਮ ਚਿਤਾਵਨੀਆਂ",
+  "home_preview_top": "ਸਭ ਤੋਂ ਵਧੀਆ ਪ੍ਰਦਰਸ਼ਨ ਕਰਨ ਵਾਲਾ"
 }

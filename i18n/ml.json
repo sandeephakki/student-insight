@@ -1198,5 +1198,13 @@
   "smart_query_not_available_page": "ഈ പേജിൽ Smart Query ലഭ്യമല്ല.",
   "val_upload_file_home_first": "ആദ്യം Home ൽ ഒരു ഫയൽ അപ്‌ലോഡ് ചെയ്യുക.",
   "val_upload_1_valid_file_home_first": "ആദ്യം Home ൽ കുറഞ്ഞത് 1 സാധുവായ ഫയൽ അപ്‌ലോഡ് ചെയ്യുക.",
-  "val_run_analysis_first": "ആദ്യം വിശകലനം പ്രവർത്തിപ്പിക്കുക."
+  "val_run_analysis_first": "ആദ്യം വിശകലനം പ്രവർത്തിപ്പിക്കുക.",
+  "home_strip_privacy": "ഡാറ്റ ഒരിക്കലും അപ്‌ലോഡ് ചെയ്യില്ല",
+  "home_strip_languages": "13 ഭാഷകൾ",
+  "home_strip_autodetect": "വിഷയങ്ങളും പരീക്ഷകളും സ്വയമേവ കണ്ടെത്തുന്നു",
+  "home_strip_scale": "ഒരു ക്ലാസിനോ പലതിനോ അനുയോജ്യം",
+  "home_preview_label": "നിങ്ങൾ കാണാൻ പോകുന്നത് — സാമ്പിൾ പ്രിവ്യൂ",
+  "home_preview_avg": "ക്ലാസ് ശരാശരി",
+  "home_preview_atrisk": "റിസ്ക് അലേർട്ടുകൾ",
+  "home_preview_top": "മികച്ച പ്രകടനക്കാരൻ"
 }

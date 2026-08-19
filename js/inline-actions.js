@@ -4,12 +4,11 @@ import { runAnalysis } from './compute-stats.js';
 import { selectContinuityPeriod, selectContinuityStudent } from './continuity-dashboard.js';
 import { generateAllPDFs } from './export-pdf.js';
 import { addSubject, addTest, filterFAQ, markDirty, setUsageMode, startNewSession, updateTestSubjectCols } from './project-setup.js';
-import { backToBucketList, backToBuckets, openBucket, openIndividualBucket, renderDashboardSampleBanner, smartChatAskCanned } from './render-buckets.js';
+import { backToBucketList, backToBuckets, openBucket, openIndividualBucket, renderDashboardSampleBanner, smartChatAskCanned, smartChatSubmit } from './render-buckets.js';
 import { closeModal, dbTabKeyNav, downloadUpdatedSheet, filterStudents, runSampleFile, saveNarrativeField, saveRemarkField, selectIndividualStudent, setFilter, showSampleFiles, sortStudents } from './render-core.js';
 import { filterPickerList, onBucketStudentPick, onBucketSubjectPick, openFinding } from './render-findings.js';
 import { shareInsightAsImage } from './render-i18n.js';
 import { swBack, swNext, swRefresh } from './setup-wizard.js';
-import { closeSmartSearchScreen, openSmartSearchScreen } from './smart-engine-ui.js';
 import { APP, goStep, onCountryChange, onLanguageChange, setThemeChoice } from './state-nav.js';
 import { cancelMergeMode, chooseMergeFork, confirmMergedDownload, generateTemplate, handleHomeImportFiles, handleUpdateUpload, toggleAI, toggleBulkSectionsUI } from './template-upload.js';
 import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-shell.js';
@@ -99,7 +98,11 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
       case 'smartChatAskCanned':
         smartChatAskCanned(arg, el.getAttribute('data-arg2'));
         break;
-      case 'openSmartSearchScreen': openSmartSearchScreen(); break;
+      // The chat window's own Send button (renderDashboardSmartSearch()) is
+      // data-action="smartChatSubmit" — Enter-to-submit is handled by the
+      // dedicated keydown case above, not here (see its comment: inline
+      // onkeydown="" on the input is CSP-blocked in this document).
+      case 'smartChatSubmit': smartChatSubmit(); break;
       case 'selectAllExpStudents': $('.exp-student-cb').prop('checked', true); break;
       case 'unselectAllExpStudents': $('.exp-student-cb').prop('checked', false); break;
       case 'generateAllPDFs': generateAllPDFs(); break;
@@ -107,7 +110,6 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
       case 'smartQueryRailAsk': smartQueryRailAsk(); break;
       case 'selectContinuityPeriod': selectContinuityPeriod(Number(arg)); break;
       case 'selectContinuityStudent': selectContinuityStudent(arg); break;
-      case 'closeSmartSearchScreen': closeSmartSearchScreen(); break;
       case 'deleteSubjectRow':
         $(el).closest('.subj-row').remove();
         updateTestSubjectCols();
@@ -171,9 +173,15 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
     selectCompareSection: 1, selectCompareGroup: 1,
     openBucket: 1, openIndividualBucket: 1,
     switchDbTab: 1, setFilter: 1, sortStudents: 1,
-    smartChatAskCanned: 1, smartQueryRailAnswer: 1,
     selectContinuityPeriod: 1, selectContinuityStudent: 1,
-    onBucketStudentPick: 1, onBucketSubjectPick: 1, openFinding: 1
+    onBucketStudentPick: 1, onBucketSubjectPick: 1, openFinding: 1,
+    backToBuckets: 1, backToBucketList: 1
+    // smartChatAskCanned / smartQueryRailAnswer / smartQueryRailAsk are
+    // deliberately NOT here: those append to a running chat/answer
+    // transcript and already scroll themselves to the BOTTOM (new
+    // message) once their (deliberately delayed, ~300-500ms) answer
+    // bubble lands — see smartChatScrollToBottom() in render-buckets.js.
+    // Forcing scrollTop=0 here would only fight that a moment later.
   };
   // #main only actually scrolls at >768px (css/vs-shell.css); below that
   // it's height:auto and the page/body scrolls instead (see the mobile
@@ -182,6 +190,10 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
     if (window.innerWidth <= 768) return document.scrollingElement || document.documentElement;
     return document.getElementById('main') || document.scrollingElement || document.documentElement;
   }
+  function resetScrollToTop(){
+    var sc = scrollContainerEl();
+    if (sc) sc.scrollTop = 0;
+  }
 
   document.addEventListener('click', function(ev){
     var el = ev.target.closest('[data-action]');
@@ -189,8 +201,17 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
     var action = el.getAttribute('data-action');
     dispatch(action, el.getAttribute('data-arg'), el, ev);
     if (SCROLL_RESET_ACTIONS[action]) {
-      var sc = scrollContainerEl();
-      if (sc) sc.scrollTop = 0;
+      // Reset now (covers the synchronous render), AND again after layout
+      // has fully settled — Chart.js canvases, images, and similar resize
+      // asynchronously and a real browser's default scroll-anchoring can
+      // silently re-adjust scrollTop to compensate for that shift a beat
+      // later, undoing an immediate-only reset. jsdom (used in this repo's
+      // tests) doesn't model scroll anchoring at all, so this only shows
+      // up in a real browser — the double-apply covers it either way.
+      resetScrollToTop();
+      var raf = window.requestAnimationFrame || function(cb){ return setTimeout(cb, 16); };
+      raf(function(){ raf(resetScrollToTop); });
+      setTimeout(resetScrollToTop, 150);
     }
   });
 
@@ -236,6 +257,19 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
   document.addEventListener('keydown', function(ev){
     var tabEl = ev.target.closest('.db-tab[data-action]');
     if (tabEl) { dbTabKeyNav(ev, tabEl); return; }
+    // FIX: the chat composer's Enter-to-submit was written as an inline
+    // onkeydown="" attribute on the <input> (js/render-buckets.js
+    // renderDashboardSmartSearch()) — this document's own CSP has no
+    // 'unsafe-inline' in script-src (see the CSP <meta> in index.html and
+    // its "no per-element inline JS is left anywhere in this document"
+    // comment), so the browser silently drops that attribute and Enter
+    // does nothing. Delegated here instead, same pattern as every other
+    // keyed handler in this file.
+    if (ev.key === 'Enter' && ev.target.id === 'chat-composer-input') {
+      ev.preventDefault();
+      smartChatSubmit();
+      return;
+    }
     if (ev.key !== 'Enter' && ev.key !== ' ') return;
     var btn = ev.target.closest('[role="button"][data-action]');
     if (!btn) return;

@@ -27,6 +27,12 @@ const SmartQueryV2 = (function(){
 
   let _bank = null;         // parsed knowledge/smart-questions.json
   let _loadPromise = null;
+  // Set fresh by every match() call from the actual query text (institution
+  // mode only — individual mode always resolves to APP.students[0] instead,
+  // see answerQuestionImpl). Read by answerQuestionImpl() immediately after,
+  // synchronously, within the same call — see match()'s comment below for
+  // why this doesn't go stale between the two calls.
+  let _lastMatchedStudent = null;
 
   /* ── Load & parse the question bank (same file smart-engine.js uses) ── */
   function load(){
@@ -158,11 +164,26 @@ const SmartQueryV2 = (function(){
     if(!questionAiFeatureOk(q)){
       return { ok:false, text: q.unavailableMessage || srT("smart_needs_ai_feature") };
     }
-    if(q._requires && !evalRequires(q._requires)){
+    // FIX (report: chat only ever surfaces class-wide questions, never
+    // student ones): q._requires for every per_student question is the
+    // category-level "selectedStudent" guard, and evalRequires() only
+    // ever returns true for that guard in individual mode (see its
+    // switch case below) — it has no notion of "a student was named in
+    // this chat message". That's fine for the canned/left-rail list
+    // (which has no query text to read a name from and correctly stays
+    // class-only there in institution mode), but it silently blocked
+    // per_student questions from EVER being answered via free-text chat
+    // in institution mode, even when a student was explicitly named
+    // ("how is Priya doing"). Skipped here specifically for per_student —
+    // student-presence is checked directly below via _lastMatchedStudent
+    // instead, which match() sets from the actual query text.
+    if(q._requires && !evalRequires(q._requires) && q._categoryId !== "per_student"){
       return { ok:false, text: q.unavailableMessage || srT("smart_not_enough_data") };
     }
 
-    const student = (currentMode()==="individual" && window.APP && APP.students && APP.students[0]) || null;
+    const student = currentMode()==="individual"
+      ? ((window.APP && APP.students && APP.students[0]) || null)
+      : (_lastMatchedStudent || null);
     const vars = { name: student ? student.name : "" };
 
     // "This Student" questions use a comma-joined computeKey (e.g.
@@ -241,29 +262,73 @@ const SmartQueryV2 = (function(){
     // Shape-specific var extraction. Kept intentionally simple/explicit
     // rather than a generic deep-flattener, so each mapping is easy to
     // audit against its answerTemplate in knowledge/smart-questions.json.
+    //
+    // FIX (Smart Search "no value" report): every branch below was built
+    // against the wrong variable names, or missing variables entirely, so
+    // every answer left one or more literal {placeholder} tokens un-filled
+    // in the text shown to the user — verified against a real sample file
+    // (test/smart-search-probe.js) before this fix, where e.g. class
+    // distribution rendered "Of {n} students: 8 are excelling... {distributionNote}"
+    // instead of real numbers. Each fix below is checked directly against
+    // its answerTemplate string in knowledge/smart-questions.json.
     if(q.computeKey === "classStats.subjectWeakness" && Array.isArray(value)){
       const sorted = [...value].sort((a,b)=> (q.id==="strongest_subject" ? a.pctBelow-b.pctBelow : b.pctBelow-a.pctBelow));
       const top = sorted[0];
       if(!top) return { ok:false, text: q.emptyMessage || "No subject data available." };
-      vars.topSubject = top.subject; vars.topPctBelow = top.pctBelow; vars.topAvg = top.avgClass;
-      const spreadWide = sorted.length>1 && (sorted[0].pctBelow - sorted[sorted.length-1].pctBelow) > 20;
-      vars.spreadNote = spreadWide ? (q.spreadNoteWide||"") : (q.spreadNoteNarrow||"");
+      if(q.id==="strongest_subject"){
+        // strongest_subject's answerTemplate uses {bottomSubject}/{bottomAvg}/
+        // {bottomPctBelow} (lowest-pctBelow end of the sort) — previously
+        // written as topSubject/topPctBelow/topAvg regardless of which
+        // question asked, so this branch never filled anything for
+        // strongest_subject specifically.
+        vars.bottomSubject = top.subject; vars.bottomPctBelow = top.pctBelow; vars.bottomAvg = top.avgClass;
+      } else {
+        vars.topSubject = top.subject; vars.topPctBelow = top.pctBelow; vars.topAvg = top.avgClass;
+        const spreadWide = sorted.length>1 && (sorted[0].pctBelow - sorted[sorted.length-1].pctBelow) > 20;
+        vars.spreadNote = spreadWide ? (q.spreadNoteWide||"") : (q.spreadNoteNarrow||"");
+      }
       return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
     }
 
     if(q.computeKey === "classStats.distribution" && typeof value === "object"){
+      // answerTemplate needs {n} and {distributionNote} in addition to the
+      // 4 band counts already spread in — neither was ever set.
       Object.assign(vars, value);
+      vars.n = (value.excellent||0)+(value.good||0)+(value.average||0)+(value.below||0);
+      vars.distributionNote = value.below>0
+        ? srT("smart_distribution_note_below",{count:value.below})
+        : srT("smart_distribution_note_none_below");
       return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
     }
 
     if(q.computeKey === "classStats.attendanceCorrelation" && typeof value === "object"){
-      vars.noAbsenceAvg = value.noAbsence ? value.noAbsence.avg : "";
-      vars.someAbsenceAvg = value.someAbsence ? value.someAbsence.avg : "";
+      // answerTemplate needs noAbsenceN/someAbsenceN/gapPoints/attendanceNote
+      // on top of the two averages — only the averages were ever set.
+      const noAbsAvg = value.noAbsence ? value.noAbsence.avg : 0;
+      const someAbsAvg = value.someAbsence ? value.someAbsence.avg : 0;
+      vars.noAbsenceAvg = noAbsAvg;
+      vars.someAbsenceAvg = someAbsAvg;
+      vars.noAbsenceN = value.noAbsence ? value.noAbsence.n : 0;
+      vars.someAbsenceN = value.someAbsence ? value.someAbsence.n : 0;
+      vars.gapPoints = Math.abs(noAbsAvg - someAbsAvg);
+      vars.attendanceNote = noAbsAvg > someAbsAvg
+        ? srT("smart_attendance_note_matters")
+        : srT("smart_attendance_note_no_clear_link");
       return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
     }
 
     if(q.computeKey === "genderAnalysis" && typeof value === "object"){
-      if(value.gapPct === 0 || value.gapPct === undefined){
+      // Two bugs here previously: (1) the "is there a gap" check read
+      // value.gapPct, a field that has never existed on this object (the
+      // real fields are leadGroup/overallGap) — gapPct was always
+      // undefined, so this ALWAYS returned noGapMessage regardless of the
+      // real computed gap. (2) an unavailable (not-enough-data) result
+      // fell into the same "no gap" branch instead of its own
+      // unavailableMessage, misreporting missing data as "no gap found".
+      if(value.available===false){
+        return { ok:false, text: q.unavailableMessage || srT("smart_not_enough_data") };
+      }
+      if(!value.leadGroup || !value.overallGap){
         return { ok:true, text: q.noGapMessage || "No meaningful gap found." };
       }
       Object.assign(vars, value);
@@ -271,9 +336,37 @@ const SmartQueryV2 = (function(){
     }
 
     if(q.computeKey === "students[].analysis.peerOutlier" && Array.isArray(value)){
+      // answerTemplate uses {list}; this built vars.names instead, so
+      // {list} was always left as a literal unfilled token in the answer.
       if(!value.length) return { ok:false, text: q.emptyMessage || "No outliers detected." };
       vars.count = value.length;
-      vars.names = value.slice(0,5).map(r=>r.student.name).join(", ");
+      vars.list = value.slice(0,5).map(r=>r.student.name).join(", ");
+      return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
+    }
+
+    if(q.computeKey === "cohortClusters" && typeof value === "object"){
+      // {k} came through fine via the generic Object.assign fallback
+      // below, but {groupList} was never built from the raw groups array
+      // (a list of {label, students[]} objects, not directly templatable).
+      vars.k = value.k;
+      vars.groupList = (value.groups||[])
+        .map(g => `${g.label} (${(g.students||[]).length})`)
+        .join(", ");
+      return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
+    }
+
+    if(q.computeKey === "students[].analysis.rankMovement" && Array.isArray(value)){
+      // Class-wide rank movement had NO dedicated branch at all — it fell
+      // through to the generic array fallback below, which just dumped the
+      // whole raw array into vars.value and left every one of
+      // {upCount}/{downCount}/{notableList} unfilled.
+      const up = value.filter(r=>r.value>0);
+      const down = value.filter(r=>r.value<0);
+      if(!up.length && !down.length) return { ok:false, text: q.emptyMessage || "No rank movement to report." };
+      vars.upCount = up.length;
+      vars.downCount = down.length;
+      const notable = [...value].sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)).slice(0,5);
+      vars.notableList = notable.map(r => `${r.student.name} (${r.value>0?"+":""}${r.value})`).join(", ");
       return { ok:true, text: fillTemplate(q.answerTemplate, vars) };
     }
 
@@ -305,13 +398,55 @@ const SmartQueryV2 = (function(){
     return !queryTokens.some(t => vocab.has(t));
   }
 
+  // FIX (report: chat only ever surfaces class-wide questions, never
+  // student ones — "should be all mix"): institution mode has many
+  // students, so there's no single "the student" the way individual mode
+  // has APP.students[0] — this scans the query text itself for a name.
+  // Matches on any single name-token (first or last name) at least 3
+  // chars long, so "Priya" or "Sharma" both work; picks the longest
+  // matching token if more than one student's name appears, since a
+  // longer/more specific name match is less likely to be a coincidence.
+  function resolveStudentByName(queryTokens){
+    if(!window.APP || !APP.students || !APP.students.length) return null;
+    let best = null, bestLen = 0;
+    APP.students.forEach(function(s){
+      if(!s || !s.name) return;
+      tokenize(s.name).forEach(function(nt){
+        if(nt.length >= 3 && nt.length > bestLen && queryTokens.indexOf(nt) !== -1){
+          best = s; bestLen = nt.length;
+        }
+      });
+    });
+    return best;
+  }
+
   function match(queryText, limit){
     limit = limit || 5;
     if(!_bank) return { ok:false, results:[], deflected:false, text:srT("smart_question_bank_not_loaded") };
     const qTokens = tokenize(queryText);
     if(!qTokens.length) return { ok:false, results:[], deflected:false, text:"" };
 
-    const candidates = availableQuestions();
+    // FIX (report: chat only ever surfaces class-wide questions, never
+    // student ones): availableQuestions() alone never includes per_student
+    // questions in institution mode (its "selectedStudent" requires guard
+    // only ever passes in individual mode — that's correct for the
+    // canned/left-rail list, which has no query text to find a name in).
+    // Here, where there IS query text, a named student widens the
+    // candidate pool to include per_student questions too, so "how is
+    // Priya doing" can actually match one instead of being invisible to
+    // the scorer entirely. _lastMatchedStudent is read straight back by
+    // answerQuestionImpl() right after this returns (same synchronous
+    // call chain in smartChatRunQuery — see its module-state comment).
+    const namedStudent = currentMode()==="institution" ? resolveStudentByName(qTokens) : null;
+    _lastMatchedStudent = namedStudent;
+    let candidates = availableQuestions();
+    if(namedStudent){
+      // Put per_student questions first — a query that named a student is
+      // almost certainly about that student, so their questions should be
+      // what gets suggested first, not buried after all the class-wide ones.
+      candidates = flatQuestions().filter(q => q._categoryId==="per_student" && questionAiFeatureOk(q))
+        .concat(candidates);
+    }
     const scored = candidates.map(q => {
       const labelTokens = tokenize(q.label);
       const catTokens = tokenize(q._categoryLabel);
@@ -322,6 +457,14 @@ const SmartQueryV2 = (function(){
         else if(keywordTokens.indexOf(t) !== -1) score += 2;
         else if(catTokens.indexOf(t) !== -1) score += 1;
       });
+      // A named student is a strong signal the question is about THEM —
+      // without this, a class-wide question that happens to share an
+      // incidental keyword (e.g. "doing") can outscore the actual
+      // per-student questions and auto-answer with something unrelated to
+      // who was actually asked about. Only applied once real (non-zero)
+      // topic overlap already exists, so this doesn't resurrect the
+      // score:0 "no real overlap" case handled separately below.
+      if(namedStudent && score>0 && q._categoryId==="per_student") score += 3;
       return { question: q, score };
     }).filter(r => r.score > 0);
 
@@ -339,7 +482,32 @@ const SmartQueryV2 = (function(){
     // matches (e.g. "who is struggling" scores against wellbeing's
     // keywords but contains no literal domainVocabulary word) before
     // the scorer ever got to run.
+    //
+    // FIX (report: "topper" got the same flat wall as gibberish): this
+    // comment already documented the intended behavior — isOutOfDomain()
+    // exists below for exactly this — but the code here never actually
+    // called it, so every zero-score query got the hard deflectionMessage
+    // with no suggestions, even when the query used a real, recognized
+    // word (like "topper", which is literally in domainVocabulary) that
+    // just isn't in any single question's own keyword list. Now: a
+    // recognized-but-unmatched word surfaces the current category's
+    // question list as tappable suggestions (score:0, so the caller's
+    // AUTO_ANSWER_THRESHOLD check naturally routes it to the suggestion
+    // chips, not an auto-answer) instead of a dead end; true gibberish
+    // (no domain word at all) still gets the flat deflection.
     if(!results.length){
+      // A named student counts as "on-topic" even if isOutOfDomain()
+      // wouldn't otherwise recognize the rest of the sentence (a name
+      // isn't in domainVocabulary) — "how is Priya doing" should offer
+      // Priya's questions as suggestions, not hit the flat gibberish wall.
+      if((namedStudent || !isOutOfDomain(qTokens)) && candidates.length){
+        return {
+          ok:true,
+          results: candidates.slice(0,limit).map(q => ({ id:q.id, label:q.label, category:q._categoryLabel, score:0 })),
+          deflected:false,
+          text:""
+        };
+      }
       return { ok:false, results:[], deflected:true, text: _bank.deflectionMessage || "That's outside what I can help with." };
     }
     return { ok:true, results, deflected:false, text:"" };
@@ -349,9 +517,21 @@ const SmartQueryV2 = (function(){
      to show a disambiguation list (multiple plausible matches) should
      use match() directly and call answerQuestion(id) once the user
      picks one, rather than always taking the top-1 result via ask(). ── */
+  // Same confidence bar render-buckets.js's smartChatRunQuery() applies to
+  // match() results before auto-answering — kept in sync manually since
+  // the two call sites live in different modules; a score below this means
+  // "worth surfacing as a suggestion", not "confident enough to answer".
+  const AUTO_ANSWER_THRESHOLD = 6;
   function ask(queryText){
     const m = match(queryText, 1);
-    if(!m.ok){
+    // FIX: match() can now return ok:true with a score:0 "here are some
+    // things you can ask" fallback list (recognized domain vocabulary,
+    // no keyword hit — see match() above) instead of a real match. Before
+    // this check, ask() took m.results[0] unconditionally whenever ok was
+    // true, so a query like "topper" would silently auto-answer with
+    // whatever question happened to be first in the list, mislabeled as
+    // a confident match.
+    if(!m.ok || !m.results.length || m.results[0].score < AUTO_ANSWER_THRESHOLD){
       return { ok:false, text: m.text || "I couldn't find a matching question — try rephrasing, or pick one from the list.", matched:null };
     }
     const top = m.results[0];

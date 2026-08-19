@@ -1198,5 +1198,13 @@
   "smart_query_not_available_page": "ఈ పేజీలో Smart Query అందుబాటులో లేదు.",
   "val_upload_file_home_first": "ముందుగా Homeలో ఒక ఫైల్‌ను అప్‌లోడ్ చేయండి.",
   "val_upload_1_valid_file_home_first": "ముందుగా Homeలో కనీసం 1 చెల్లుబాటు అయ్యే ఫైల్‌ను అప్‌లోడ్ చేయండి.",
-  "val_run_analysis_first": "ముందుగా Run Analysis చేయండి."
+  "val_run_analysis_first": "ముందుగా Run Analysis చేయండి.",
+  "home_strip_privacy": "డేటా ఎప్పుడూ అప్‌లోడ్ కాదు",
+  "home_strip_languages": "13 భాషలు",
+  "home_strip_autodetect": "సబ్జెక్టులు మరియు పరీక్షలను స్వయంచాలకంగా గుర్తిస్తుంది",
+  "home_strip_scale": "ఒక తరగతికి లేదా అనేకానికి పనిచేస్తుంది",
+  "home_preview_label": "మీరు ఏమి చూస్తారు — నమూనా ప్రివ్యూ",
+  "home_preview_avg": "తరగతి సగటు",
+  "home_preview_atrisk": "రిస్క్ హెచ్చరికలు",
+  "home_preview_top": "అత్యుత్తమ ప్రదర్శనకారుడు"
 }

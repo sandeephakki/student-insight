@@ -167,6 +167,80 @@
 .pitch-icon svg{width:14px;height:14px}
 .pitch-text{font-size:12px;line-height:1.4;color:inherit}
 
+/* ---- UI redesign (2026-08): Home page trust strip + sample-preview
+   tiles — replace the two stacked rail bullet lists (pitch-rows above,
+   still used when a rail is manually reopened) with compact inline
+   content sized for a first-time landing screen. See index.html
+   #home-paths-grid for markup, state-nav.js for the rails-collapse-on-
+   Home car-mirror this depends on. ---- */
+.home-trust-strip{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:6px 20px;
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px solid var(--c-border);
+}
+.home-trust-item{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:12px;
+  color:var(--c-text2);
+  white-space:nowrap;
+}
+.home-trust-item svg{width:14px;height:14px;flex:0 0 auto;color:var(--c-primary)}
+
+.home-preview-row{
+  margin-top:8px;
+  padding:10px 16px;
+  border-radius:var(--r-md,12px);
+  background:var(--c-surface);
+  border:1px solid var(--c-border);
+  cursor:pointer;
+  transition:border-color .12s,transform .12s;
+}
+.home-preview-row:hover{border-color:var(--c-primary);transform:translateY(-1px)}
+.home-preview-label{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11.5px;
+  font-weight:700;
+  letter-spacing:.2px;
+  color:var(--c-text3);
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+.home-preview-label svg{width:13px;height:13px;color:var(--c-primary)}
+.home-preview-tiles{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:1px;
+  background:var(--c-border);
+  border-radius:var(--r-sm);
+  overflow:hidden;
+}
+.home-preview-tile{
+  background:var(--c-bg,var(--c-surface));
+  padding:8px 8px;
+  text-align:center;
+}
+.home-preview-value{
+  font-family:var(--font-display);
+  font-size:19px;
+  font-weight:800;
+  color:var(--c-primary);
+  line-height:1.2;
+}
+.home-preview-value-warn{color:var(--c-danger,#c0392b)}
+.home-preview-value-name{font-size:15px}
+.home-preview-caption{font-size:10.5px;color:var(--c-text3);margin-top:2px}
+@media (max-width:520px){
+  .home-preview-tiles{grid-template-columns:1fr;gap:1px}
+}
+
 /* ---- item 6: "File details" collapsible (native <details>) ---- */
 .shell-details{border:none}
 .shell-details summary{
@@ -267,6 +341,13 @@
   margin-left:0;
   margin-right:0;
   overflow-y:auto;
+  /* js/inline-actions.js forces this back to scrollTop 0 on every fresh
+     selection (student/section/bucket/tab/etc). Without this, Chrome's
+     default scroll anchoring can silently re-adjust scrollTop a moment
+     later to compensate for async layout shift (Chart.js canvases sizing
+     themselves, images loading) — quietly undoing that reset well after
+     it ran, so the fix looked like it "wasn't working". */
+  overflow-anchor:none;
 }
 
 /* ---- whole-app viewport fit (correction, not part of original Task 3) ----

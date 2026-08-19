@@ -446,7 +446,32 @@ function isSmartBucketActive(){
     : APP._currentBucketId==="smart";
 }
 function buildSmartQueryCannedQuestionsHtml(){
-  return ""; // Smart Search is gated behind a StudIn Pro notice; no canned-question list to show.
+  // FIX ("Smart Search giving no value" report): this returned "" always,
+  // so the left rail never showed any tappable questions while Smart
+  // Search was open — SmartQueryV2.availableQuestions() already existed
+  // and worked, this just never rendered its output. Loads lazily and
+  // re-renders the rail once ready, same pattern ensureSmartQueryLoaded()
+  // callers use elsewhere.
+  if(!window.SmartQueryV2) return "";
+  if(!SmartQueryV2.isReady()){
+    ensureSmartQueryLoaded(function(){
+      if(typeof window.renderShellLeftRail==="function" && isSmartBucketActive()){
+        window.renderShellLeftRail((window.APP && APP.currentStep) || "dashboard");
+      }
+    });
+    return "";
+  }
+  const questions=SmartQueryV2.availableQuestions();
+  if(!questions.length) return "";
+  const rows=questions.map(function(q){
+    // No inline onkeydown here — this doc's CSP blocks it anyway (see the
+    // delegated Enter/Space handler in js/inline-actions.js, which already
+    // covers any [role="button"][data-action] element, this one included).
+    return `<div class="bucket-row" role="button" tabindex="0" data-action="smartChatAskCanned" data-arg="${esc(q.id)}" data-arg2="${esc(q.label)}">
+      <span class="bucket-text"><span class="bucket-label">${esc(q.label)}</span></span>
+    </div>`;
+  }).join("");
+  return `<div class="shell-panel"><div class="shell-panel-title">${esc(srT("bucket_smart_label"))}</div><div class="bucket-list">${rows}</div></div>`;
 }
 // Loader guard shared with the old rail implementation's naming, kept
 // separate from vs-shell.js's own copy (different module scope) — same
@@ -506,10 +531,26 @@ function renderDashboardSmartSearch(){
   if(typeof setRightRail==="function") setRightRail("");
   if(typeof setShellRailOpen==="function") setShellRailOpen("end", false);
   _smartChatTranscript=[];
+  // FIX ("Smart Search giving no value" report): this used to just show a
+  // static "coming in StudIn Pro" notice instead of the real chat window —
+  // every function this markup wires up (smartChatSubmit, smartChatRunQuery,
+  // smartChatAskCanned, etc., all below) was already fully built and the
+  // CSS for .chat-window/.chat-thread/.chat-composer already existed
+  // (css/core.css), so this was purely a missing render step, not a
+  // missing feature. Structure matches what smartChatFitHeight() and the
+  // .chat-* CSS both already expect.
   $("#bucket-answer-screen").html(`
     <div class="bucket-answer-title">${esc(srT("bucket_smart_label"))}</div>
-    <div class="shell-empty-state" style="padding:48px 20px;text-align:center;font-size:14px" data-i18n="smart_search_pro_notice">${esc(srT("smart_search_pro_notice"))}</div>
+    <div class="chat-window">
+      <div class="chat-thread" id="chat-thread"><div class="chat-empty-hint">${esc(srT("smart_v2_chat_empty_hint"))}</div></div>
+      <div class="chat-composer">
+        <input id="chat-composer-input" class="input" type="text" autocomplete="off" placeholder="${esc(srT("smart_v2_input_placeholder"))}"/>
+        <button type="button" class="btn btn-primary" data-action="smartChatSubmit">${esc(srT("smart_v2_send"))}</button>
+      </div>
+    </div>
   `);
+  ensureSmartQueryLoaded();
+  smartChatFitHeight();
 }
 function smartChatScrollToBottom(){
   const el=document.getElementById("chat-thread");

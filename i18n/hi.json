@@ -1198,5 +1198,13 @@
   "smart_query_not_available_page": "इस पेज पर Smart Query उपलब्ध नहीं है।",
   "val_upload_file_home_first": "पहले Home पर एक फ़ाइल अपलोड करें।",
   "val_upload_1_valid_file_home_first": "पहले Home पर कम से कम 1 वैध फ़ाइल अपलोड करें।",
-  "val_run_analysis_first": "पहले विश्लेषण चलाएं।"
+  "val_run_analysis_first": "पहले विश्लेषण चलाएं।",
+  "home_strip_privacy": "कोई डेटा कभी अपलोड नहीं होता",
+  "home_strip_languages": "13 भाषाएं",
+  "home_strip_autodetect": "विषय और परीक्षण स्वतः पहचानता है",
+  "home_strip_scale": "एक कक्षा या कई के लिए काम करता है",
+  "home_preview_label": "आप क्या देखेंगे — नमूना पूर्वावलोकन",
+  "home_preview_avg": "कक्षा औसत",
+  "home_preview_atrisk": "जोखिम चेतावनियां",
+  "home_preview_top": "सर्वश्रेष्ठ प्रदर्शन करने वाला"
 }

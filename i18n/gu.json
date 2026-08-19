@@ -1198,5 +1198,13 @@
   "smart_query_not_available_page": "આ પેજ પર Smart Query ઉપલબ્ધ નથી.",
   "val_upload_file_home_first": "પહેલા Home પર એક ફાઇલ અપલોડ કરો.",
   "val_upload_1_valid_file_home_first": "પહેલા Home પર ઓછામાં ઓછી 1 માન્ય ફાઇલ અપલોડ કરો.",
-  "val_run_analysis_first": "પહેલા વિશ્લેષણ ચલાવો."
+  "val_run_analysis_first": "પહેલા વિશ્લેષણ ચલાવો.",
+  "home_strip_privacy": "કોઈ ડેટા ક્યારેય અપલોડ થતો નથી",
+  "home_strip_languages": "13 ભાષાઓ",
+  "home_strip_autodetect": "વિષયો અને પરીક્ષણો આપમેળે શોધે છે",
+  "home_strip_scale": "એક વર્ગ અથવા ઘણા માટે કામ કરે છે",
+  "home_preview_label": "તમે શું જોશો — નમૂના પૂર્વાવલોકન",
+  "home_preview_avg": "વર્ગ સરેરાશ",
+  "home_preview_atrisk": "જોખમ ચેતવણીઓ",
+  "home_preview_top": "શ્રેષ્ઠ પ્રદર્શનકાર"
 }
