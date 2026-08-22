@@ -755,7 +755,7 @@ import { APP, goStep } from './state-nav.js';
       + '<div style="display:flex;gap:6px;margin:8px 0">'
       + '<input id="sqv2-rail-input" type="text" autocomplete="off" placeholder="'
       + esc(srT("smart_v2_input_placeholder"))
-      + '" style="flex:1;min-width:0;padding:7px 9px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:12.5px;font-family:inherit" onkeydown="if(event.key===\'Enter\'){smartQueryRailAsk()}"/>'
+      + '" style="flex:1;min-width:0;padding:7px 9px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:12.5px;font-family:inherit"/>'
       + '<button type="button" class="btn btn-primary btn-sm" data-action="smartQueryRailAsk">Ask</button>'
       + '</div>'
       + '<div id="sqv2-rail-chips" class="shell-chip-wrap"></div>'

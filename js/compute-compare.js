@@ -1,6 +1,7 @@
 import { esc, startAiLoaderCardCycle, stopAiLoaderCardCycle, toast } from './app-utils-init.js';
 import { deriveRosterStatus } from './compute-continuity.js';
 import { computeAnalysis, computeGenderAnalysis, parseStudents, runAnalysis, scrollToEl, sleep } from './compute-stats.js';
+import { parseStrictMaxMark } from './mark-parse.js';
 import { bcp47TagFor, srT } from './render-i18n.js';
 import { buildMgmtPDF, buildStudentPDF, buildTeacherPDF, fitText, generateAllPDFs, pdfT, stampFooterAllPages } from './export-pdf.js';
 import { lockStep, markClean, unlockStep } from './project-setup.js';
@@ -106,31 +107,72 @@ function peekSectionSetup(rawData){
   const subjects=[];let i=1;while(kv["Subject "+i]){subjects.push(kv["Subject "+i]);i++;}
   const rawRows=setupRows.map(row=>Object.values(row));
   const tests=[];let t=1;
+  const maxMarkErrors=[];
   // Mirrors autoInferSetup()'s Format A ("Max Marks - <Subject> (Test N)")
   // / Format B (single "Max Marks" cell shared by all subjects) handling —
   // duplicated here (read-only) rather than calling autoInferSetup() itself,
   // since that function mutates the shared APP.setup as a side effect and
-  // this is only ever meant to peek at a file, never apply it.
+  // this is only ever meant to peek at a file, never apply it. Max-mark
+  // parsing uses the same strict parser/fallback rule as autoInferSetup()
+  // (item 4): a genuinely blank field falls back to 100, but a *supplied*
+  // invalid value (0, negative, decimal, non-numeric) is never silently
+  // replaced with 100 — it's collected in maxMarkErrors instead.
   while(kv["Test "+t+" Name"]||kv["Test "+t]){
     const name=kv["Test "+t+" Name"]||kv["Test "+t]||"";
     if(!name){t++;continue;}
     const maxMarks={};
-    const hasFormatA=subjects.some(s=>kv["Max Marks - "+s+" (Test "+t+")"]||kv["Max Marks — "+s+" (Test "+t+")"]);
+    const readMax=(raw,label)=>{
+      const r=parseStrictMaxMark(raw);
+      if(r.status==="valid")return r.value;
+      if(r.status==="blank")return 100;
+      maxMarkErrors.push({label,raw,reason:r.reason});
+      return 100;
+    };
+    // Presence-check (not truthiness-check): an explicit max mark of 0
+    // must still reach readMax() and be flagged invalid, not fall through
+    // to the blank-field 100 fallback the way `kv[k]||kv[k2]` would treat
+    // a falsy-but-present 0. See EXCEL_DATA_MATH_AUDIT_PROMPT.md item 4.
+    const hasFormatA=subjects.some(s=>kv["Max Marks - "+s+" (Test "+t+")"]!==undefined||kv["Max Marks — "+s+" (Test "+t+")"]!==undefined);
     if(hasFormatA){
-      subjects.forEach(s=>{const v=kv["Max Marks - "+s+" (Test "+t+")"]||kv["Max Marks — "+s+" (Test "+t+")"]||null;maxMarks[s]=v?(parseInt(v)||100):100;});
+      subjects.forEach(s=>{
+        const vA=kv["Max Marks - "+s+" (Test "+t+")"],vB=kv["Max Marks — "+s+" (Test "+t+")"];
+        const v=vA!==undefined?vA:(vB!==undefined?vB:null);
+        maxMarks[s]=readMax(v,`Max Marks - ${s} (Test ${t}: ${name})`);
+      });
     } else {
       const testRow=rawRows.find(r=>String(r[0]||"").trim()==="Test "+t&&String(r[1]||"").trim()===name);
-      const globalMax=testRow&&testRow[2]==="Max Marks"&&testRow[3]?(parseInt(testRow[3])||100):100;
+      const globalRaw=testRow&&testRow[2]==="Max Marks"?testRow[3]:null;
+      const globalMax=readMax(globalRaw,`Max Marks (Test ${t}: ${name})`);
       subjects.forEach(s=>{maxMarks[s]=globalMax;});
     }
     tests.push({name,maxMarks});
     t++;
   }
   const instName=kv["Institution Name"]||"";
+  const instType=kv["Type"]||"";
   const className=kv["Class / Batch"]||kv["Class/Batch"]||kv["Class"]||"";
   const section=kv["Section"]||"";
+  // Issue 5 fix: peek also needs to carry the rest of the report-header
+  // metadata (academic year, teacher, pass threshold) — previously only
+  // subjects/tests/className/section were read here, so selecting a
+  // section in Compare mode left institution name/year/teacher/threshold
+  // pointing at whichever section (or blank state) came before it.
+  const year=kv["Academic Year"]||"";
+  const teacher=kv["Class Teacher"]||kv["Teacher Name"]||"";
+  const clampNum=(raw,min,max,fallback)=>{const n=parseInt(raw);return isNaN(n)?fallback:Math.min(max,Math.max(min,n));};
+  const passThreshold=kv["Pass Threshold %"]?clampNum(kv["Pass Threshold %"],0,100,35):35;
   const label=[className,section].filter(Boolean).join(" - ")||instName||"";
-  return {instName,className,section,label,subjects,tests};
+  // Duplicate subject/test names (case-insensitive, trimmed) — same
+  // blocking rule as validateSetupData()/validateData() (item 6), applied
+  // here too since compare-mode sections build their schema straight from
+  // this peek rather than going through autoInferSetup().
+  const findDupes=list=>{const seen=new Set(),dupes=new Set();(list||[]).forEach(v=>{const k=String(v).trim().toLowerCase();if(seen.has(k))dupes.add(v);seen.add(k);});return[...dupes];};
+  const duplicateErrors=[];
+  const dupeSubjects=findDupes(subjects);
+  const dupeTests=findDupes(tests.map(x=>x.name));
+  if(dupeSubjects.length)duplicateErrors.push(`Duplicate subject name(s): ${dupeSubjects.join(", ")}`);
+  if(dupeTests.length)duplicateErrors.push(`Duplicate test name(s): ${dupeTests.join(", ")}`);
+  return {instName,instType,className,section,year,teacher,passThreshold,label,subjects,tests,maxMarkErrors,duplicateErrors};
 }
 // Structural template check ONLY — "does this look like a Student Insight
 // file at all" (recognizable Subjects/Tests in its own SETUP tab, and at
@@ -145,6 +187,14 @@ function validateTemplateStructure(peek,rowCount){
   if(!peek.subjects||!peek.subjects.length)errors.push(srT("val_couldnt_detect_subjects_setup"));
   if(!peek.tests||!peek.tests.length)errors.push(srT("val_couldnt_detect_tests_setup"));
   if(!rowCount)errors.push(srT("val_no_student_rows_setup"));
+  // Invalid max marks (item 4) and duplicate subject/test names (item 6)
+  // are always blocking, same as the single-file import path — a compare
+  // section with either of these would corrupt its own per-student totals
+  // and the cross-section comparison built on top of them.
+  (peek.maxMarkErrors||[]).forEach(e=>{
+    errors.push(`Invalid maximum mark for "${e.label}": entered "${e.raw}" — ${e.reason}.`);
+  });
+  (peek.duplicateErrors||[]).forEach(m=>errors.push(m));
   return errors;
 }
 // Cheap content fingerprint for a section's marks data — used to catch a
@@ -172,7 +222,12 @@ function addCompareSection(fileName,rawData,peek){
   // prefix (applyTabPrefix()'s convention, baked into every generated
   // template's Test N Name) before comparing test names across files —
   // see schemaSignature() for why this matters.
-  const schema=errors.length?null:{subjects:peek.subjects.slice(),tests:peek.tests.map(t=>({name:t.name,date:"",maxMarks:Object.assign({},t.maxMarks)})),className:peek.className,section:peek.section};
+  // Issue 5 fix: carry the full report-header metadata (not just
+  // className/section) in the immutable per-section snapshot, so
+  // selectCompareSection()/exportSectionPDFs() can restore a section's
+  // OWN institution name/type/year/teacher/pass-threshold instead of
+  // leaving APP.setup pointing at whichever section was active before.
+  const schema=errors.length?null:{subjects:peek.subjects.slice(),tests:peek.tests.map(t=>({name:t.name,date:"",maxMarks:Object.assign({},t.maxMarks)})),className:peek.className,section:peek.section,instName:peek.instName,instType:peek.instType,year:peek.year,teacher:peek.teacher,passThreshold:peek.passThreshold};
   APP.sections.push({id,fileName,rawData,label:peek.label||fileName.replace(/\.[^.]+$/,""),
     valid:errors.length===0,errors,rowCount,schema,students:null,classStats:null,genderAnalysis:null,dataIssues:null,_fp:fp});
   invalidateStaleComparison();
@@ -200,7 +255,7 @@ function renderHomeFileList(){
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between">
             <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:220px">
               <span style="font-size:16px" aria-hidden="true">${sec.valid?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false' style='color:var(--c-success)'><path d='M22 11.1V12a10 10 0 1 1-5.9-9.1'/><polyline points='22 4 12 14.5 9 11.5'/></svg>":"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false' style='color:var(--c-danger)'><circle cx='12' cy='12' r='10'/><line x1='15' y1='9' x2='9' y2='15'/><line x1='9' y1='9' x2='15' y2='15'/></svg>"}</span>
-              <input type="text" value="${esc(sec.label)}" oninput="renameHomeCompareFile('${sec.id}',this.value)" aria-label="Section label for ${esc(sec.fileName)}" style="padding:5px 8px;font-size:13px;font-weight:700;border:1px solid var(--c-border);border-radius:var(--r-sm);min-width:160px" placeholder="Section label"/>
+              <input type="text" value="${esc(sec.label)}" data-input-action="renameHomeCompareFile" data-arg="${sec.id}" aria-label="Section label for ${esc(sec.fileName)}" style="padding:5px 8px;font-size:13px;font-weight:700;border:1px solid var(--c-border);border-radius:var(--r-sm);min-width:160px" placeholder="Section label"/>
               <span style="font-size:11.5px;color:var(--c-text3)">${esc(sec.fileName)} · ${sec.rowCount} row${sec.rowCount===1?"":"s"}</span>
             </div>
             <button class="btn btn-secondary btn-sm" data-action="removeHomeCompareFile" data-arg="${sec.id}">✕ Remove</button>
@@ -295,7 +350,7 @@ async function runCompareAnalysisCore(){
     $("#ai-loader-msg").text("Analysing "+sec.label+"…");
     $("#ai-loader-step").text("Section "+(i+1)+" of "+validSections.length);
     const pct=Math.round(((i+1)/validSections.length)*100);
-    $("#ai-prog").css("width",pct+"%");$("#ai-prog-label").text(pct+"%");
+    $("#ai-prog").css("transform","scaleX("+(pct/100)+")");$("#ai-prog-label").text(pct+"%");
     await sleep(280+Math.random()*220);
     // Each file is parsed against its OWN schema (not a shared one) — a
     // UPSC aspirant's file and a Class 7 file can both be analysed
@@ -477,6 +532,19 @@ function selectCompareSection(id){
   // last set APP.setup.subjects/tests to something else entirely.
   APP.setup.subjects=(sec.schema&&sec.schema.subjects)||APP.setup.subjects;
   APP.setup.tests=(sec.schema&&sec.schema.tests)||APP.setup.tests;
+  // Issue 5 fix: restore this section's OWN report-header metadata —
+  // previously only subjects/tests were restored here, so the dashboard/
+  // PDFs kept showing whichever institution name/year/teacher/threshold
+  // happened to be in APP.setup from a prior section or blank state.
+  if(sec.schema){
+    APP.setup.instName=sec.schema.instName||"";
+    APP.setup.instType=sec.schema.instType||"";
+    APP.setup.className=sec.schema.className||"";
+    APP.setup.section=sec.schema.section||"";
+    APP.setup.year=sec.schema.year||"";
+    APP.setup.teacher=sec.schema.teacher||"";
+    if(sec.schema.passThreshold!=null)APP.setup.passThreshold=sec.schema.passThreshold;
+  }
   APP.students=sec.students;APP.classStats=sec.classStats;APP.genderAnalysis=sec.genderAnalysis;
   APP.dataIssues=sec.dataIssues||[];APP.cohortClusters=sec.cohortClusters||null; // §5 fix — this section's own clusters, not whichever ran last
   APP._activeCompareSectionId=id;
@@ -530,7 +598,7 @@ function renderManagementGrid(mg){
       const row=c.secs.find(r=>r.sec===sk);
       if(!row)return `<td style="text-align:center;color:var(--c-text3)">—</td>`;
       return `<td style="text-align:center;cursor:pointer" data-action="selectCompareSection" data-arg="${row.id}" title="${esc(srT("title_click_to_open",{label:row.label}))}">
-        <div style="background:${cellColor(row.avg)};color:${cellText(row.avg)};border-radius:6px;padding:6px 4px;font-weight:700">${row.avg}%<div style="font-size:9px;font-weight:500;opacity:.8">${row.n} students</div></div>
+        <div style="background:${cellColor(row.avg)};color:${cellText(row.avg)};border-radius:6px;padding:6px 4px;font-weight:700">${row.avg}%<div style="font-size:11px;font-weight:500;opacity:.8">${row.n} students</div></div>
       </td>`;
     }).join("");
     return `<tr><td style="font-weight:700;white-space:nowrap">${esc(c.cls)}</td>${cells}<td style="text-align:center;font-weight:800;color:${cellText(c.avg)}">${c.avg}%</td></tr>`;
@@ -588,13 +656,25 @@ function renderWeakSubjectsCard(weakest){
 }
 function renderFlaggedSectionsCard(flagged){
   if(!flagged.length)return "";
-  return `<div class="card" style="margin-bottom:16px;border-left:3px solid var(--c-danger)">
+  return `<div class="card" style="margin-bottom:16px;background:var(--c-danger-bg)">
     <div class="card-title" style="margin-bottom:8px">🚩 Sections Needing Attention</div>
     ${flagged.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--c-border);cursor:pointer" data-action="selectCompareSection" data-arg="${r.id}">
       <span style="font-weight:600">${esc(r.label)}</span>
       <span style="font-size:12px;color:var(--c-text2)">${r.avg}% avg · ${r.atRisk} at-risk of ${r.n}</span>
     </div>`).join("")}
   </div>`;
+}
+// Issue 4 fix: shared helper for "does the CURRENT comparison/group
+// contain any section with data-quality issues" — used to gate both the
+// comparison PDF export and the UI path that leads to it. Deliberately
+// looks at every section actually represented in `rows` (the comparison
+// currently on screen), not just APP.dataIssues (which only ever reflects
+// whichever single section was analysed/opened last — see the §5-style
+// bug this mirrors).
+function sectionsWithDataIssues(rows){
+  return (rows||[])
+    .map(r=>APP.sections.find(s=>s.id===r.id))
+    .filter(sec=>sec&&Array.isArray(sec.dataIssues)&&sec.dataIssues.length);
 }
 function renderCompareOverview(){
   const rows=APP.sectionComparison||[];
@@ -615,7 +695,7 @@ function renderCompareOverview(){
   </div>`;
   const tableRows=rows.map(r=>`<tr style="cursor:pointer" data-action="selectCompareSection" data-arg="${r.id}" title="${esc(srT("title_click_to_open",{label:r.label}))}">
     <td style="font-weight:700">#${r.rank}</td>
-    <td style="font-weight:600">${esc(r.label)} <span style="color:var(--c-primary);font-size:10px">↗</span></td>
+    <td style="font-weight:600">${esc(r.label)} <span style="color:var(--c-primary);font-size:11px">↗</span></td>
     <td>${r.n}</td>
     <td style="font-weight:700;color:${r.avg>=60?"var(--c-success)":r.avg>=35?"var(--c-warn)":"var(--c-danger)"}">${r.avg}%</td>
     <td>${r.passRate}%</td>
@@ -648,6 +728,28 @@ function renderCompareOverview(){
 function populateExportSectionPicker(){
   const secs=APP.sections.filter(s=>s.valid&&s.students);
   $("#export-section-select").html(secs.map(s=>`<option value="${s.id}">${esc(s.label)}</option>`).join(""));
+  // Issue 4 fix: also (re-)gate the comparison-export button here — this
+  // runs every time the Export step is reached in Compare mode (both
+  // goStep('export') in state-nav.js and openBucket('export') in
+  // render-buckets.js call it), so the button's enabled/disabled state
+  // never goes stale after a section is added/removed/re-analysed.
+  const $btn=$('#compare-export-card [data-action="exportComparisonReportPDF"]');
+  const $note=$("#compare-export-issues-note");
+  const issues=sectionsWithDataIssues(APP.sectionComparison||[]);
+  if(issues.length){
+    $btn.prop("disabled",true).css({opacity:.5,cursor:"not-allowed"});
+    const labels=issues.map(s=>esc(s.label)).join(", ");
+    if($note.length){
+      $note.show().html(`⚠ Fix the data quality issue(s) in <b>${labels}</b> before exporting the comparison report — open the affected section's Dashboard to correct them.`);
+    } else {
+      $('<div id="compare-export-issues-note" style="font-size:12px;color:var(--c-danger);margin-top:8px"></div>')
+        .html(`⚠ Fix the data quality issue(s) in <b>${labels}</b> before exporting the comparison report — open the affected section's Dashboard to correct them.`)
+        .insertAfter($btn);
+    }
+  } else {
+    $btn.prop("disabled",false).css({opacity:1,cursor:"pointer"});
+    $note.hide().empty();
+  }
 }
 // Reuses the EXISTING generateAllPDFs()/buildStudentPDF()/buildTeacherPDF()/
 // buildMgmtPDF() untouched — temporarily points the same global state a
@@ -656,13 +758,33 @@ function populateExportSectionPicker(){
 async function exportSectionPDFs(sectionId){
   const sec=APP.sections.find(s=>s.id===sectionId);
   if(!sec||!sec.students){toast("Pick a section to export.","warn");return;}
-  const saved={students:APP.students,classStats:APP.classStats,genderAnalysis:APP.genderAnalysis,dataIssues:APP.dataIssues,className:APP.setup.className,section:APP.setup.section};
+  // Issue 5 fix: save/restore and apply the FULL header metadata set
+  // (institution name/type/year/teacher/pass threshold), not just
+  // className/section — previously exportSectionPDFs() used the
+  // section's own label as a className stand-in and left every other
+  // header field pointing at whatever APP.setup happened to hold,
+  // mislabeling the exported PDF's institution/year/teacher.
+  const saved={students:APP.students,classStats:APP.classStats,genderAnalysis:APP.genderAnalysis,dataIssues:APP.dataIssues,
+    instName:APP.setup.instName,instType:APP.setup.instType,className:APP.setup.className,section:APP.setup.section,
+    year:APP.setup.year,teacher:APP.setup.teacher,passThreshold:APP.setup.passThreshold};
   APP.students=sec.students;APP.classStats=sec.classStats;APP.genderAnalysis=sec.genderAnalysis;APP.dataIssues=sec.dataIssues||[];
-  APP.setup.className=sec.label;APP.setup.section="";
+  if(sec.schema){
+    APP.setup.instName=sec.schema.instName||"";
+    APP.setup.instType=sec.schema.instType||"";
+    APP.setup.className=sec.schema.className||sec.label;
+    APP.setup.section=sec.schema.section||"";
+    APP.setup.year=sec.schema.year||"";
+    APP.setup.teacher=sec.schema.teacher||"";
+    if(sec.schema.passThreshold!=null)APP.setup.passThreshold=sec.schema.passThreshold;
+  } else {
+    APP.setup.className=sec.label;APP.setup.section="";
+  }
   try{await generateAllPDFs();}
   finally{
     APP.students=saved.students;APP.classStats=saved.classStats;APP.genderAnalysis=saved.genderAnalysis;APP.dataIssues=saved.dataIssues;
+    APP.setup.instName=saved.instName;APP.setup.instType=saved.instType;
     APP.setup.className=saved.className;APP.setup.section=saved.section;
+    APP.setup.year=saved.year;APP.setup.teacher=saved.teacher;APP.setup.passThreshold=saved.passThreshold;
   }
 }
 async function exportAllSectionsPDFs(){
@@ -673,6 +795,32 @@ async function exportAllSectionsPDFs(){
 async function exportComparisonReportPDF(){
   const rows=APP.sectionComparison||[];
   if(!rows.length){toast(srT("val_run_comparison_first"),"warn");return;}
+  // Issue 4 fix: block export if ANY section represented in the current
+  // comparison has data-quality issues — previously this only checked
+  // APP.dataIssues, which just reflects whichever single section was
+  // analysed/opened last, so a dirty section elsewhere in the comparison
+  // could silently slip into the aggregate report.
+  const issues=sectionsWithDataIssues(rows);
+  if(issues.length){
+    const labels=issues.map(s=>s.label).join(", ");
+    toast("Fix the data quality issue(s) in "+labels+" before exporting the comparison report.","warn");
+    const firstIssueId=issues[0].id;
+    if(APP.sections.some(s=>s.id===firstIssueId)) selectCompareSection(firstIssueId);
+    return;
+  }
+  // Issue 5 fix — aggregate metadata policy: an aggregate comparison
+  // report isn't any ONE section, so it must never silently attribute
+  // itself to whichever section happens to be active in APP.setup at
+  // export time (that's the exact §5 bug). Deterministic rule: show the
+  // shared institution/year ONLY if every represented section agrees on
+  // both; otherwise fall back to a neutral "Multiple classes/sections"
+  // label rather than picking one section's identity for all of them.
+  const representedSections=rows.map(r=>APP.sections.find(s=>s.id===r.id)).filter(Boolean);
+  const schemaInstNames=[...new Set(representedSections.map(s=>(s.schema&&s.schema.instName)||""))].filter(Boolean);
+  const schemaYears=[...new Set(representedSections.map(s=>(s.schema&&s.schema.year)||""))].filter(Boolean);
+  const headerSubtitle=(schemaInstNames.length===1&&schemaYears.length===1)
+    ?[schemaInstNames[0],schemaYears[0]].filter(Boolean).join(" · ")
+    :(schemaInstNames.length===1?schemaInstNames[0]+" · Multiple classes/sections":"Multiple classes/sections");
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF("p","mm","a4");
   const W=210;
@@ -680,7 +828,7 @@ async function exportComparisonReportPDF(){
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(13);
   doc.text(pdfT("pdf_section_comparison_header","Student Insight  |  Section Comparison Report"),10,10);
   doc.setFontSize(8);doc.setFont("helvetica","normal");
-  doc.text([APP.setup.instName,APP.setup.year].filter(Boolean).join(" · "),10,17);
+  doc.text(headerSubtitle,10,17);
   doc.text("Generated: "+new Date().toLocaleDateString(bcp47TagFor(window.SR_LANG)),W-10,17,{align:"right"});
   doc.setTextColor(26,29,46);
   let y=32;
@@ -812,7 +960,27 @@ function generateStrengthsLetter(st){
   if(!topSubjs.length)return null;
   return `${name} shows genuine strength in ${topSubjs.join(" and ")}${a.overallAvg>=80?" — performing at an excellent level and ready for greater challenges":a.trend==="improving"?" — and the trajectory is very encouraging":""}.${a.resilient?" "+name+" has also shown great resilience, bouncing back after difficult periods.":""}`;
 }
-function computePercentiles(){const n=APP.students.length;if(!n)return;const sorted=[...APP.students].sort((a,b)=>a.analysis.overallAvg-b.analysis.overallAvg);sorted.forEach((st,i)=>{st.analysis.percentile=n>1?Math.round((i/(n-1))*100):100;});}
+// Midrank percentile policy: students sharing an overallAvg score share
+// the same percentile, computed from the midpoint of the 0-based rank
+// positions their tied group occupies in the ascending sort. This keeps
+// equal scores mapped to equal percentiles (unlike plain array-index
+// percentiles) while a single-score/single-student class still resolves
+// to 100. See EXCEL_DATA_MATH_AUDIT_PROMPT.md item 1.
+function computePercentiles(){
+  const n=APP.students.length;
+  if(!n)return;
+  const sorted=[...APP.students].sort((a,b)=>a.analysis.overallAvg-b.analysis.overallAvg);
+  let i=0;
+  while(i<n){
+    let j=i;
+    while(j+1<n && sorted[j+1].analysis.overallAvg===sorted[i].analysis.overallAvg)j++;
+    // i..j (inclusive, 0-based) are tied; use the midpoint rank position.
+    const mid=(i+j)/2;
+    const pct=n>1?Math.round((mid/(n-1))*100):100;
+    for(let k=i;k<=j;k++)sorted[k].analysis.percentile=pct;
+    i=j+1;
+  }
+}
 
 /* ════ CONTINUITY (2-PERIOD SCHEMA FOUNDATION — prompt-01-schema-foundation-2period.md) ════
    Pure functions only, per that prompt's scope — no UI wiring, no reads
@@ -840,7 +1008,7 @@ function computePercentiles(){const n=APP.students.length;if(!n)return;const sor
 
 
 // --- ES module exports (added for module-system conversion, HANDOVER #4) ---
-export { _compareSectionSeq, addCompareSection, applyCompareModeUI, computeCompareGroups, computeFlaggedSections, computeManagementGrid, computePercentiles, computeSectionComparisonFor, computeWeakSubjects, exportAllSectionsPDFs, exportComparisonReportPDF, exportSectionPDFs, fingerprintRawData, generateStrengthsLetter, invalidateStaleComparison, parseClassSection, peekSectionSetup, populateExportSectionPicker, processCompareFile, removeHomeCompareFile, renameHomeCompareFile, renderCompareOverview, renderFlaggedSectionsCard, renderHomeFileList, renderManagementGrid, renderWeakSubjectsCard, resolveMarksRows, runCompareAnalysisCore, safeFileName, schemaSignature, selectCompareGroup, selectCompareSection, validateTemplateStructure };
+export { _compareSectionSeq, addCompareSection, applyCompareModeUI, computeCompareGroups, computeFlaggedSections, computeManagementGrid, computePercentiles, computeSectionComparisonFor, computeWeakSubjects, exportAllSectionsPDFs, exportComparisonReportPDF, exportSectionPDFs, fingerprintRawData, generateStrengthsLetter, invalidateStaleComparison, parseClassSection, peekSectionSetup, populateExportSectionPicker, processCompareFile, removeHomeCompareFile, renameHomeCompareFile, renderCompareOverview, renderFlaggedSectionsCard, renderHomeFileList, renderManagementGrid, renderWeakSubjectsCard, resolveMarksRows, runCompareAnalysisCore, safeFileName, schemaSignature, sectionsWithDataIssues, selectCompareGroup, selectCompareSection, validateTemplateStructure };
 
 // Legacy-global compatibility shim: modules don't leak top-level
 // declarations onto window the way classic scripts did. The handful of
@@ -848,4 +1016,4 @@ export { _compareSectionSeq, addCompareSection, applyCompareModeUI, computeCompa
 // (out of scope for HANDOVER #3 — only onclick was converted) still need a
 // bare global to resolve, so every exported name is also mirrored onto
 // window here. Harmless duplication for anything already imported properly.
-if(typeof window!=='undefined'){window._compareSectionSeq=_compareSectionSeq;window.addCompareSection=addCompareSection;window.applyCompareModeUI=applyCompareModeUI;window.computeCompareGroups=computeCompareGroups;window.computeFlaggedSections=computeFlaggedSections;window.computeManagementGrid=computeManagementGrid;window.computePercentiles=computePercentiles;window.computeSectionComparisonFor=computeSectionComparisonFor;window.computeWeakSubjects=computeWeakSubjects;window.exportAllSectionsPDFs=exportAllSectionsPDFs;window.exportComparisonReportPDF=exportComparisonReportPDF;window.exportSectionPDFs=exportSectionPDFs;window.fingerprintRawData=fingerprintRawData;window.generateStrengthsLetter=generateStrengthsLetter;window.invalidateStaleComparison=invalidateStaleComparison;window.parseClassSection=parseClassSection;window.peekSectionSetup=peekSectionSetup;window.populateExportSectionPicker=populateExportSectionPicker;window.processCompareFile=processCompareFile;window.removeHomeCompareFile=removeHomeCompareFile;window.renameHomeCompareFile=renameHomeCompareFile;window.renderCompareOverview=renderCompareOverview;window.renderFlaggedSectionsCard=renderFlaggedSectionsCard;window.renderHomeFileList=renderHomeFileList;window.renderManagementGrid=renderManagementGrid;window.renderWeakSubjectsCard=renderWeakSubjectsCard;window.resolveMarksRows=resolveMarksRows;window.runCompareAnalysisCore=runCompareAnalysisCore;window.safeFileName=safeFileName;window.schemaSignature=schemaSignature;window.selectCompareGroup=selectCompareGroup;window.selectCompareSection=selectCompareSection;window.validateTemplateStructure=validateTemplateStructure;}
+if(typeof window!=='undefined'){window._compareSectionSeq=_compareSectionSeq;window.addCompareSection=addCompareSection;window.applyCompareModeUI=applyCompareModeUI;window.computeCompareGroups=computeCompareGroups;window.computeFlaggedSections=computeFlaggedSections;window.computeManagementGrid=computeManagementGrid;window.computePercentiles=computePercentiles;window.computeSectionComparisonFor=computeSectionComparisonFor;window.computeWeakSubjects=computeWeakSubjects;window.exportAllSectionsPDFs=exportAllSectionsPDFs;window.exportComparisonReportPDF=exportComparisonReportPDF;window.exportSectionPDFs=exportSectionPDFs;window.fingerprintRawData=fingerprintRawData;window.generateStrengthsLetter=generateStrengthsLetter;window.invalidateStaleComparison=invalidateStaleComparison;window.parseClassSection=parseClassSection;window.peekSectionSetup=peekSectionSetup;window.populateExportSectionPicker=populateExportSectionPicker;window.processCompareFile=processCompareFile;window.removeHomeCompareFile=removeHomeCompareFile;window.renameHomeCompareFile=renameHomeCompareFile;window.renderCompareOverview=renderCompareOverview;window.renderFlaggedSectionsCard=renderFlaggedSectionsCard;window.renderHomeFileList=renderHomeFileList;window.renderManagementGrid=renderManagementGrid;window.renderWeakSubjectsCard=renderWeakSubjectsCard;window.resolveMarksRows=resolveMarksRows;window.runCompareAnalysisCore=runCompareAnalysisCore;window.safeFileName=safeFileName;window.schemaSignature=schemaSignature;window.sectionsWithDataIssues=sectionsWithDataIssues;window.selectCompareGroup=selectCompareGroup;window.selectCompareSection=selectCompareSection;window.validateTemplateStructure=validateTemplateStructure;}

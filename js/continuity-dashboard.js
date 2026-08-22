@@ -276,7 +276,7 @@ function renderContinuityStudentDetail(student){
           </div>
         </div>
         <label class="continuity-projection-toggle">
-          <input type="checkbox" ${showProjection?"checked":""} onchange="toggleContinuityProjection(this.checked)"/>
+          <input type="checkbox" ${showProjection?"checked":""} data-change-action="toggleContinuityProjection"/>
           Show projection
         </label>
       </div>
@@ -342,8 +342,7 @@ function renderContinuityPanels(){
     const dir=continuityTrend(s);
     const activeCls=s.id===selectedId?" continuity-roster-row-active":"";
     return `<div class="continuity-roster-row${activeCls}" role="button" tabindex="0"
-        data-action="selectContinuityStudent" data-arg="${esc(s.id)}"
-        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectContinuityStudent('${esc(s.id)}');}">
+        data-action="selectContinuityStudent" data-arg="${esc(s.id)}">
       <div>
         <div class="continuity-roster-name">${esc(s.name)}</div>
         <div class="continuity-roster-sub">

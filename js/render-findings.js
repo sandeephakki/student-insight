@@ -139,7 +139,7 @@ function renderFilteredList(kind){
   const rows=items.map(x=>`<div class="bucket-picker-row" data-action="openFinding" data-arg="help" data-arg2="${esc(x.st.id)}">${esc(x.st.name)}</div>`).join("");
   const railHtml=`
     <div style="display:flex;gap:8px;align-items:center">
-      <input type="text" class="bucket-picker-input" placeholder="Search by name…" oninput="filterPickerList('bucket-help-results',this.value)" autocomplete="off" id="bucket-help-input" style="flex:1">
+      <input type="text" class="bucket-picker-input" placeholder="Search by name…" autocomplete="off" id="bucket-help-input" style="flex:1">
       <button type="button" data-action="clearPickerInput" data-arg="bucket-help-input" data-arg2="bucket-help-results" aria-label="Clear" title="Clear" style="flex-shrink:0;width:36px;height:36px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:var(--c-surface);color:var(--c-text2);cursor:pointer;font-size:16px;line-height:1">×</button>
     </div>
     <div id="bucket-help-results" class="bucket-picker-list">${rows||emptyStateHtml(srT("bucket_all_good"))}</div>`;
@@ -189,7 +189,7 @@ function renderClusterGroups(){
     const c=g.centroid;
     const names=g.students.map(st=>`<div class="subject-row"><span>${esc(st.name)}</span><span>${esc(String(st.analysis.overallAvg))}% · Rank #${esc(String(st.analysis.rank))}</span></div>`).join("");
     return `<details class="shell-details cluster-group-card" name="cluster-group-accordion"${i===0?" open":""}>
-      <summary class="shell-panel-title" style="cursor:pointer"><b>${esc(g.label)}</b> — ${g.students.length} student${g.students.length===1?"":"s"} · ${c.overallAvg}% avg · ${c.consistency} consistency</summary>
+      <summary class="shell-panel-title shell-panel-title-summary" style="cursor:pointer"><b>${esc(g.label)}</b> — ${g.students.length} student${g.students.length===1?"":"s"} · ${c.overallAvg}% avg · ${c.consistency} consistency</summary>
       <p style="font-size:12px;color:var(--c-text2);margin:8px 0">Group averages: ${c.overallAvg}% overall, trend ${c.slope>=0?"+":""}${c.slope} pts/test, ${c.absenceRate.toFixed(2)} absence days per test.</p>
       <div class="subject-row-list cluster-group-scroll">${names}</div>
     </details>`;
@@ -235,7 +235,7 @@ function renderStudentPicker(){
   const railHtml=`
     <div class="bucket-picker-hint">${esc(srT("student_picker_prompt"))}</div>
     <div style="display:flex;gap:8px;align-items:center">
-      <input type="text" class="bucket-picker-input" placeholder="Search by name…" oninput="filterPickerList('bucket-student-results',this.value)" autocomplete="off" id="bucket-student-input" style="flex:1">
+      <input type="text" class="bucket-picker-input" placeholder="Search by name…" autocomplete="off" id="bucket-student-input" style="flex:1">
       <button type="button" data-action="clearPickerInput" data-arg="bucket-student-input" data-arg2="bucket-student-results" aria-label="Clear" title="Clear" style="flex-shrink:0;width:36px;height:36px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:var(--c-surface);color:var(--c-text2);cursor:pointer;font-size:16px;line-height:1">×</button>
     </div>
     <div id="bucket-student-results" class="bucket-picker-list">${rows||emptyStateHtml(srT("bucket_all_good"))}</div>`;
@@ -257,7 +257,7 @@ function renderSubjectPicker(){
   const railHtml=`
     <div class="bucket-picker-hint">${esc(srT("subject_picker_prompt"))}</div>
     <div style="display:flex;gap:8px;align-items:center">
-      <input type="text" class="bucket-picker-input" placeholder="Search by subject…" oninput="filterPickerList('bucket-subject-results',this.value)" autocomplete="off" id="bucket-subject-input" style="flex:1">
+      <input type="text" class="bucket-picker-input" placeholder="Search by subject…" autocomplete="off" id="bucket-subject-input" style="flex:1">
       <button type="button" data-action="clearPickerInput" data-arg="bucket-subject-input" data-arg2="bucket-subject-results" aria-label="Clear" title="Clear" style="flex-shrink:0;width:36px;height:36px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:var(--c-surface);color:var(--c-text2);cursor:pointer;font-size:16px;line-height:1">×</button>
     </div>
     <div id="bucket-subject-results" class="bucket-picker-list">${rows||emptyStateHtml(srT("bucket_all_good"))}</div>`;

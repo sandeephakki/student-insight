@@ -4,7 +4,7 @@ import { getStudentContinuityContext } from './compute-continuity.js';
 import { sleep } from './compute-stats.js';
 import { renderContinuityBucket } from './continuity-dashboard.js';
 import { startNewSession } from './project-setup.js';
-import { populateIndividualSwitcher, renderBucketStudentTrendChart, renderDashboard, updateExportGate } from './render-core.js';
+import { populateIndividualSwitcher, renderBucketStudentTrendChart, renderBucketSubjectDistChart, renderDashboard, updateExportGate } from './render-core.js';
 import { renderClusterGroups, renderFilteredList, renderStudentPicker, renderSubjectPicker } from './render-findings.js';
 import { generateHomePlan, generateParentMessage, generateSchoolPlan, generateTrendFacts, generateWhatChangedSummary, i18nLabel, shareInsightAsImage, srT } from './render-i18n.js';
 import { SmartQueryV2 } from './smart-query-v2.js';
@@ -174,7 +174,7 @@ function buildDashboardControlsHtml(){
   const rows=buckets.map(b=>{
     const badgeHtml=(b.badge!==null)?`<span class="bucket-badge">${esc(srT("bucket_count_badge",{count:b.badge},b.badge))}</span>`:"";
     const activeClass=(!APP._forceLegacyView && b.id===active)?" bucket-row-active":"";
-    return `<div class="bucket-row${activeClass}" role="button" tabindex="0" data-action="openBucket" data-arg="${b.id}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openBucket('${b.id}');}">
+    return `<div class="bucket-row${activeClass}" role="button" tabindex="0" data-action="openBucket" data-arg="${b.id}">
       <span class="bucket-icon" aria-hidden="true">${DASHBOARD_CONTROL_ICONS[b.id]}</span>
       <span class="bucket-text"><span class="bucket-label">${esc(b.label)}</span><span class="bucket-desc">${esc(b.desc)}</span></span>
       ${badgeHtml}
@@ -201,14 +201,14 @@ function buildCompareSectionListHtml(){
   const groupRows=groups.map(g=>{
     const activeClass=(viewingGroup && APP._activeCompareGroupId===g.id)?" bucket-row-active":"";
     const label="Compare: "+g.sections.map(s=>s.label).join(", ");
-    return `<div class="bucket-row${activeClass}" role="button" tabindex="0" data-action="selectCompareGroup" data-arg="${esc(g.id)}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectCompareGroup('${esc(g.id)}');}">
+    return `<div class="bucket-row${activeClass}" role="button" tabindex="0" data-action="selectCompareGroup" data-arg="${esc(g.id)}">
       <span class="bucket-icon" aria-hidden="true">${COMPARE_ROW_ICONS.group}</span>
       <span class="bucket-text"><span class="bucket-label">${esc(label)}</span><span class="bucket-desc">${g.sections.length} sections, side-by-side ranking</span></span>
     </div>`;
   }).join("");
   const sectionRows=secs.map(s=>{
     const activeClass=(activeSectionId===s.id)?" bucket-row-active":"";
-    return `<div class="bucket-row${activeClass}" role="button" tabindex="0" data-action="selectCompareSection" data-arg="${esc(s.id)}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectCompareSection('${esc(s.id)}');}">
+    return `<div class="bucket-row${activeClass}" role="button" tabindex="0" data-action="selectCompareSection" data-arg="${esc(s.id)}">
       <span class="bucket-icon" aria-hidden="true">${COMPARE_ROW_ICONS.section}</span>
       <span class="bucket-text"><span class="bucket-label">${esc(s.label)}</span><span class="bucket-desc">${s.students.length} students — full dashboard</span></span>
     </div>`;
@@ -263,7 +263,13 @@ function individualBucketDefs(st){
   if(st && st.analysis && st.analysis.wellbeingFlag){
     buckets.push({id:"wellbeing",label:i18nLabel("individual_bucket_wellbeing_label","Wellbeing"),desc:i18nLabel("individual_bucket_wellbeing_desc","Stress and engagement signals")});
   }
-  buckets.push({id:"smart",label:i18nLabel("bucket_smart_label","Smart Search ✨"),desc:i18nLabel("bucket_smart_desc","Ask anything about this student")});
+  // UI Bugs report: Smart Search removed from Individual mode — with a
+  // single child already fully visible across Report/Subjects/Plan/
+  // Wellbeing, a free-text search across "students" has nothing extra to
+  // offer a parent (unlike Institution mode, where it searches across a
+  // whole class). Institution mode's Smart Search bucket is unaffected —
+  // that's built by a separate function (buildDashboardControlsHtml),
+  // not this one.
   return buckets;
 }
 // v4.21-individual-mode-shell-parity §1: left-rail builder for Individual
@@ -279,7 +285,7 @@ function buildIndividualDashboardControlsHtml(){
   const active=window._individualBucketCurrent||"report";
   const rows=buckets.map(b=>{
     const activeClass=(b.id===active)?" bucket-row-active":"";
-    return `<div class="bucket-row${activeClass}" role="button" tabindex="0" data-action="openIndividualBucket" data-arg="${b.id}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openIndividualBucket('${b.id}');}">
+    return `<div class="bucket-row${activeClass}" role="button" tabindex="0" data-action="openIndividualBucket" data-arg="${b.id}">
       <span class="bucket-icon" aria-hidden="true">${INDIVIDUAL_BUCKET_ICONS[b.id]}</span>
       <span class="bucket-text"><span class="bucket-label">${esc(b.label)}</span><span class="bucket-desc">${esc(b.desc)}</span></span>
     </div>`;
@@ -311,15 +317,28 @@ function openIndividualBucket(id){
   if(id==="wellbeing") return renderIndividualWellbeingAnswer(st);
   if(id==="smart") return renderDashboardSmartSearch();
 }
-function backToIndividualBuckets(){
-  // v4.21: retired along with #bucket-screen/#bucket-list-screen for
-  // Individual mode — the bucket list lives permanently in the left rail
-  // now, so there's no separate "back to list" screen to return to. Kept
-  // as a no-op (not deleted) in case anything still references it from
-  // old inline onclick markup that wasn't caught by this migration.
-}
+// backToIndividualBuckets() removed — it was a deliberate v4.21 no-op kept
+// only as a safety net for old inline onclick="" markup that might still
+// reference it. The Issue-1 CSP fix (all inline handlers replaced with
+// data-*-action delegated wiring) and a dom-smoke pass covering every
+// clickable element with 0 unrecognized actions confirmed nothing calls
+// it anymore, so it's gone rather than kept as permanent dead weight.
 function renderIndividualReportAnswer(st){
   const a=st.analysis||{};
+  const validTestCount=(a.testAvgs||[]).filter(v=>v!==null&&v!==undefined).length;
+  const hasTrend=validTestCount>=2;
+  // Single-test students: a line chart with one dot looks broken, not
+  // "not enough data yet" — swap it for the subject breakdown (genuinely
+  // informative from test 1 onward) and say plainly what unlocks with a
+  // second test, instead of leaving a sparse chart to imply something's
+  // wrong.
+  const chartTitle=hasTrend?"Progress Trend":"Subject Breakdown";
+  const chartHtml=hasTrend
+    ? `<canvas id="bucket-chart-student-trend"></canvas>`
+    : `<canvas id="bucket-chart-student-subjectdist"></canvas>`;
+  const nextTestPrompt=hasTrend?"":`<div class="card" style="padding:12px 16px;margin-top:14px;background:var(--c-primary-soft);border-color:var(--c-primary)">
+    <div style="font-size:12.5px;color:var(--c-text)"><strong>One test so far.</strong> Add the next test's marks (Setup → Update Existing Template) to unlock progress trend, next-test prediction, and consistency scoring — all set up already, just waiting on more data.</div>
+  </div>`;
   $("#bucket-answer-screen").html(`
     <div class="bucket-answer-title">Progress Report — ${esc(st.name)}</div>
     <div class="bucket-answer-sub">Overall: ${esc(String(a.overallAvg))}% · Grade ${esc(a.grade||"-")} · Trend: ${esc(a.trend||"-")}</div>
@@ -330,14 +349,20 @@ function renderIndividualReportAnswer(st){
     </div>
     <div class="chart-container" style="margin-top:14px">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="card-title">Progress Trend</div>
+        <div class="card-title">${esc(chartTitle)}</div>
         <button class="btn btn-secondary btn-sm" data-action="shareInsightAsImage" data-arg="${esc(st.id)}"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 15V3'/><path d='M7 8l5-5 5 5'/><path d='M4 21h16'/></svg> Share as Image</button>
       </div>
-      <canvas id="bucket-chart-student-trend"></canvas>
+      ${chartHtml}
     </div>
+    ${nextTestPrompt}
     <div class="card" id="target-score-card" style="padding:14px 16px;margin-top:14px"></div>
   `).addClass("screen-fade-in").show();
-  renderBucketStudentTrendChart("bucket-chart-student-trend",st);
+  if(hasTrend){
+    renderBucketStudentTrendChart("bucket-chart-student-trend",st);
+  } else {
+    const rows=Object.entries(a.subjectAvgs||{}).map(([subj,val])=>({name:subj,avg:val})).sort((x,y)=>x.avg-y.avg);
+    renderBucketSubjectDistChart("bucket-chart-student-subjectdist",rows);
+  }
   renderTargetScoreCard(st.id);
 }
 // TASK (Project Bible v2 §5, "target-score tracker"): "Let a parent type
@@ -356,7 +381,7 @@ function renderTargetScoreCard(studentId){
   const html=`<div class="card-title" style="margin-bottom:8px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><circle cx='12' cy='12' r='10'/><circle cx='12' cy='12' r='6'/><circle cx='12' cy='12' r='2'/></svg> Target for Next Test</div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <label style="font-size:12.5px;color:var(--c-text2)">Target %</label>
-      <input type="number" id="target-score-input" min="0" max="100" step="1" value="${savedTarget!=null?savedTarget:""}" placeholder="e.g. 85" style="width:80px;text-align:center;padding:6px 8px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:13px" oninput="setTargetScore('${esc(studentId)}',this.value)"/>
+      <input type="number" id="target-score-input" min="0" max="100" step="1" value="${savedTarget!=null?savedTarget:""}" placeholder="e.g. 85" style="width:80px;text-align:center;padding:6px 8px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:13px" data-input-action="setTargetScore" data-arg="${esc(studentId)}"/>
     </div>
     <div id="target-score-gap" style="margin-top:10px"></div>
     <div style="font-size:11px;color:var(--c-text3);margin-top:8px">This target is just for you to plan around — it isn't saved anywhere and resets if you reload or re-analyse.</div>`;
@@ -390,14 +415,22 @@ function renderTargetScoreGap(studentId){
 function renderIndividualSubjectsAnswer(st){
   const avgs=(st.analysis&&st.analysis.subjectAvgs)||{};
   const rows=Object.entries(avgs).sort((a,b)=>a[1]-b[1]).map(([subj,val])=>`<div class="subject-row"><span>${esc(subj)}</span><span>${esc(String(val))}%</span></div>`).join("");
+  const validTestCount=((st.analysis&&st.analysis.testAvgs)||[]).filter(v=>v!==null&&v!==undefined).length;
+  const hasTrend=validTestCount>=2;
+  const chartTitle=hasTrend?"Progress Trend":"Subject Breakdown";
   $("#bucket-answer-screen").html(`
     <div class="bucket-answer-title">Subjects & Marks — ${esc(st.name)}</div>
     <div class="bucket-answer-body">
       <div class="subject-row-list">${rows||"<p>No subject data available yet.</p>"}</div>
     </div>
-    <div class="chart-container" style="margin-top:14px"><div class="card-title">Progress Trend</div><canvas id="bucket-chart-student-trend2"></canvas></div>
+    <div class="chart-container" style="margin-top:14px"><div class="card-title">${esc(chartTitle)}</div><canvas id="bucket-chart-student-trend2"></canvas></div>
   `).addClass("screen-fade-in").show();
-  renderBucketStudentTrendChart("bucket-chart-student-trend2",st);
+  if(hasTrend){
+    renderBucketStudentTrendChart("bucket-chart-student-trend2",st);
+  } else {
+    const distRows=Object.entries(avgs).map(([subj,val])=>({name:subj,avg:val})).sort((x,y)=>x.avg-y.avg);
+    renderBucketSubjectDistChart("bucket-chart-student-trend2",distRows);
+  }
 }
 function renderIndividualPlanAnswer(st){
   $("#bucket-answer-screen").html(`
@@ -680,13 +713,27 @@ function emptyStateHtml(text){
   return `<div class="bucket-empty">${esc(text)}</div>`;
 }
 
+// BUG FIX (report: selecting "Section Comparison Report" vs "Per-Section
+// Reports" in compare mode's left rail had no effect on which of
+// #compare-export-card/#compare-per-section-export-card showed, or on the
+// right-rail "properties" panel — both rows called openBucket("export")
+// with the exact same argument, so there was no way for openBucket() to
+// tell them apart. Each row now gets its own id ("export-comparison" /
+// "export-persection") and the same active-row highlighting
+// buildDashboardControlsHtml() already does elsewhere (keyed off
+// APP._currentBucketId) — see openBucket() for the id-specific
+// card/right-rail handling this enables.
 function buildCompareExportControlsHtml(){
+  const active=APP._currentBucketId;
   const rows=[
-    {label:srT("bucket_compare_report_label"),desc:srT("bucket_compare_report_desc")},
-    {label:srT("bucket_persection_label"),desc:srT("bucket_persection_desc")}
-  ].map(b=>`<div class="bucket-row" role="button" tabindex="0" data-action="openBucket" data-arg="export" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openBucket('export');}">
+    {id:"export-comparison",label:srT("bucket_compare_report_label"),desc:srT("bucket_compare_report_desc")},
+    {id:"export-persection",label:srT("bucket_persection_label"),desc:srT("bucket_persection_desc")}
+  ].map(b=>{
+    const activeClass=(!APP._forceLegacyView && b.id===active)?" bucket-row-active":"";
+    return `<div class="bucket-row${activeClass}" role="button" tabindex="0" data-action="openBucket" data-arg="${b.id}">
     <span class="bucket-text"><span class="bucket-label">${esc(b.label)}</span><span class="bucket-desc">${esc(b.desc)}</span></span>
-  </div>`).join("");
+  </div>`;
+  }).join("");
   return `<div class="bucket-list">${rows}</div>`;
 }
 
@@ -735,13 +782,41 @@ function openBucket(id){
   // instead of replacing it). Center shows only #panel-export's "What
   // Gets Generated" cards; the student/report-type picker + Generate
   // button live in the right rail via renderExportPropertiesRail().
-  if(id==="export"){
+  if(id==="export"||id==="export-comparison"||id==="export-persection"){
     $("#legacy-dashboard-body,#bucket-answer-screen").hide();
     $("#panel-export").show();
     renderDashboardSampleBanner();
     $("#exp-count").text((APP.students||[]).length);
     if(APP.compareMode && typeof populateExportSectionPicker==="function") populateExportSectionPicker();
-    if(typeof renderExportPropertiesRail==="function") renderExportPropertiesRail();
+    // BUG FIX (report: both compare-mode export cards showed together, and
+    // the right-rail "properties" panel always showed the student list,
+    // regardless of which left-rail row was selected): applyCompareModeUI()
+    // (js/compute-compare.js) still toggles both
+    // #compare-export-card/#compare-per-section-export-card together purely
+    // off APP.compareMode — that's still correct for entering/leaving
+    // compare mode as a whole. Within compare mode, though, the two rows
+    // are mutually exclusive views, so which one is currently selected
+    // (this id) decides which single card shows and what the right rail
+    // renders: "Section Comparison Report" is one class-wide PDF with
+    // nothing to pick, so its right rail is empty; "Per-Section Reports"
+    // reuses the normal student/teacher/management picker (same one
+    // Institution mode's own Export Reports control uses), since it's
+    // exporting the same kinds of PDFs, just scoped to one section at a
+    // time via the section dropdown already inside its own card.
+    if(id==="export-comparison"){
+      $("#compare-export-card").show();
+      $("#compare-per-section-export-card").hide();
+      if(typeof setRightRail==="function") setRightRail("");
+    } else if(id==="export-persection"){
+      $("#compare-export-card").hide();
+      $("#compare-per-section-export-card").show();
+      if(typeof renderExportPropertiesRail==="function") renderExportPropertiesRail();
+    } else if(typeof renderExportPropertiesRail==="function"){
+      // Plain "export" — Institution mode's single Export Reports control,
+      // or Compare mode's per-section-active generic export row (see
+      // buildDashboardControlsHtml() call site in vs-shell.js). Unchanged.
+      renderExportPropertiesRail();
+    }
     return;
   }
   $("#legacy-dashboard-body,#panel-export").hide();
@@ -773,9 +848,9 @@ function renderComparePicker(){
     <div class="bucket-answer-title">Compare Two Students</div>
     <div class="bucket-picker-hint">Pick any two students from this class — comparison only ever uses this same roster, so it's always apples-to-apples.</div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px">
-      <select id="compare-pick-a" style="flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:13px" onchange="renderCompareResult()"><option value="">Select student A…</option>${opts}</select>
+      <select id="compare-pick-a" style="flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:13px" ><option value="">Select student A…</option>${opts}</select>
       <span style="color:var(--c-text3);font-weight:700">vs</span>
-      <select id="compare-pick-b" style="flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:13px" onchange="renderCompareResult()"><option value="">Select student B…</option>${opts}</select>
+      <select id="compare-pick-b" style="flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:13px" ><option value="">Select student B…</option>${opts}</select>
     </div>
     <div id="compare-result" style="margin-top:16px"></div>
   `);
@@ -831,7 +906,7 @@ function backToBucketList(){
 
 
 // --- ES module exports (added for module-system conversion, HANDOVER #4) ---
-export { BUCKET_HELP_FLAG_TYPES, BUCKET_TOP_FLAG_TYPES, COMPARE_ROW_ICONS, DASHBOARD_CONTROL_ICONS, INDIVIDUAL_BUCKET_ICONS, _smartChatLoadAttempted, _smartChatTranscript, _targetScoreInputs, backToBucketList, backToBuckets, backToIndividualBuckets, bucketIsHelp, bucketIsTop, buildCompareExportControlsHtml, buildCompareSectionListHtml, buildDashboardControlsHtml, buildIndividualDashboardControlsHtml, buildSmartQueryCannedQuestionsHtml, currentIndividualStudent, emptyStateHtml, ensureSmartQueryLoaded, individualBucketDefs, isSmartBucketActive, openBucket, openIndividualBucket, renderBuckets, renderComparePicker, renderCompareResult, renderDashboardSampleBanner, renderDashboardSmartSearch, renderIndividualPlanAnswer, renderIndividualReportAnswer, renderIndividualSubjectsAnswer, renderIndividualWellbeingAnswer, renderTargetScoreCard, renderTargetScoreGap, setTargetScore, smartChatAppendThinkingBubble, smartChatAppendUserBubble, smartChatAskCanned, smartChatClearEmptyHint, smartChatFitHeight, smartChatReplaceWithAnswerBubble, smartChatReplaceWithSuggestionsBubble, smartChatRunQuery, smartChatScrollToBottom, smartChatSubmit };
+export { BUCKET_HELP_FLAG_TYPES, BUCKET_TOP_FLAG_TYPES, COMPARE_ROW_ICONS, DASHBOARD_CONTROL_ICONS, INDIVIDUAL_BUCKET_ICONS, _smartChatLoadAttempted, _smartChatTranscript, _targetScoreInputs, backToBucketList, backToBuckets, bucketIsHelp, bucketIsTop, buildCompareExportControlsHtml, buildCompareSectionListHtml, buildDashboardControlsHtml, buildIndividualDashboardControlsHtml, buildSmartQueryCannedQuestionsHtml, currentIndividualStudent, emptyStateHtml, ensureSmartQueryLoaded, individualBucketDefs, isSmartBucketActive, openBucket, openIndividualBucket, renderBuckets, renderComparePicker, renderCompareResult, renderDashboardSampleBanner, renderDashboardSmartSearch, renderIndividualPlanAnswer, renderIndividualReportAnswer, renderIndividualSubjectsAnswer, renderIndividualWellbeingAnswer, renderTargetScoreCard, renderTargetScoreGap, setTargetScore, smartChatAppendThinkingBubble, smartChatAppendUserBubble, smartChatAskCanned, smartChatClearEmptyHint, smartChatFitHeight, smartChatReplaceWithAnswerBubble, smartChatReplaceWithSuggestionsBubble, smartChatRunQuery, smartChatScrollToBottom, smartChatSubmit };
 
 // Legacy-global compatibility shim: modules don't leak top-level
 // declarations onto window the way classic scripts did. The handful of
@@ -839,4 +914,4 @@ export { BUCKET_HELP_FLAG_TYPES, BUCKET_TOP_FLAG_TYPES, COMPARE_ROW_ICONS, DASHB
 // (out of scope for HANDOVER #3 — only onclick was converted) still need a
 // bare global to resolve, so every exported name is also mirrored onto
 // window here. Harmless duplication for anything already imported properly.
-if(typeof window!=='undefined'){window.BUCKET_HELP_FLAG_TYPES=BUCKET_HELP_FLAG_TYPES;window.BUCKET_TOP_FLAG_TYPES=BUCKET_TOP_FLAG_TYPES;window.COMPARE_ROW_ICONS=COMPARE_ROW_ICONS;window.DASHBOARD_CONTROL_ICONS=DASHBOARD_CONTROL_ICONS;window.INDIVIDUAL_BUCKET_ICONS=INDIVIDUAL_BUCKET_ICONS;window._smartChatLoadAttempted=_smartChatLoadAttempted;window._smartChatTranscript=_smartChatTranscript;window._targetScoreInputs=_targetScoreInputs;window.backToBucketList=backToBucketList;window.backToBuckets=backToBuckets;window.backToIndividualBuckets=backToIndividualBuckets;window.bucketIsHelp=bucketIsHelp;window.bucketIsTop=bucketIsTop;window.buildCompareExportControlsHtml=buildCompareExportControlsHtml;window.buildCompareSectionListHtml=buildCompareSectionListHtml;window.buildDashboardControlsHtml=buildDashboardControlsHtml;window.buildIndividualDashboardControlsHtml=buildIndividualDashboardControlsHtml;window.buildSmartQueryCannedQuestionsHtml=buildSmartQueryCannedQuestionsHtml;window.currentIndividualStudent=currentIndividualStudent;window.emptyStateHtml=emptyStateHtml;window.ensureSmartQueryLoaded=ensureSmartQueryLoaded;window.individualBucketDefs=individualBucketDefs;window.isSmartBucketActive=isSmartBucketActive;window.openBucket=openBucket;window.openIndividualBucket=openIndividualBucket;window.renderBuckets=renderBuckets;window.renderComparePicker=renderComparePicker;window.renderCompareResult=renderCompareResult;window.renderDashboardSampleBanner=renderDashboardSampleBanner;window.renderDashboardSmartSearch=renderDashboardSmartSearch;window.renderIndividualPlanAnswer=renderIndividualPlanAnswer;window.renderIndividualReportAnswer=renderIndividualReportAnswer;window.renderIndividualSubjectsAnswer=renderIndividualSubjectsAnswer;window.renderIndividualWellbeingAnswer=renderIndividualWellbeingAnswer;window.renderTargetScoreCard=renderTargetScoreCard;window.renderTargetScoreGap=renderTargetScoreGap;window.setTargetScore=setTargetScore;window.smartChatAppendThinkingBubble=smartChatAppendThinkingBubble;window.smartChatAppendUserBubble=smartChatAppendUserBubble;window.smartChatAskCanned=smartChatAskCanned;window.smartChatClearEmptyHint=smartChatClearEmptyHint;window.smartChatFitHeight=smartChatFitHeight;window.smartChatReplaceWithAnswerBubble=smartChatReplaceWithAnswerBubble;window.smartChatReplaceWithSuggestionsBubble=smartChatReplaceWithSuggestionsBubble;window.smartChatRunQuery=smartChatRunQuery;window.smartChatScrollToBottom=smartChatScrollToBottom;window.smartChatSubmit=smartChatSubmit;}
+if(typeof window!=='undefined'){window.BUCKET_HELP_FLAG_TYPES=BUCKET_HELP_FLAG_TYPES;window.BUCKET_TOP_FLAG_TYPES=BUCKET_TOP_FLAG_TYPES;window.COMPARE_ROW_ICONS=COMPARE_ROW_ICONS;window.DASHBOARD_CONTROL_ICONS=DASHBOARD_CONTROL_ICONS;window.INDIVIDUAL_BUCKET_ICONS=INDIVIDUAL_BUCKET_ICONS;window._smartChatLoadAttempted=_smartChatLoadAttempted;window._smartChatTranscript=_smartChatTranscript;window._targetScoreInputs=_targetScoreInputs;window.backToBucketList=backToBucketList;window.backToBuckets=backToBuckets;window.bucketIsHelp=bucketIsHelp;window.bucketIsTop=bucketIsTop;window.buildCompareExportControlsHtml=buildCompareExportControlsHtml;window.buildCompareSectionListHtml=buildCompareSectionListHtml;window.buildDashboardControlsHtml=buildDashboardControlsHtml;window.buildIndividualDashboardControlsHtml=buildIndividualDashboardControlsHtml;window.buildSmartQueryCannedQuestionsHtml=buildSmartQueryCannedQuestionsHtml;window.currentIndividualStudent=currentIndividualStudent;window.emptyStateHtml=emptyStateHtml;window.ensureSmartQueryLoaded=ensureSmartQueryLoaded;window.individualBucketDefs=individualBucketDefs;window.isSmartBucketActive=isSmartBucketActive;window.openBucket=openBucket;window.openIndividualBucket=openIndividualBucket;window.renderBuckets=renderBuckets;window.renderComparePicker=renderComparePicker;window.renderCompareResult=renderCompareResult;window.renderDashboardSampleBanner=renderDashboardSampleBanner;window.renderDashboardSmartSearch=renderDashboardSmartSearch;window.renderIndividualPlanAnswer=renderIndividualPlanAnswer;window.renderIndividualReportAnswer=renderIndividualReportAnswer;window.renderIndividualSubjectsAnswer=renderIndividualSubjectsAnswer;window.renderIndividualWellbeingAnswer=renderIndividualWellbeingAnswer;window.renderTargetScoreCard=renderTargetScoreCard;window.renderTargetScoreGap=renderTargetScoreGap;window.setTargetScore=setTargetScore;window.smartChatAppendThinkingBubble=smartChatAppendThinkingBubble;window.smartChatAppendUserBubble=smartChatAppendUserBubble;window.smartChatAskCanned=smartChatAskCanned;window.smartChatClearEmptyHint=smartChatClearEmptyHint;window.smartChatFitHeight=smartChatFitHeight;window.smartChatReplaceWithAnswerBubble=smartChatReplaceWithAnswerBubble;window.smartChatReplaceWithSuggestionsBubble=smartChatReplaceWithSuggestionsBubble;window.smartChatRunQuery=smartChatRunQuery;window.smartChatScrollToBottom=smartChatScrollToBottom;window.smartChatSubmit=smartChatSubmit;}

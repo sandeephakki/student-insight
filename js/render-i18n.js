@@ -289,7 +289,7 @@ function renderDataIssueBanner(){
 // this block and i18n/en.json in sync on every string change — regenerate
 // with: python3 scripts/sync-sr-strings-en.py (see that file).
 const SR_STRINGS_EN={
-  about_bio_desc:"Educator and builder based in India, working on free, privacy-first tools that give teachers, institutions, and parents back control of their own data — Student Insight is one of them, built as a social cause rather than a product.",
+  about_bio_desc:"Educator and builder based in India, working on privacy-first tools that give teachers, institutions, and parents back control of their own data — Student Insight is one of them, built as a social cause rather than a product.",
   about_bio_email_btn:"sandeep@hakki.in",
   about_bio_kicker:"Who built this",
   about_bio_name:"Sandeep S Hakki",
@@ -504,8 +504,9 @@ const SR_STRINGS_EN={
   faq_tag_statistics:"Statistics",
   faq_tag_technical:"Technical",
   finding_top_rank:"{{student}} is ranked #{{rank}} in the class.",
+  home_hero_descriptor:"Turn your students' marks into actionable insight",
   home_hero_sub:"Upload an Excel sheet. Get learning gaps, at-risk flags, and ready-to-share reports — instantly, privately, offline-capable.",
-  home_hero_title:"Turn your students' marks into actionable insight",
+  home_hero_title:"Every test cycle, the same rankings, the same remarks — starting from zero again.",
   home_upload_sub:"Drop your class's filled Excel file below. Managing more than one section or batch? Drop 2 or more files at once — matching ones are compared automatically, and any that don't match still get their own individual analysis.",
   home_upload_title:"Upload Your Filled Sheet",
   individual_bucket_plan_desc:"What to focus on at home this week",
@@ -549,7 +550,7 @@ const SR_STRINGS_EN={
   setup_inst_location_placeholder:"City, State",
   setup_inst_name_error:"Institution name is required",
   setup_inst_name_label:"Institution Name",
-  setup_inst_name_placeholder:"e.g. Springfield International School",
+  setup_inst_name_placeholder:"e.g. Hakki Public School",
   setup_inst_title:"Institution",
   setup_inst_type_label:"Type",
   setup_inst_type_select:"Select...",
@@ -629,14 +630,6 @@ const SR_STRINGS_EN={
   home_btn_run_analysis:"Run Analysis",
   home_btn_try_sample:"Try Sample Data — No Download Needed",
   home_btn_build_template:"Build Your Own Template",
-  home_strip_privacy:"No data ever uploaded",
-  home_strip_languages:"13 languages",
-  home_strip_autodetect:"Auto-detects subjects & tests",
-  home_strip_scale:"Works for one class or many",
-  home_preview_label:"What you'll see — sample preview",
-  home_preview_avg:"class average",
-  home_preview_atrisk:"at-risk flags",
-  home_preview_top:"top performer",
   setup_whofor_opt_preprimary:"Pre-primary / Playschool",
   setup_whofor_opt_primary:"Primary School",
   setup_whofor_opt_highschool:"High School",
@@ -704,7 +697,7 @@ const SR_STRINGS_EN={
   export_generating_pdfs:"Generating PDFs…",
   footer_license_mit:"MIT",
   footer_powered_by:"Powered by",
-  footer_tagline:"— Free & Open Source · Contact:",
+  footer_tagline:"— Open Source · Contact:",
   doc_title:"Student Insight — Privacy-first Student Analytics",
   shell_aria_country_lang:"Country and language",
   shell_title_country:"Country",
@@ -948,7 +941,7 @@ const SR_STRINGS_EN={
   pdf_downloaded_individually:"{{count}} PDF(s) downloaded individually.",
   pdf_export_failed:"Export failed: {{msg}}",
   pdf_generated_label:"Generated: {{date}}",
-  pdf_footer_tagline:" — Free & Open Source  |  Privacy-First  |  Built by Sandeep Hakki",
+  pdf_footer_tagline:" — Open Source  |  Privacy-First  |  Built by Sandeep Hakki",
   pdf_page_of:"Page {{p}} of {{total}}",
   pdf_progress_report:"Progress Report",
   pdf_id_label:"ID: {{id}}",
@@ -1082,7 +1075,7 @@ const SR_STRINGS_EN={
   readme_students_tab:"STUDENTS — your class roster. Student ID is required; Full Name is optional (the ID is shown instead if left blank); Gender is required (M or F).",
   readme_test_tabs:"One tab per test — each test/exam gets its own tab, named after the test. Fill marks, absences, chapter (optional), and remarks there.",
   readme_add_test:"Adding a new test later: go to Setup -> Update Existing Template -> upload this file -> add the new test -> re-download.",
-  readme_add_test_note:"A new tab is added for the new test; every existing tab and its marks are kept exactly as they are.",
+  readme_add_test_note:"A new tab is added for the new test; every existing tab and its marks are kept exactly as they are. Student ID is now pre-filled automatically in the new tab, pulled live from the STUDENTS tab — don't type over column A.",
   val_fill_student_name_first:"Fill Student/Aspirant Name first.",
   val_fill_institution_name_first:"Fill Institution Name first.",
   val_add_one_subject:"Add at least one subject.",
@@ -1098,6 +1091,7 @@ const SR_STRINGS_EN={
   toast_merge_cancelled:"Merge cancelled — back to a fresh template.",
   val_no_new_test_found:"No new test found — every test in your Setup form already has a tab in the loaded sheet. Add the new test's name first (✚ Add Test).",
   val_subjects_list_changed:"Your Subjects list is different from the loaded file's. Existing test tabs are untouched either way, but double-check this was intentional.",
+  val_subjects_added_to_existing:"New subject(s) added — {{subjects}}. A blank column for each has been added to every existing test tab too, so you can fill in marks for them on past tests, not just new ones.",
   val_missing_orig_tests:"Test tab(s) from the loaded file aren't in your current Setup form: {{names}}. That tab and its marks are still kept exactly as-is in the new file — this just means it wasn't recognised as matching a test in your Setup form. If you meant to keep the same test, re-add it with the exact original name instead of a new one.",
   val_dupe_ids_students_tab:"Duplicate Student ID(s) already existed on the STUDENTS tab: {{ids}}.",
   merge_fork_title:"Adding another test, or a new class/semester?",
@@ -1122,6 +1116,8 @@ const SR_STRINGS_EN={
   merge_no_prior_test_tabs:"(no prior test tabs)",
   merge_added_new:"Added new:",
   merge_will_save_as:"Will save as:",
+  merge_will_save_as_with_backup:"Two files will download: a backup of the file as it was before this update, then the updated file itself (same name as your original, so it's a clean drop-in replacement):",
+  merge_will_save_as_zip_with_backup:"Will save one ZIP containing your backup and the updated file:",
   btn_cancel:"Cancel",
   btn_confirm_download:"Confirm & Download",
   toast_updated_file_downloaded:"Updated file downloaded: {{fname}} — {{count}} student(s) kept as-is, added {{newCount}} new test tab(s).",
@@ -1139,6 +1135,10 @@ const SR_STRINGS_EN={
   val_setup_dupe_tests:"Duplicate test name(s) in SETUP tab: {{names}} — their data will overwrite each other",
   val_setup_max_marks_not_set:"Test \"{{test}}\": Max Marks not set for {{subjects}} — defaulting to 100",
   toast_template_downloaded:"Template downloaded: {{fname}}",
+  post_download_title:"Download complete",
+  post_download_desc:"Would you like to go to Home now (this clears the form), or stay here in case you need to revisit and correct anything before generating the file again?",
+  btn_go_home:"Go to Home",
+  btn_stay_here:"Stay Here",
   merge_banner_loaded:"Loaded <b>{{fileName}}</b> — <b>{{count}}</b> student(s) on the roster, existing test tab(s): <b>{{tests}}</b>. Now click <b>✚ Add Test</b> below for the new test, then use",
   merge_update_download:"Update & Download",
   merge_banner_tail:"above. Every existing tab is kept exactly as-is — you'll get a summary to review before anything downloads.",
@@ -1436,7 +1436,7 @@ const SR_STRINGS_EN={
   setup_student_name_label:"Student / Aspirant Name",
   setup_institution_name_label:"Institution Name",
   setup_eg_student_name:"e.g. Ananya Krishnan",
-  setup_eg_institution_name:"e.g. Springfield International School",
+  setup_eg_institution_name:"e.g. Hakki Public School",
   setup_multi_child_hint:"Tracking more than one child? Download a separate workbook for each — Subjects and Max Marks are set once per file, so one child per workbook keeps different grades/subjects/marks-out-of clean.",
   setup_goal:"Goal",
   setup_class_batch:"Class / Batch",
@@ -1499,6 +1499,14 @@ const SR_STRINGS_EN={
   val_upload_file_home_first:"Upload a file on Home first.",
   val_upload_1_valid_file_home_first:"Upload at least 1 valid file on Home first.",
   val_run_analysis_first:"Run Analysis first.",
+  home_strip_privacy:"No data ever uploaded",
+  home_strip_languages:"13 languages",
+  home_strip_autodetect:"Auto-detects subjects & tests",
+  home_strip_scale:"Works for one class or many",
+  home_preview_label:"What you'll see — sample preview",
+  home_preview_avg:"class average",
+  home_preview_atrisk:"at-risk flags",
+  home_preview_top:"top performer",
 };
 // v3.9 — Phase 3 i18n. SR_STRINGS_EN above stays inline in this file as
 // the EMERGENCY FALLBACK (per explicit direction: "English sits in html
@@ -1613,7 +1621,7 @@ function showAiTranslationNotice(langCode){
     </h3>
     <div style="font-size:13px;color:var(--c-text2);line-height:1.5;margin-bottom:12px">${enText}</div>
     <div style="font-size:13px;color:var(--c-text2);line-height:1.5;padding-top:12px;border-top:1px solid var(--c-border)" lang="${langCode}">${nativeText}</div>
-    <div style="font-size:10px;color:var(--c-text3);margin-top:10px;text-transform:uppercase;letter-spacing:.4px">${nativeLabel}</div>
+    <div style="font-size:12px;color:var(--c-text3);margin-top:10px;letter-spacing:.2px">${nativeLabel}</div>
   `);
   $("#modal-overlay").addClass("open");
   setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);

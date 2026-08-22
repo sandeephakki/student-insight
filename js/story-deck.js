@@ -34,7 +34,7 @@ const StoryDeck = (function(){
 
   const STYLE = `
 #sdeck-overlay{position:fixed;inset:0;z-index:1300;background:rgba(15,20,45,.55);display:flex;align-items:center;justify-content:center;padding:20px}
-#sdeck-card{background:#fff;border-radius:16px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(10,15,40,.35);overflow:hidden;font-family:Inter,sans-serif}
+#sdeck-card{background:#fff;border-radius:16px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(10,15,40,.35);overflow:hidden;font-family:"SF Pro Text","Inter",system-ui,-apple-system,sans-serif}
 #sdeck-progress{display:flex;gap:5px;padding:14px 18px 0}
 .sdeck-dot{flex:1;height:4px;border-radius:99px;background:#e2e5f1}
 .sdeck-dot.sdeck-dot-done{background:#2b3a67}

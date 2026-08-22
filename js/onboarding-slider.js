@@ -13,6 +13,13 @@
 //   2. Manual replay button in the About panel ("onboard_replay_btn"),
 //      for live institution demos/pitches without needing the deck file.
 //
+// A THIRD, separate demo surface — js/pitch-deck.js (#si-deck) — also
+// lives in the About panel ("View pitch deck (slides)" button, next to
+// the replay button above). That one is the original 5-image pitch deck,
+// on-demand only, never auto-shown, and intentionally NOT built on top of
+// this file's StudInOnboarding state machine. See that file's own header
+// comment for why the two are kept separate rather than merged.
+//
 // INTEGRATION, not reinvention:
 //   - Reuses window.COUNTRY_LANGUAGES / window.onLanguageChange from
 //     js/state-nav.js for the language list and the actual language
@@ -64,16 +71,16 @@ const ONBOARD_STRINGS_EN = {
   onboard_s2_flaw: "One shared flaw: analytics is buried inside a bloated, whole-institution suite that needs an annual budget and 4–8 weeks of IT setup.",
   onboard_s2_headline: "You already pay for — or are sold — a School ERP.",
   onboard_s2_r1_drawback: "Complex setup; needs technical staff",
-  onboard_s2_r1_erp: "Legacy ERP Platform",
+  onboard_s2_r1_erp: "Fedena",
   onboard_s2_r1_price: "Free open-source, or paid tiers",
   onboard_s2_r2_drawback: "Opaque, enterprise-tier pricing",
-  onboard_s2_r2_erp: "Enterprise ERP Suite",
+  onboard_s2_r2_erp: "Entab (CampusCare)",
   onboard_s2_r2_price: "Custom quotes only",
   onboard_s2_r3_drawback: "ERP features still maturing",
-  onboard_s2_r3_erp: "Teaching-First Platform",
+  onboard_s2_r3_erp: "Teachmint",
   onboard_s2_r3_price: "Freemium, scales with features",
   onboard_s2_r4_drawback: "Pay yearly whether used or not",
-  onboard_s2_r4_erp: "Budget All-in-One ERP",
+  onboard_s2_r4_erp: "Budget all-in-ones",
   onboard_s2_r4_price: "~₹9,000–23,000/yr flat",
   onboard_s2_sub: "Here's what that market looks like, and where it falls short.",
   onboard_s2_th_drawback: "Known drawback",

@@ -155,7 +155,7 @@ async function generateAllPDFs(){
   const total=(doS?selectedStudents.length:0)+(doT?1:0)+(doM?1:0);let done=0;
   $("#export-loader").show();
   $("#btn-generate-pdfs").prop("disabled",true).removeClass("btn-glow");
-  function prog(msg,pct){$("#export-loader-msg").text(msg);$("#export-prog").css("width",pct+"%");}
+  function prog(msg,pct){$("#export-loader-msg").text(msg);$("#export-prog").css("transform","scaleX("+(pct/100)+")");}
   function safeName(n){return n.replace(/[^\w\s-]/g,"").replace(/\s+/g,"_");}
   const urlsToRevoke=[];
   function downloadBlob(blob,fname){const url=URL.createObjectURL(blob);urlsToRevoke.push(url);const link=document.createElement("a");link.href=url;link.download=fname;document.body.appendChild(link);link.click();link.remove();}

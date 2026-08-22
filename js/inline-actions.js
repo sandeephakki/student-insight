@@ -1,16 +1,16 @@
 import { switchDbTab, toggleTrust, validateSetup } from './app-utils-init.js';
-import { exportAllSectionsPDFs, exportComparisonReportPDF, exportSectionPDFs, removeHomeCompareFile, selectCompareGroup, selectCompareSection } from './compute-compare.js';
+import { exportAllSectionsPDFs, exportComparisonReportPDF, exportSectionPDFs, removeHomeCompareFile, renameHomeCompareFile, selectCompareGroup, selectCompareSection } from './compute-compare.js';
 import { runAnalysis } from './compute-stats.js';
-import { selectContinuityPeriod, selectContinuityStudent } from './continuity-dashboard.js';
+import { selectContinuityPeriod, selectContinuityStudent, toggleContinuityProjection } from './continuity-dashboard.js';
 import { generateAllPDFs } from './export-pdf.js';
 import { addSubject, addTest, filterFAQ, markDirty, setUsageMode, startNewSession, updateTestSubjectCols } from './project-setup.js';
-import { backToBucketList, backToBuckets, openBucket, openIndividualBucket, renderDashboardSampleBanner, smartChatAskCanned, smartChatSubmit } from './render-buckets.js';
-import { closeModal, dbTabKeyNav, downloadUpdatedSheet, filterStudents, runSampleFile, saveNarrativeField, saveRemarkField, selectIndividualStudent, setFilter, showSampleFiles, sortStudents } from './render-core.js';
+import { backToBucketList, backToBuckets, openBucket, openIndividualBucket, renderCompareResult, renderDashboardSampleBanner, setTargetScore, smartChatAskCanned, smartChatSubmit } from './render-buckets.js';
+import { closeModal, dbTabKeyNav, downloadUpdatedSheet, filterStudents, runSampleFile, saveNarrativeField, saveRemarkField, selectIndividualStudent, setFilter, showSampleFiles, sortStudents, updateRemarkCharCount } from './render-core.js';
 import { filterPickerList, onBucketStudentPick, onBucketSubjectPick, openFinding } from './render-findings.js';
 import { shareInsightAsImage } from './render-i18n.js';
 import { swBack, swNext, swRefresh } from './setup-wizard.js';
 import { APP, goStep, onCountryChange, onLanguageChange, setThemeChoice } from './state-nav.js';
-import { cancelMergeMode, chooseMergeFork, confirmMergedDownload, generateTemplate, handleHomeImportFiles, handleUpdateUpload, toggleAI, toggleBulkSectionsUI } from './template-upload.js';
+import { cancelMergeMode, chooseMergeFork, confirmMergedDownload, generateTemplate, goHomeAfterDownload, handleHomeImportFiles, handleUpdateUpload, resetHomeImport, stayAfterDownload, toggleAI, toggleBulkSectionsUI } from './template-upload.js';
 import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-shell.js';
 
 // FIX (review #4, item 3): replaces the 51 static inline onclick="" handlers
@@ -86,6 +86,7 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
         break;
       case 'closeModal': closeModal(); break;
       case 'removeHomeCompareFile': removeHomeCompareFile(arg); break;
+      case 'resetHomeImport': resetHomeImport(); break;
       case 'selectCompareSection': selectCompareSection(arg); break;
       case 'openBucket': openBucket(arg); break;
       case 'selectCompareGroup': selectCompareGroup(arg); break;
@@ -122,6 +123,8 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
         validateSetup();
         break;
       case 'confirmMergedDownload': confirmMergedDownload(); break;
+      case 'goHomeAfterDownload': goHomeAfterDownload(); break;
+      case 'stayAfterDownload': stayAfterDownload(); break;
       case 'toggleAI':
         toggleAI(arg, el.closest('.ai-check-item') || el);
         break;
@@ -225,7 +228,9 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
     'sc-pct': function(){ markDirty(); },
     'sc-grade': function(){ markDirty(); },
     'sc-pf': function(){ markDirty(); },
-    'individual-student-select': function(el){ selectIndividualStudent(el.value); }
+    'individual-student-select': function(el){ selectIndividualStudent(el.value); },
+    'compare-pick-a': function(){ renderCompareResult(); },
+    'compare-pick-b': function(){ renderCompareResult(); }
   };
 
   var INPUT_HANDLERS = {
@@ -241,17 +246,72 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
     'drop-alert': function(){ markDirty(); },
     'bulk-sections-toggle': function(el){ toggleBulkSectionsUI(el.checked); },
     'search-student': function(){ filterStudents(); },
-    'faq-search': function(el){ filterFAQ(el.value); }
+    'faq-search': function(el){ filterFAQ(el.value); },
+    'target-score-input': function(el){ setTargetScore(el.getAttribute('data-arg'), el.value); },
+    'bucket-help-input': function(el){ filterPickerList('bucket-help-results', el.value); },
+    'bucket-student-input': function(el){ filterPickerList('bucket-student-results', el.value); },
+    'bucket-subject-input': function(el){ filterPickerList('bucket-subject-results', el.value); }
   };
+
+  // Generic data-*-action delegated wiring for dynamically-generated
+  // controls that can't use a fixed id (per-row/per-section markup —
+  // compare section labels, subject/test setup rows, the continuity
+  // projection toggle). Mirrors the click/data-action pattern above:
+  // data-input-action + data-arg for 'input' events, data-change-action +
+  // data-arg for 'change' events. Values are read from the live element
+  // (el.value/el.checked) rather than being baked into a JS string, so
+  // nothing here ever needs inline script.
+  function genericInputDispatch(action, arg, el){
+    switch(action){
+      case 'setTargetScore': setTargetScore(arg, el.value); break;
+      case 'renameHomeCompareFile': renameHomeCompareFile(arg, el.value); break;
+      case 'updateTestSubjectCols':
+        updateTestSubjectCols();
+        markDirty();
+        validateSetup();
+        break;
+      case 'markDirtyValidate':
+        markDirty();
+        validateSetup();
+        break;
+      case 'markDirty': markDirty(); break;
+      case 'narrativeEdit':
+        $(el).next('.narrative-save-row').find('button').prop('disabled', false);
+        break;
+      case 'remarkEdit':
+        $(el).next('.narrative-save-row').find('button').prop('disabled', false);
+        updateRemarkCharCount(el);
+        break;
+      default:
+        window.__unknownActions = window.__unknownActions || [];
+        window.__unknownActions.push(action);
+        if (window.SIA_DEBUG_LOG) console.log('inline-actions: unknown input action', action);
+    }
+  }
+
+  function genericChangeDispatch(action, arg, el){
+    switch(action){
+      case 'renderCompareResult': renderCompareResult(); break;
+      case 'toggleContinuityProjection': toggleContinuityProjection(el.checked); break;
+      default:
+        window.__unknownActions = window.__unknownActions || [];
+        window.__unknownActions.push(action);
+        if (window.SIA_DEBUG_LOG) console.log('inline-actions: unknown change action', action);
+    }
+  }
 
   document.addEventListener('change', function(ev){
     var fn = CHANGE_HANDLERS[ev.target.id];
-    if (fn) fn(ev.target);
+    if (fn) { fn(ev.target); return; }
+    var el = ev.target.closest('[data-change-action]');
+    if (el) genericChangeDispatch(el.getAttribute('data-change-action'), el.getAttribute('data-arg'), el);
   });
 
   document.addEventListener('input', function(ev){
     var fn = INPUT_HANDLERS[ev.target.id];
-    if (fn) fn(ev.target);
+    if (fn) { fn(ev.target); return; }
+    var el = ev.target.closest('[data-input-action]');
+    if (el) genericInputDispatch(el.getAttribute('data-input-action'), el.getAttribute('data-arg'), el);
   });
 
   document.addEventListener('keydown', function(ev){
@@ -270,9 +330,21 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
       smartChatSubmit();
       return;
     }
+    // Same CSP problem for the Smart Query rail composer's Enter-to-submit
+    // (js/vs-shell.js renderShellDashboardRail()) — submit without
+    // inserting a newline.
+    if (ev.key === 'Enter' && ev.target.id === 'sqv2-rail-input') {
+      ev.preventDefault();
+      smartQueryRailAsk();
+      return;
+    }
     if (ev.key !== 'Enter' && ev.key !== ' ') return;
     var btn = ev.target.closest('[role="button"][data-action]');
     if (!btn) return;
+    // Only role="button" elements reach here (native <button>/<input>
+    // controls already get their own default Enter/Space activation from
+    // the browser and are excluded by the selector above), so calling
+    // .click() here can't double-trigger a native control.
     ev.preventDefault();
     btn.click();
   });

@@ -18,9 +18,9 @@ import { srT } from './render-i18n.js';
 (function(){
 
   const STYLE = `
-#sqv2-launcher{position:fixed;right:20px;bottom:20px;z-index:1200;width:52px;height:52px;border-radius:50%;background:#2b3a67;color:#fff;border:none;box-shadow:0 4px 14px rgba(43,58,103,.4);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center}
+#sqv2-launcher{position:fixed;right:20px;bottom:20px;z-index:1200;width:52px;height:52px;border-radius:50%;background:#2b3a67;color:#fff;border:none;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center}
 #sqv2-launcher:hover{background:#3451d1}
-#sqv2-panel{position:fixed;right:20px;bottom:82px;z-index:1200;width:340px;max-width:calc(100vw - 40px);max-height:70vh;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(20,25,60,.25);border:1px solid #e2e5f1;display:none;flex-direction:column;overflow:hidden;font-family:Inter,sans-serif}
+#sqv2-panel{position:fixed;right:20px;bottom:82px;z-index:1200;width:340px;max-width:calc(100vw - 40px);max-height:70vh;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(20,25,60,.25);border:1px solid #e2e5f1;display:none;flex-direction:column;overflow:hidden;font-family:"SF Pro Text","Inter",system-ui,-apple-system,sans-serif}
 #sqv2-panel.open{display:flex}
 #sqv2-header{padding:12px 14px;background:#2b3a67;color:#fff;font-weight:700;font-size:13.5px;display:flex;justify-content:space-between;align-items:center}
 #sqv2-close{background:none;border:none;color:#fff;font-size:16px;cursor:pointer;line-height:1;opacity:.85}
@@ -30,7 +30,7 @@ import { srT } from './render-i18n.js';
 #sqv2-answer.show{display:block}
 .sqv2-result-item{padding:8px 10px;border:1px solid #e2e5f1;border-radius:8px;font-size:12.5px;color:#1a1d2e;margin-bottom:6px;cursor:pointer}
 .sqv2-result-item:hover{background:#f0f2fa}
-.sqv2-result-cat{font-size:10.5px;color:#9ba4c0;margin-bottom:2px}
+.sqv2-result-cat{font-size:11px;color:#9ba4c0;margin-bottom:2px}
 #sqv2-inputrow{display:flex;gap:6px;padding:10px 12px;border-top:1px solid #e2e5f1}
 #sqv2-input{flex:1;padding:8px 10px;border:1px solid #e2e5f1;border-radius:8px;font-size:13px;font-family:inherit}
 #sqv2-ask{background:#2b3a67;color:#fff;border:none;border-radius:8px;padding:0 14px;font-size:13px;font-weight:700;cursor:pointer}

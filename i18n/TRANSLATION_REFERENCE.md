@@ -44,6 +44,12 @@ Still NOT covered — remains English-only regardless of language selected:
   Sample 15 content changed from two children to one — old per-language
   translations describing two children were removed rather than left
   stale; they fall back to the corrected English text until retranslated)
+- The `readme_add_test_note` key gained an extra sentence noting the new
+  auto-filled Student ID column in new test tabs (live formulas pulling
+  from STUDENTS) — only en.json and the inline SR_STRINGS_EN fallback
+  were updated; the other 12 languages still have the shorter pre-formula
+  text and will fall back to the corrected English sentence until
+  retranslated
 - The Institution "Type" dropdown (`#inst-type`) — intentionally left
   English-only. Its `<option>` text doubles as the stored value written
   into the exported Excel SETUP sheet (no separate `value=` attribute),

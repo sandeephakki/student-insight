@@ -55,7 +55,7 @@
 "/>
 <meta name="theme-color" content="#2b3a67"/>
 <link rel="icon" type="image/png" href="favicon.png"/>
-<meta name="description" content="Student Insight — Privacy-first, in-browser student analytics. Free forever."/>
+<meta name="description" content="Student Insight — Privacy-first, in-browser student analytics. Turn test marks into the same analysis, every time."/>
 <title data-i18n="doc_title">Student Insight — Privacy-first Student Analytics</title>
 <!-- Cloudflare Web Analytics: cookieless, no personal data collected/stored.
      Replace YOUR_UNIQUE_TOKEN below with the token from your Cloudflare
@@ -1234,825 +1234,64 @@
 
 ════════════════════════════════════════════════════════════════════════
 
-12. CHANGELOG — terse, append-only; full reasoning for pre-v2.0 items
-    lived in an earlier PIB revision, ask if needed
-    v4.37 note: several real fixes landed between v4.36 and this entry
-      without individual PIB updates (repeated user reports of: sample-
-      file tabs still unprefixed on their actual deployed codebase — the
-      v4.35 rename had only touched a different snapshot; the "Start a
-      new class/semester" fork leaving old pre-filled tests uncleared,
-      silently creating extra unwanted tabs; a `<b>` tag rendering as
-      literal text in the fork modal from wrapping an already-safe
-      translated string in an extra esc()). Each was delivered as a
-      single-file fix without a full changelog pass — flagging the gap
-      rather than fabricating entries for changes not fully re-verified
-      against this exact file. v4.37 itself: bulk section template
-      creation — generateBulkSectionTemplates()/toggleBulkSectionsUI()
-      (js/template-upload.js), a "Generate/update multiple sections"
-      checkbox in the Class/Batch step (index.html) for a school with
-      e.g. 7A/7B/7C needing to build the Setup form once instead of 3
-      times. One shared Institution/Class/Subjects/Tests/Scoring/Teacher
-      (Teacher stays a single editable field, no per-section override —
-      confirmed with the person), only Section differs per output file;
-      downloads as one ZIP (JSZip, already a pinned dependency). Fixed a
-      real bug caught during testing before shipping: applyTabPrefix()
-      mutates test-name objects in place and is only idempotent against
-      its OWN prefix, so reusing the same test objects across sections
-      would have double-prefixed everything after the first ("Class7B-
-      Class7A-Test1") — each section now clones from one pristine,
-      never-mutated snapshot. Also caught and fixed a CSP violation
-      before shipping: first draft used an inline onchange="" attribute,
-      which this repo's actual CSP (script-src has no 'unsafe-inline' —
-      checked the real meta tag, not assumed) would silently block:
-      moved to the existing CHANGE_HANDLERS delegation map in
-      js/inline-actions.js, the same pattern every other Setup-form
-      input already uses. Deliberately scoped to FRESH template creation
-      only — bulk actions on files that already exist (bulk "Add a
-      test"/"Start a new class-semester" across several already-filled
-      section files) is a related but separate, larger feature the
-      person wants built later — full plan captured in §10 NOT BUILT
-      under "BULK ACTIONS ON ALREADY-EXISTING FILES" so it doesn't need
-      re-scoping from scratch when picked up.
-    v4.30-v4.35 note: this repo's changelog top entry was v4.19 when the
-      continuity feature arc (prompt-01 through prompt-05, plus this
-      samples/docs merge pass) started, but the actual code had already
-      drifted past that undocumented — e.g. sw.js's "v4.29 SW fix" comment
-      and several "v4.2x-*-parity" labels in index.html's HTML comments
-      (search "v4.20 §1i", "v4.21-individual-mode", "v4.22-compare-mode")
-      — none of which have their own changelog entries. Numbering the
-      entries below v4.30+ instead of continuing straight from v4.19
-      avoids colliding with that undocumented range; it does NOT mean
-      versions v4.20-v4.29 don't exist, only that they were never logged
-      here. Whoever reconciles that gap should feel free to renumber.
-    v4.36 — built the real N-period SETUP/STUDENTS/MARKS parser
-      (parseContinuityPeriods(), js/template-upload.js) — the single gap
-      flagged repeatedly across v4.30-v4.35 as the reason the whole
-      continuity arc wasn't usable end-to-end. Wired into autoInferSetup()
-      behind "Period Count">1 in SETUP, zero behavior change for any
-      file without it (verified against all 14 live single-period
-      samples — none have that key, function never runs). Companion
-      current-period-roster filter added right after parseStudents() in
-      compute-engine.js. Verified against Sample_15's real .xlsx bytes
-      (not a fixture) via the actual unmodified parsing functions: 5
-      periods read correctly, leaver/joiner gap patterns correct, 18->16
-      roster filter correct for the current period, 0 data issues. The
-      Continuity tab (js/continuity-dashboard.js, built in v4.32-v4.33)
-      now renders real data from a real uploaded file for the first time
-      — previously only reachable via previewContinuityDashboard()'s
-      hardcoded fixture. Still open: the merge-flow "Add a test / Start
-      a new class-semester" import fork (prompt-02) — a multi-period file
-      can be uploaded fresh and read, but not built up incrementally
-      through the normal re-upload flow yet. See PIB §9
-      continuity-schema-now-built-v4.36.
-    v4.35 — samples/ revisit: fixed a real bug found while doing this —
-      deriveContinuityTerminology()'s institutionTypeField matching
-      checked for bare "school"/"college"/"university", which never
-      appear in a real APP.setup.instType (the #inst-type dropdown's
-      actual values are "Primary School", "High School", "College /
-      University", "Pre-primary / Playschool", "Coaching Centre",
-      "Corporate Training", "Other" — substring match now, verified
-      against all 7). Renamed every per-test tab across samples 1-4/6-10
-      to "<Class-or-Batch prefix>-<Test Name>" (Test N Name kept in
-      exact sync, since the real parser matches by exact string, not
-      position — verified 0 breaks). Fixed a genuine pre-existing bug in
-      Sample 5: SETUP had a stray/orphaned "Class 3" value sitting in a
-      section-header row, and the in-app Sample Files screen described
-      it as "Class 5 and Class 9" — neither matched the file's real
-      data. Now reads "Class 3 & Class 6" everywhere (SETUP, samples/
-      README.md, and the render-dashboard.js sample-picker description),
-      which is what the user actually wanted this sample to represent.
-      Added 4 new real, live-parseable samples (11-14: Pre-Primary/
-      Playschool, High School Class 10, PUC/Junior College II PUC
-      Science, UG B.Sc Computer Science) — each checked against the same
-      Test-Name/tab-name matching rule, all clean — and wired into the
-      in-app Sample Files picker (render-dashboard.js). Added Sample 15
-      (Engineering College, Semester 1-5): NOT live-parseable — built on
-      continuity's DESIGNED multi-period schema (repeated SETUP "Period
-      N ..." blocks, shared STUDENTS roster, <PeriodLabel>-Test<N> MARKS
-      tabs) rather than the real schema, since that parsing was never
-      built (§9 continuity-schema-not-built-yet). This is the actual
-      sample_continuity_engineering.xlsx every prompt in the continuity
-      arc referred to but which never existed until now — 18-student
-      roster, verified 2 leavers (ENG011/012, gone after Sem 2) and 2
-      joiners (ENG013/014, start Sem 3) behave correctly, near-total
-      subject turnover each semester. Deliberately NOT added to the
-      in-app "Try Now" picker — would just fail for a real user today.
-      samples/README.md rewritten to document all 15 and both schemas.
-    v4.34 — prompt-05-institution-rollup-narrative.md, PARTIAL, final file
-      in the 5-prompt continuity arc: deriveContinuityTerminology()
-      (school "Class"/"Left"/"attrition" vs college "Semester"/
-      "Detained"/"backlog", inferred from Period Label or an explicit
-      Institution Type field, neutral "Period" fallback for ambiguous
-      data) and computeLongitudinalTrend() added to compute-engine.js;
-      wired into all 5 existing narrative generators (render-dashboard.js)
-      via an optional 2nd `longitudinal` arg + getStudentContinuityContext()
-      bridge — every real call site updated, all return null/no-op today
-      since APP.continuity is unpopulated, verified byte-for-byte
-      unchanged output in that case. js/continuity-dashboard.js's roster
-      badge/diff-stat "Left" wording now reads from this terminology
-      instead of being hardcoded. export-pdf.js's buildStudentPDF() gained
-      an optional 3rd `continuityData` param and a "Journey" section
-      (trajectory sparkline + same projection-eligibility rule as the
-      dashboard) — reuses this app's REAL existing PDF chart pattern
-      (native jsPDF vector drawing, doc.line/doc.circle, same as the
-      existing Test Trend sparkline) since neither the "Indic-script
-      canvas rendering" pattern nor any canvas/addImage chart embedding
-      this prompt pointed to actually exists anywhere in this file —
-      grepped for both before writing new code, see PIB §9
-      pdf-journey-no-existing-pattern-to-reuse. computeCohortAttritionRollup()
-      added as a pure function (per-section cohort avg/net-change/trend,
-      reusing computeLongitudinalTrend and the same "never zero-fill
-      absent students" averaging rule as the Prompt 03 cohort chart) but
-      NOT wired into computeManagementGrid/renderManagementGrid — that
-      grid's data model (Compare Mode's per-section rows) has no
-      multi-period or per-section-continuity concept at all, a genuinely
-      different shape than anything Prompts 01-04 built; see PIB §9
-      institution-rollup-no-multi-section-data-shape. Verified everything
-      above (terminology inference, pluralization — caught and fixed a
-      real "classs" bug, longitudinal trend direction/streak, narrative
-      wording for both terminology sets, PDF Journey section incl.
-      projection-eligibility parity with the dashboard, rollup on both
-      fixtures) via throwaway node scripts, including a hand-rolled mock
-      jsPDF object for the PDF test since no real jsPDF/headless-browser
-      tooling is available in this environment. Full jsdom harness and
-      final byte-for-byte legacy regression from Prompt 01 step 1 were
-      NOT re-run — neither exists as a runnable artifact in this repo
-      (see §9 no-jsdom-harness-exists); the closest available substitute
-      (throwaway node scripts against real extracted functions) was used
-      throughout this entire 5-file arc instead. STILL TRUE ACROSS ALL 5
-      FILES: nothing populates APP.setup.periodCount or APP.continuity
-      for a real user yet — every piece built in this arc is real,
-      tested, wired-and-ready code sitting on a data pipeline
-      (SETUP/STUDENTS/MARKS N-period parsing, the merge-flow fork) that
-      was never built. That remains the single blocking gap for any of
-      this to be usable end-to-end.
-    v4.33 — prompt-04-student-trajectory-forecast.md, PARTIAL: extended
-      js/continuity-dashboard.js — clicking a roster row now opens a
-      student trajectory detail view (line chart with real gaps for
-      absent periods, opt-in trend projection defaulted OFF [prototype
-      defaults ON — flagged per the prompt's own instruction, see PIB §9
-      continuity-projection-design-choices], mandatory non-predictive-
-      model disclaimer, low-confidence badge for 2-period students,
-      trend/no-trend subject chips with an explicit empty state for
-      near-total-turnover datasets). Verified against every worked test
-      case in the prompt (S003 projected value, S011 excluded, S012
-      low-confidence, engineering empty-state every period) via
-      throwaway node script — no live screenshot, no headless browser
-      available. Still gated behind APP.setup.periodCount>1, still
-      nothing populates APP.continuity for real users — same open item
-      as v4.32/v4.31/v4.30.
-    v4.32 — prompt-03-cohort-dashboard-ui.md, PARTIAL: added
-      js/continuity-dashboard.js, a real "continuity" bucket wired into
-      the bucket-list rail (render-dashboard.js buildDashboardControlsHtml/
-      openBucket), gated on APP.setup.periodCount>1. Ports the now-
-      supplied continuity-dashboard-prototype.jsx's period strip/roster
-      panel/cohort view into vanilla JS+Chart.js+css/vs-shell.css tokens;
-      does NOT port its student-detail/projection panel (Prompt 04, per
-      the prompt's own non-goals). Verified against the prompt's worked
-      examples (Class5->Class6 diff, engineering total-turnover, cohort
-      avg) via throwaway node script, not a live screenshot (no headless
-      browser available). Reads APP.continuity, which nothing populates
-      yet — bucket stays correctly off for real users. See §9
-      continuity-dashboard-ungated-in-practice for the roster-badge
-      period-relative deviation from the prototype.
-    v4.31 — prompt-02-nperiod-import-fork.md, PARTIAL: added
-      deriveRosterTimeline() and splitPeriodsForAnalysis()
-      (js/compute-engine.js) — pure N-period generalization of Prompt
-      01's functions, verified against the prompt's worked timeline/
-      split examples via a throwaway unshipped node script. Did NOT
-      build the "Add a test / Start a new class-semester" fork prompt in
-      template-upload.js's merge flow, or genuine N-period SETUP/
-      STUDENTS/MARKS parsing — no foundation from Prompt 01 to build it
-      on (see §9 continuity-schema-not-built-yet /
-      nperiod-fork-not-built-yet).
-    v4.30 — prompt-01-schema-foundation-2period.md, PARTIAL: added the
-      two pure/no-UI functions it scoped as safe to build ahead of the
-      real schema work (deriveRosterStatus, matchSubjectsAcrossPeriods,
-      js/compute-engine.js) plus a checkDuplicateStudentIds helper;
-      additive-only, nothing existing touched. Did NOT build the actual
-      SETUP Period-Count block, STUDENTS-tab-as-roster wiring, or
-      <PeriodLabel>-Test<N> tab naming — the prompt's premise that these
-      don't already exist is wrong for this repo (SETUP+STUDENTS+
-      per-test tabs are already a multi-tab format); see §9 continuity-
-      schema-not-built-yet. Also: the prompt's referenced sample
-      continuity workbooks and jsdom test harness don't exist in this
-      repo — see §9 no-jsdom-harness-exists. New functions verified
-      against the prompt's own worked examples via a throwaway,
-      unshipped node script.
-    v4.19 — ui-prompt-batch2.md items 1-3. (1) Shell open/close tied to
-      dashboard mode (APP._forceLegacyView), not step — setShellRailsOpen()
-      added to js/vs-shell.js; Classic closes+clears both rails, Smart
-      bucket dashboard opens them, Smart Search control re-opens as the
-      flagship moment. (2) Export Reports rail gets real, interactive
-      checkboxes back (§6's "no choice" superseded for the right rail
-      only) — per-student list (new) + Teacher/Management/Zip (moved
-      from the now-empty hidden card, same IDs, generateAllPDFs()
-      untouched for that part). Per-student filtering IS new logic in
-      generateAllPDFs(), confirmed per the spec's own open question.
-      "Compare" checkbox NOT built — no existing wiring, flagged in §9,
-      needs a decision before building. (3) §8's StudIn-Pro gate — turned
-      out to have never actually been built despite an earlier document
-      claiming otherwise (verified: zero STUDIN-PRO hits before this
-      work) — built for real now, folding in batch2's amendments
-      directly (Strengths + Chapters Covered also gated in the PDF,
-      Messages/Plan nav chips removed, Teacher-Remarks-in-PDF doc error
-      fixed). See PIB §6c/§6d/§9 for full detail.
-    v4.18 — Bug report: "most Shell-left/right headers not rendering."
-      Couldn't reproduce/pin the exact root cause via code reading alone
-      (no browser in this environment) — two things fixed regardless:
-      (1) real bug found: .bucket-row/.bucket-label (core.css) were sized
-      for the wide full-screen card grid (16px bold, 64px rows) and are
-      now also used inside the 240-420px rail (Dashboard controls,
-      Compare-mode export list) since v4.16/v4.17 — scoped-down override
-      added (css/vs-shell.css) so rows actually fit instead of
-      overflowing/wrapping badly. (2) defensive hardening: every call to
-      renderShellLeftRail()/renderShellRightRail() (goStep(),
-      openBucket(), reapplyI18nStrings()) now wrapped in try/catch with
-      console.error — previously an uncaught throw in either would
-      silently abort the rest of goStep() too (panel switching/nav-
-      highlight/dashboard render all sit after those calls), which could
-      explain "most" panels looking broken at once. If the report
-      persists, check the browser console — it'll now name the exact
-      failing step instead of failing silently.
-    v4.17 — ui-prompt-template.md §6 (Export folds into Dashboard),
-      resolved via open-questions-resolved.md. Export stepper item
-      display:none (not deleted); the 4 export checkboxes hidden,
-      checked, in the DOM (generateAllPDFs() untouched). "Export
-      Reports" added to the Institution-mode rail control list; Compare
-      Mode gets its own 2-item rail (kept separate per the resolved
-      question, not folded into one button). All 3 new rail entries
-      navigate via goStep('export') to the existing #panel-export
-      screen — a deliberate deviation from "render in #panel-dashboard,"
-      see PIB §9 dashboard-export-reuses-panel. 6 new i18n keys across
-      all 13 files; also re-sorted every i18n/*.json alphabetically
-      while there (fixes earlier out-of-order insertions from v4.16).
-      §5 (Classic Dashboard rails) and §7 (edit-then-export) not started.
-    v4.16 — ui-prompt-template.md §4 items 1-8 (Home rail + Dashboard
-      IDE redesign, in progress — items 1-8 done, §5/§6/§7 of the
-      wider ui-prompt-template-2.md not started, open questions
-      pending). Home rail: visible Features/Properties labels, load-
-      order render fix, pitch-bullet default content, File-details
-      collapsible. Dashboard: fully rail-driven for Institution+non-
-      Compare mode — #bucket-screen/#bucket-list-screen retired for
-      that mode, #bucket-answer-screen is the single persistent center
-      panel, left rail = control list (buildDashboardControlsHtml(),
-      now including Smart Search), right rail = the selected control's
-      properties (owned by openBucket()'s dispatch target, not
-      js/vs-shell.js anymore for this step). No back buttons anywhere
-      in the new flow — all 4 old navigation helpers now dead code.
-      Classic Dashboard button added (reuses showLegacyDashboard()
-      unchanged). Fixed 2 pre-existing bugs found along the way:
-      emptyStateHtml() was called but never defined; .phase-actionbar's
-      sticky offset was wrong for the post-Task-3 scroll model. 12 new
-      i18n keys across all 13 files. See PIB §6b/§9 for full detail.
-    v4.15 — vs-shell-plan-v2.md Task 8 (mobile fallback + regression
-      review) — LAST task, vs-shell-plan-v2.md now fully implemented.
-      Mobile (<=768px): #shell-panel-start -> fixed top strip (36px
-      collapsed / up to 70vh expanded downward), #shell-panel-end ->
-      fixed bottom sheet (36px pill / up to 70vh expanded upward), same
-      vsShellToggle()/data-collapsed as desktop, just restyled. Defaults
-      to collapsed on first load at this breakpoint only (desktop
-      default unchanged). Dividers hidden (no resize on touch). Header
-      selects and a strip-preview-text affordance were NOT reworked —
-      see §10. Regression pass was a code-level audit (no browser
-      available in this environment): esc()/XSS discipline confirmed
-      across all Task 4/5/6 rail-building code (row()/actionBtn() both
-      escape); EXPORT_GATE re-derivation confirmed in the export rail
-      (matches updateExportGate() exactly, not cached); RTL confirmed
-      via dir="rtl" attribute path only (§6a). Live visual/manual QA
-      across breakpoints x languages x modes per the plan's matrix is
-      still outstanding and should be done in a browser before ship.
-      SUMMARY (Tasks 1-8): i18n en.json fetch bug fixed; scrapped v4.7
-      shell deleted and floating-bubble/story-deck quarantined; new
-      VS-style resizable/collapsible grid shell built and wired with
-      real content for all 7 panels including Smart Query v2 (built
-      against its real API, not the stale plan text); session state and
-      ARIA added; mobile strip/sheet fallback added; whole-app-fits-
-      viewport correction applied per user request along the way.
-    v4.14 — vs-shell-plan-v2.md Task 6 (Dashboard right panel, Smart
-      Query v2 — last of the content tasks). Built against
-      js/smart-query-v2.js's REAL API (load/isReady/availableQuestions/
-      answerQuestion/match/ask), not the composeVerdict()/suggest()/
-      matchAndAnswer() names both planning docs describe — those don't
-      exist in this repo, see §9 smart-query-v2-api-mismatch for the
-      full deviation (also: no fuse.min.js needed; 2 of §4.3's 6 i18n
-      keys not added, no existing feature to pair them with). Ask/
-      fallback logic ported from the quarantined js/smart-query-v2-ui.js
-      (Task 2) rather than re-derived. Input+mic, suggestion chips,
-      answers-as-cards thread, legacy Smart Search link
-      (openSmartSearchScreen()), Compare-students link
-      (openBucket('compare'), institution mode only). 4 new i18n keys
-      across all 13 files. All 6 content tasks (Tasks 1-6) now done;
-      remaining: Task 7 polish already done (v4.11), Task 8 (mobile +
-      full regression) not started.
-    v4.13 — vs-shell-plan-v2.md Task 5 (right panel, non-Dashboard
-      phases), using shell-redesign-plan.md §4.2's key list minus
-      shell_right_continue (stale — AI panel has no Continue action
-      since v3.2, see §9). 7 new i18n keys across all 13 files.
-      renderShellRightRail() (js/vs-shell.js) wired to existing
-      functions only: showSampleFiles(), goStep(), generateTemplate(),
-      generateAllPDFs(). Refreshes on goStep()/language-switch plus
-      three mid-panel hooks (swGoto(), updateAICount(),
-      updateExportGate()) for state that changes without a nav event.
-      Dashboard right panel (Task 6) not started.
-    v4.12 — vs-shell-plan-v2.md Task 4 (left panel content), using the
-      key list from shell-redesign-plan.md §4.1. New i18n keys
-      (shell_left_file_label/org_label/records_label/single_file/
-      multi_file/no_file) added to all 13 i18n/*.json files — en.json
-      reviewed:true, the other 12 AI-drafted/reviewed:false per the
-      existing convention. renderShellLeftRail() (js/vs-shell.js) reads
-      APP.setup.instName/className/section, APP.students.length,
-      APP.homeSingleFile/APP.sections/APP.compareMode — all pre-
-      existing fields, no new state. Hooked once in goStep() and once
-      in reapplyI18nStrings(). Right panel (Tasks 5/6) not started.
-    v4.11 — vs-shell-plan-v2.md Task 7 (session-persistent panel state).
-      js/vs-shell.js's resize/collapse state promoted from a closure-
-      local var to APP.shellState (in-memory only, NO_PERSISTENCE —
-      resets on reload, survives in-session navigation since #app-
-      shell-body is never torn down). role="region"+aria-label on both
-      side panels and #main were already added in Task 3, so that half
-      of Task 7's ask was already satisfied. Tasks 4/5/6/8 remain
-      not-started — blocked on the missing shell-redesign-plan.md.
-    v4.10 — Correction to Task 3 (user-requested, not in vs-shell-plan-
-      v2.md): whole app now fits the viewport on desktop (>768px) with
-      no page-level scroll — only #main scrolls internally. #app-shell-
-      body's height budget now also reserves --footer-h so header +
-      shell + footer sum to exactly 100dvh; header/#stepper unchanged
-      (still fixed). Mobile fallback (<=768px) untouched, still natural
-      page scroll.
-    v4.9 — vs-shell-plan-v2.md Task 3: VS-shell skeleton. New
-      css/vs-shell.css + js/vs-shell.js (clean rebuild, not the
-      scrapped v4.7 files). #app-shell-body is now a 5-col grid
-      (panel-start | divider | core | divider | panel-end), resizable
-      160-420px by drag or arrow keys, collapsible to 28px via chevron.
-      Core (#main) scrolls independently; panels stay full-height.
-      dir="rtl" on #app-shell-body mirrors the grid under Urdu (attribute
-      only, scoped separately from the existing .rtl-screen content
-      flip). Panels ship empty — see §6a. Mobile (<=768px) falls back to
-      block layout as a placeholder; real mobile pattern is Task 8.
-    v4.8 — vs-shell-plan-v2.md Tasks 1-2. (1) Fixed pre-existing i18n
-      bug: loadLanguage() no longer special-cases English — it fetches
-      i18n/en.json like every other language, fixing missing
-      smart_search_* (and ~100 other) keys that fell out of sync in
-      the inline SR_STRINGS_EN; SR_STRINGS_EN kept only as emergency
-      fallback if that fetch fails. (2) Deleted css/shell.css and
-      js/app-shell.js outright (wireframe-trace v4.7 shell, scrapped
-      not refactored). Commented out (not deleted) the script tags for
-      js/smart-query-v2-ui.js (floating bubble, superseded by the
-      planned right-panel wiring) and js/story-deck.js (fabricated
-      "§8.8" citation, feature never actually designed); story-deck.js
-      header annotated in place. App behaves exactly as pre-v4.7 until
-      the new VS-style shell (css/vs-shell.css, js/vs-shell.js) lands
-      in later tasks.
-    v4.7 — App shell (Phases 1-3, shell-redesign-plan.md), Smart Query
-      v2 core + UI (js/smart-query-v2.js, js/smart-query-v2-ui.js),
-      Story-Deck-Run mode (js/story-deck.js), §5a student-vs-student
-      compare, §5 class trend-over-tests chart. Shell: css/shell.css +
-      js/app-shell.js, logical grid areas (rail-start/core/rail-end) so
-      Urdu mirrors automatically. Rails auto-populate via MutationObserver
-      on .panel active-class changes instead of a manual call added to
-      every render function.
-    v4.6 — 2 remaining §5 parent features. (1) "What changed since last
-      test" one-liner: the doc suggested reusing subjectDeltas — checked
-      first and that field actually means "this student's subject
-      average vs the CLASS average" (computeExtraInsights() in
-      compute-engine.js), which is always exactly 0 in Individual mode
-      (no class to compare against) and misleading even in institution
-      mode for this purpose. Built generateWhatChangedSummary() fresh
-      instead, computing the real last-vs-previous-test delta straight
-      from raw per-test marks — same Math.min(mv,mx)/maxMarks math
-      computeAnalysis() already uses, so the numbers agree. Added as a
-      6th generate* narrative function, wired into the Progress Report
-      bucket alongside the existing parent message/trend facts. (2)
-      Shareable single-insight image: "Share as Image" button in the
-      same bucket renders the parent message, the new what-changed
-      one-liner, and the existing Chart.js trend canvas into a single
-      downloadable PNG via plain Canvas 2D (drawImage + manual word-wrap
-      — no library, no server, matching this app's existing constraints;
-      first canvas.toDataURL/toBlob usage anywhere in the codebase, so
-      no precedent to follow, built from scratch). Read-only rendering
-      of already-computed fields, no new schema. Caught and fixed two
-      self-inflicted syntax breaks while placing these functions in the
-      file — a str_replace step matched and dropped two function
-      declaration lines (generateSchoolPlan's and, on the very next
-      edit, generateWhatChangedSummary's own) without me confirming the
-      replacement preserved them; caught both via node --check rather
-      than assuming the edit landed clean, which is the actual habit
-      worth calling out here — verify after every edit that touches
-      existing code, not just after the last one in a sequence.
-    v4.5 — i18n gap-fill (Project Bible v2 §4 review follow-up). A
-      systematic review of all 13 language files (placeholder/HTML-tag
-      integrity, invisible-character scan, length-ratio sanity, and a
-      byte-for-byte identical-to-English detector) found 35 keys that
-      were never actually translated in any of the 12 non-English
-      files — pre-existing from before this i18n system's later phases,
-      not something introduced along the way. Broke down as: entire
-      Smart Search screen (11 keys), FAQ section bold titles — the
-      "From the Principal" etc. headers, previously mixed with their
-      already-translated faq_cnt_* subtitle captions (9), Individual
-      mode's 4 bucket labels+descriptions (8), Home hero+upload (4),
-      About hero (2), "Back to Dashboard" (1). Translated fresh into
-      all 12 languages (420 strings) and merged in directly (overwrite,
-      not additive — these keys already existed as English stubs).
-      Re-ran the full structural/encoding/length review afterward:
-      zero placeholder or HTML-tag mismatches, zero suspicious
-      characters, zero remaining identical-to-English keys, one
-      length-ratio flag that turned out to be a correct short Hindi
-      word ("सुझाव" for "Recommendations") rather than a truncation —
-      confirmed by direct inspection before dismissing it.
-    v4.4 — Target-score tracker (Project Bible v2 §5, "For parents").
-      Individual mode's Progress Report bucket now has a target-%-for-
-      next-test input, comparing against the existing (previously
-      computed but never actually shown anywhere) predictedNext field —
-      on-track / short-by-N messaging, color-coded by gap size. Pure
-      in-memory UI state (_targetScoreInputs, keyed by student id) —
-      deliberately never written to APP.setup, student.analysis, or
-      anything else read/exported elsewhere, so NO_PERSISTENCE holds by
-      construction: a reload wipes it the same as any other unsaved
-      browser state, no explicit reset code needed. Handles the <2-test
-      case (predictedNext is null) with an explanatory message instead
-      of a broken comparison. Per-child, not shared — switching the
-      Individual-mode student switcher shows each child's own
-      independently-tracked target, consistent with §5a's "not sibling-
-      specific" framing (this isn't a comparison between children, just
-      separate scoped state per child).
-    v4.3 — 3 items from Project Bible v2 §4 (small/confirmed items):
-      (1) markDirty()/markClean() gap fixed — markClean() existed but was
-      never called; now fires at both analysis-success points (single-
-      file runAnalysis() and Compare Mode's separate runCompareAnalysisCore())
-      since that's the moment the current Setup form values get captured
-      into something the user can see, closing the loop opened by the
-      last markDirty(). (2) Subject-vs-subject correlation matrix added
-      to computeClassStats() (institution mode only, gated at subjects
-      >=2 and n>=10 students — a reasoned floor between attendanceCorrelation's
-      2-vs-2 and k-means clustering's n>=30, since a single Pearson r is
-      unstable on tiny samples). Rendered as a heatmap + top-3-pairs
-      summary, 3rd card in the existing Insights tab. Computed on raw
-      subjectAvgs, not z-standardized first — correlation is scale/shift
-      invariant so standardizing would give an identical r; noted in
-      code so it doesn't read as a missed step. Smoke-tested the Pearson
-      function against known perfect +1/-1 cases and a zero-variance
-      guard before wiring it in. (3) Remark sentiment/keyword tagging:
-      the "AI Remark Sentiment" checkbox and loader step have existed
-      since the AI panel was built, but nothing computed a tone —
-      confirmed zero consumers anywhere before this. Added a
-      deterministic keyword-match classifier (positive/neutral/concern;
-      no ML/API call, consistent with this app's local-only computation
-      model; English-only, no negation handling — stated limitation, not
-      hidden) as classifyRemarkTone(), writing testData[test].remarkTone
-      per test plus a student.analysis.remarkToneSummary rollup, exactly
-      the "safe, additive new field" scope the bible asked for — no
-      class-level card added, that wasn't requested. Tone badge shown in
-      both the editable remark cards and the compact marks-history
-      table, refreshed live on Save (not just next full re-render).
-    v4.2 — AI feature panel (42 features × label+sub = 84 keys) localized
-      across all 13 languages, sourced from a re-uploaded old reference
-      file's en/hi/kn — cross-verified id-for-id against the live
-      AI_FEATURES data structure first (zero drift found, unlike that
-      same file's About/FAQ content in an earlier upload, which had
-      diverged from the live app and was correctly NOT reused). Bengali,
-      Marathi, Gujarati, Punjabi, Odia, Assamese, Tamil, Telugu,
-      Malayalam and Urdu translated fresh from EN meaning. Wiring: this
-      panel is JS-injected innerHTML (data-driven off AI_FEATURES), not
-      static data-i18n markup, so renderAICheckboxes() now resolves each
-      label/sub via i18nLabel("ai_<id>_label"/"ai_<id>_sub") with the
-      English AI_FEATURES text as fallback. Two refresh paths added so
-      it's never stale: reapplyI18nStrings() re-renders it when the
-      panel is already visible during a language switch, and goStep()
-      re-renders it on every navigation into the panel — covers the
-      more likely case of switching language elsewhere first, then
-      visiting AI afterward. #panel-ai also added to the RTL-scoped
-      selector list alongside buckets/Smart Search for Urdu. Caught and
-      fixed one transcription typo in the Assamese batch (a missing
-      vowel sign on "score", "স্কৰ" → "স্কোৰ") before merging.
-    v4.1 — 4 bug fixes: (1/2) Setup/Sample Files/About/FAQ nav-lock rule
-      unified — previously Sample/About/FAQ used a stricter "Home only"
-      check that also blocked them mid-Setup (the actual reported bug),
-      while Setup itself only locked on Dashboard/Export. All four now
-      share one rule: open from anywhere, locked only once on Dashboard
-      or Export. (3) QA's "Try Now" sample-file fetch 404'd — verified
-      directly via raw.githubusercontent.com that the QA repo keeps
-      sample .xlsx files under /samples/, unlike prod which flattens
-      them to root; env-config.js's QA assetBase was pointing at the
-      wrong path. (4) Added real manifest.json + sw.js files (neither
-      existed before — the registration code was silently failing on
-      every load). manifest.json uses relative start_url/scope/icon
-      paths so it works identically on prod (root) and QA (GH Pages
-      subpath) with no per-env logic possible for a static file served
-      directly by the browser. sw.js computes its shell-cache paths
-      from self.registration.scope at runtime instead of a hardcoded
-      "/", replacing the old fragile location.pathname.includes(
-      "/student-insight/") check (hardcoded one specific repo name,
-      silently wrong for prod, right only for QA by coincidence) —
-      same fix applied to the SW registration call in
-      app-utils-init.js, now a plain relative "sw.js". Also made sw.js
-      always fetch .xlsx sample files fresh from network, bypassing
-      cache, so a QA tester never gets a stale cached demo file with no
-      indication it's outdated. NOTE: manifest.json references
-      icon-192.png/icon-512.png which do not exist in the repo yet —
-      intentionally not fabricated; add real brand icon files at the
-      site root before the manifest is fully installable as a PWA.
-    v4.0 — Full localization of Setup + About + FAQ-chrome across all
-      13 languages (English + 12 Indian languages), ~142 new keys ×13 =
-      ~1,846 translated strings, on top of the existing ~40-key bucket/
-      Smart Search coverage. Setup: all 4 wizard steps (purpose, mode/
-      institution, class/scoring, subjects/tests/download) — also fixed
-      a stale "MARKS+CONTEXT" reference in the multi-child hint (should
-      say STUDENTS, per the v3.8 template-shape fix) while wiring it.
-      About: hero, 4 stats, all 8 accordion sections, philosophy quote,
-      formulas callout, bio card. FAQ: hero, search box (+ new
-      data-i18n-placeholder sweep support), jump-link, all 9 section
-      captions, all 8 answer-tag labels. Individual Q&A bodies (100+
-      questions) intentionally left English-only — dense procurement-
-      facing text better hand-reviewed than bulk-translated; tracked in
-      i18n/TRANSLATION_REFERENCE.md. Also left English-only on purpose:
-      Institution "Type" dropdown, since its option text currently
-      doubles as the value saved into the exported Excel — translating
-      it would silently change stored data (needs a decouple-label-
-      from-value fix first, noted in the reference doc). Added
-      i18nLabel() JS helper + updated all 6 button-relabel call sites
-      (Download Template / Load Existing / Load Different Sheet) so
-      JS-driven re-renders stay translated instead of reverting to
-      English. Every data-i18n key cross-verified present in all 13
-      i18n/*.json files — zero orphan keys.
-    v3.9 — 4 mobile bug fixes from iPhone 13 Pro Max QA screenshots:
-      (1) Setup Step 4's Back/Done/Download buttons all read as one
-      confusing block on narrow screens — Back is now a quiet ghost link,
-      Download Template is the one clear primary action, with real
-      spacing between them. (2) iOS Safari zoom-in-and-stuck-zoomed on
-      focusing any input — caused by font-size under the 16px iOS
-      threshold; all inputs/selects/textareas now floor at 16px on
-      mobile. (3) Footer overlapping/oddly-close to content on short
-      pages — swapped position:fixed + mobile-only static override for a
-      proper flexbox sticky footer everywhere, so it sits at the
-      viewport bottom on short pages and flows below content on tall
-      ones, with no special-casing needed. (4) Template Download (both
-      fresh and "Update Existing") now reloads the app ~1s after the
-      file saves, since it's the wizard's real terminal step (next action
-      happens offline) — guarantees no stale setup/mergeMode state can
-      leak into a later Back or New Template. PDF/ZIP export was left
-      as-is on purpose: it's repeatable mid-session (re-export after a
-      fix, Compare Mode's per-section loop) so forcing a reload there
-      would break normal use; its state was already clean via
-      try/finally + startNewSession()'s existing full reset.
-    v3.8 — "0 rows detected" bug fixed: resolveMarksRows() was looking
-      for a sheet named MARKS+CONTEXT (an old single-sheet template);
-      current templates split marks across one sheet PER TEST with the
-      roster in its own STUDENTS sheet, so it always came back empty.
-      Home's single-file card now shows the real count (verified: 30 for
-      Sample 1, 100 for Sample 10, 2 for Sample 5, etc. — was 0 for all).
-      Also fixes Compare Mode, which was silently building the same
-      wrong (0) rowCount for every uploaded file via the same function.
-    v3.7 — env-config.js added: single runtime settings file
-      (js/env-config.js, loaded first) auto-detects QA/Prod/local from
-      location.hostname and exposes window.APP_CONFIG {assetBase,
-      projectPageUrl}. Replaces the 5 hardcoded "https://studin.in/"
-      occurrences (sample-file fetch x2 in render-dashboard.js, PDF
-      footer link in export-pdf.js, Project Page + footer links in
-      index.html). No manual edit needed when deploying to either repo —
-      QA now correctly pulls its own sample files instead of Prod's.
-    v3.6 — Bible §5/§8 "Student clustering / k-means": built for real,
-      gated to n>=30 students exactly as the bible specifies (below that,
-      the bucket simply doesn't appear — no fake/noisy clustering shown
-      on small demo classes). computeCohortClusters() in the analysis
-      pipeline (runs last, after computePeerOutliers): 4 features per
-      student (overallAvg, consistencyScore, trend slope, absence rate),
-      z-score standardized across the cohort so no feature dominates by
-      scale, clustered with a from-scratch k-means implementation
-      (_kmEuclidSq/_kmPlusPlusInit/_kmSingleRun/_kmRun) — k-means++
-      seeding, 10 restarts keeping lowest-inertia result, empty-cluster
-      reseeding, fixed-seed deterministic RNG (mulberry32) so the same
-      import always regroups the same way. k=3 (or 4 at n>=60). Cluster
-      labels ("High & Steady"/"Moderate but Inconsistent"/"Needs
-      Support"/etc.) assigned post-hoc from each centroid's real
-      (un-standardized) values — the algorithm itself has no notion of
-      good/bad, just where students clump. New "Performance Groups"
-      bucket (renderClusterGroups/openClusterGroup) added to the
-      Institution-mode bucket screen, same Screen A/B/C pattern as
-      Help/Top, only rendered when APP.cohortClusters exists. Verified
-      with synthetic data before wiring the UI: 3 well-separated 2D
-      clusters recovered exactly (15/15/15, centroids within 0.2 of
-      true); inertia identical across 5 different RNG seeds (global
-      optimum, not a lucky restart); all-identical-points degenerate
-      case doesn't crash; full pipeline test with 35 synthetic students
-      across 3 true behavior patterns (steady-high/volatile-mid/steady-
-      low) recovered exact 12/12/11 group sizes with correct labels.
-    v3.5 — Bible gap-fill (Project Bible §5 "Outlier detection, z-score,
-      both directions"): the "Peer Outlier" checkbox has existed in
-      AI_FEATURES since early versions but nothing ever computed it —
-      toggling it did nothing. Added computePeerOutliers(), called at the
-      end of computeAnalysis() right after computeClassStats() (needs
-      class mean/SD, which classStats already has). z-score of each
-      student's overallAvg vs class mean/SD; |z|>=2 flags peer-outlier-
-      high/low, min class size 4 (same anonymity/noise floor pattern as
-      attendanceCorrelation elsewhere in this file). Wired into the
-      existing generic flag pipeline (st.flags/explainedWarnings) so
-      Alerts tab, "Flagged" filter, and PDF export pick it up with zero
-      extra code — and into BUCKET_HELP_FLAG_TYPES (low)/
-      BUCKET_TOP_FLAG_TYPES (high) so it surfaces in the bucket/
-      progressive-disclosure screens too. Audited computeAnalysis() /
-      computeClassStats() / computePercentiles() against the bible's full
-      §5 stats list first — percentile, trend, consistency, rank, class
-      mean/median/SD/quartiles, subject weakness, and the bucket-based
-      progressive-disclosure UX (§4) were already implemented; peer
-      outlier was the one advertised-but-dead gap. Correlation matrix
-      (subject-vs-subject Pearson) and k-means cohort clustering (§5,
-      §8 Phase 3) remain genuinely unbuilt — flagging for a deliberate
-      future pass rather than bolting them on unreviewed.
-    v3.4 — Analysis loader paced up slightly. Single-file steps[] gained
-      a leading "Reading uploaded file…" stage and per-step delay went
-      280-500ms -> 420-700ms; Compare mode's per-section delay went
-      180-340ms -> 280-500ms. Purely a feel/pacing tweak (per Sandy: the
-      old pace read as "already done" rather than "working through it")
-      — no change to what's actually computed at each stage.
-    v3.3 — Two fixes. (1) toast() was double-printing its status icon —
-      the CSS (.toast.success/.error/.warn::before) already injects
-      ✓/✕/⚠, but the JS toast() function was ALSO prepending its own
-      "✔ "/"✕ "/"⚠ " text into the message, so every toast showed the
-      icon twice. Removed the JS-side glyph; CSS ::before is now the
-      single source. (2) Setup/Sample Files stepper items
-      (.step-item.step-cta) had filled-pill styling (rounded background,
-      padding, bold) that made them look like a mismatched design
-      element next to the plain-text Home/Dashboard/Export items in the
-      same row — per Sandy, changed to match the plain stepper look
-      (text-only, same active/hover treatment as the rest).
-    v3.2 — Three bug fixes. (1) renderHomePage() reset every piece of
-      import state EXCEPT the "Run Analysis" button itself, so removing
-      the only uploaded file (resetHomeImport -> renderHomePage) left
-      the button visibly enabled with zero files present; now explicitly
-      hidden/disabled on every fresh Home render. (2) Sample Files modal's
-      "Try All 3 Together" button (compareCta) built its onclick with
-      JSON.stringify(compareFiles), which emits double-quoted strings —
-      inside the button's own double-quoted onclick="..." attribute this
-      silently truncated the attribute at the first embedded quote, so
-      the button did nothing; rebuilt using single-quoted array literal
-      syntax (matching the working single-sample "Try Now" buttons).
-      (3) panel-ai (Step 3) was a fully interactive feature-selection
-      screen — Select All/Clear All/Run Analysis buttons plus 5 checkbox
-      cards — that stayed on-screen, clickable, the entire time the
-      progress loader (#ai-loader) was running underneath it, letting a
-      teacher fiddle with checkboxes mid-calculation. All features are
-      already pre-selected by default on load and analysis is always
-      triggered from Home's own Run Analysis button, so the interactive
-      markup (phase-actionbar + its 3 buttons) was removed outright and
-      the checkbox-grid cards wrapped in a permanently display:none
-      #ai-checkbox-cards div — kept in the DOM (not deleted) since
-      renderAICheckboxes()/selectAllAI()/clearAllAI()/APP.aiFeatures
-      still populate and read it internally, just never shown. panel-ai
-      is now a pure, non-interactive progress screen. Dead references to
-      the removed #btn-analyse / .phase-actionbar-btns .btn-secondary
-      elements in runAnalysis() and generateAllPDFs()-adjacent code
-      cleaned up (jQuery no-ops on missing elements, but removed for
-      clarity per hygiene note).
-    v3.1 — Revision 2 overrides (§10.1-10.5 of the BUILD spec): Upload
-      Data panel (panel-data) deleted entirely, along with every function
-      that only ever targeted its DOM (triggerFileUpload/handleFileSelect/
-      handleFileDrop/processFile/parseWorkbook, triggerCompareFileUpload/
-      handleCompareFileSelect/handleCompareFileDrop,
-      renderCompareSectionsList/renameCompareSection/
-      removeCompareSection/updateCompareContinueButton) — CSV upload
-      support went with it, Home's zone is .xlsx/.xls only now. Step nav
-      renumbered 1-4 (Setup/Processing/Dashboard/Export). Sample-data
-      popup bug (§10.4) traced to Home's link calling the wrong function,
-      not a bug in showSampleFiles() itself — fixed by pointing Home's
-      "Want to try it first?" at showSampleFiles() directly;
-      tryOneClickSample() deleted. startCompareMode() no longer navigates
-      (used to jump to the now-deleted "data" step) — runs quietly in the
-      background while the person stays on Home. APP.compareMode flag
-      was NOT fully eliminated as §10.3 asked — see §9 gotcha
-      "compareMode-flag-not-eliminated" for the honest scope/reasoning.
-      Full regression-tested against a real MBBS sample file (single-
-      file, 2-file compare, and sample-popup paths) after these changes.
-    v3.0 — Home-first redesign + multi-file/dashboard/chart/copy pass, per
-      the "STUDENT INSIGHT — HOME-FIRST REDESIGN + THEME — BUILD SPEC":
-      (1) Home rebuilt as a single centered focal action — 3-card grid
-      removed, replaced with one drop zone + "Run Analysis" button that
-      only appears after a valid upload (reverses v2.4's auto-run: see
-      MANUAL-RUN FLOW in §7, replacing the old AUTO-RUN FLOW entry).
-      tryOneClickSample() now downloads the sample instead of auto-
-      loading it. (2) Multi-file dropdown: populateCompareSectionPicker()
-      now only offers "Compare" when EVERY uploaded file matches the
-      shared schema (was: whenever 2+ happened to individually match);
-      dashboard landing defaults to the first file, not the Compare
-      overview; runCompareAnalysisCore()/updateCompareContinueButton()
-      relaxed from a 2-valid-file minimum to 1, so a batch that doesn't
-      fully match still gets each matching file its own results. NOTE:
-      a file that doesn't match the FIRST file's schema is still marked
-      invalid at intake and gets no analysis at all — true "every file
-      independently analyzed regardless of schema" would require
-      decoupling analysis from one shared APP.setup, which was flagged
-      as a follow-up, not attempted here. (3) Dashboard buckets: Screen C
-      full-answer views (My Whole Class, One Student, One Subject, each
-      Help/Top Performer finding) gained real Chart.js visualizations —
-      subject-average bar + heatmap on Class, a shared trend-line chart
-      on Student/Help/Top, a distribution bar on Subject — via new
-      configureChartDefaults()/_bucketCharts/renderBucketClassCharts()/
-      renderBucketStudentTrendChart()/renderBucketSubjectDistChart().
-      (4) Setup's upload-based "Load Existing Filled Sheet" (template
-      merge, not analysis) confirmed out of scope for removal — kept.
-      (5) About/FAQ hero copy reframed around "You have students' marks
-      — let's build meaningful insight from them" theme; FAQ answer
-      bodies (189 keys, formulas/thresholds/liability) untouched.
-    v2.6 — Bug fixes found via full end-to-end testing against a real
-      sample workbook (Sample_04, Class 7 Section B, 10 students, 5
-      subjects, 4 tests): afterAllCompareFilesLoaded(),
-      tryOneClickSample(), and handleHomeImport()'s clean-success branch
-      all called .hide()/.empty() on a plain document.getElementById()
-      result — those are jQuery methods, not native DOM ones, and would
-      throw in a real browser the first time a teacher hit the success
-      path (Try Sample Data with no warnings, a normal Home import with
-      no warnings, or a Home 2+-file drop with ≥2 matching sections).
-      All three replaced with plain .style.display/.innerHTML. Two
-      jsdom-based test suites (17 real-file + 15 synthetic-data checks)
-      now exist to catch this class of bug going forward — see
-      smoketest.js / realfiletest.js in the working notes, not shipped
-      as part of the app itself.
-    v2.4 — Auto-run flow: the Analyse/checkbox screen is no longer a
-      manual stop. Every validated upload path (Home import, Try Sample
-      Data, Step 2 drop-zone, Home's 2+-file compare drop) now calls
-      runAnalysis() itself and lands straight on the bucket dashboard;
-      panel-ai/#ai-loader still shows briefly (goStep('ai') called
-      internally) so the "Crunching numbers…" animation is preserved,
-      but the checkbox cards under it are never a required stop. Home's
-      multi-file drop threshold changed from >2 files to 2+ files, and
-      now silently checks subject/test schema match across all
-      uploaded sections: ≥2 matching sections auto-run the comparison
-      immediately (no "Compare Sections" click), non-matching sections
-      get a plain-language "Can't compare these files" message instead
-      of raw per-file validation output. Compare Sections' own explicit
-      continue button (from Setup's upload UI) still requires a manual
-      click by design — see §7 AUTO-RUN FLOW and §9 gotchas.
-    v2.3 — Smart Reveal: Dashboard step (Institution+non-Compare mode)
-      now opens on a 5-bucket screen (My Whole Class / One Student /
-      One Subject / Who Needs Help / Top Performers) instead of the
-      full dashboard dump; tapping a bucket shows a plain filtered
-      list of only the non-trivial findings (or an explicit "all
-      good" state), tapping a finding opens a full-screen (not modal)
-      answer. Presentation-layer only — reuses st.flags/
-      st.analysis.explainedWarnings/APP.classStats exactly as already
-      computed; no analytics/formula/threshold changed. Compare Mode
-      and Individual mode unaffected, still route to the pre-existing
-      renderDashboard() body (now wrapped as #legacy-dashboard-body).
-      Added srT()/SR_STRINGS_EN i18n-discipline stub (English only — see
-      §10 NOT BUILT correction). See §7 SMART REVEAL for full detail.
-      Home restructured (spec §2.1): added "Try Sample Data" zero-touch
-      lead action (fetches Sample_02 from studin.in, runs the normal
-      import+analysis pipeline, lands on buckets); "New Project"
-      relabeled "Build Your Own" (same behavior); Import Filled Excel's
-      file input now accepts multiple files + drag/drop, auto-routing
-      to Compare Sections mode when >2 files arrive at once. See §7
-      HOME RESTRUCTURE.
-    v2.2 — UI/UX pass (design tokens, dark-mode variables, WCAG-AA
-      color/contrast fixes, full button/form/table/modal state
-      coverage, 44px touch targets, keyboard-activation fix on
-      stepper/mode-card role="button" elements which had no keydown
-      handler, skip-link, reduced-motion/contrast support, RTL
-      groundwork, print stylesheet, new empty-state/banner/tooltip/
-      skeleton component classes). SRI pinned for xlsx-js-style,
-      jsPDF, JSZip (hashes verified against npm-published dist
-      files); Chart.js intentionally left unpinned (see §3 TECH).
-      No data schema, ranking, export-gate, or narrative logic
-      touched.
-    v2.1 — PIB restructured into numbered sections (format adapted from
-      Spend-na's PIB); added §10 NOT BUILT and §11 AI AGENT RULES
-      (both new — Spend-na had them, Student Insight's PIB didn't);
-      added FROZEN_KEYS list and SAFE READ PATTERNS cheat-sheet (§2/§4).
-      Removed dead logo-copy JS left over from the founder-photo swap
-      (About panel's avatar is a real photo now, not a logo copy — see
-      §7 PEOPLE PHOTO). No other code behavior changed this pass.
-    v2.0 — logo dedup (~368KB/31% size cut), removed 2 dead functions,
-      PIB compressed from prose->index format.
-    v1.9 — narrative fields redesigned (5 honest/severity-scaled fields
-      replacing 6 overlapping ones), marks-table Total/opted column +
-      Class Avg row, percentile suppressed <12 students, "needs urgent
-      attention" grammar bug fixed, all narrative fields made editable.
-    v1.8 — Management View for Compare Mode (multi-class grid/KPIs/
-      weak-subjects/flagged-sections, auto-activates at 2+ classes) +
-      8 bug fixes (dead Save button removed, stale validation-error
-      styling after import, stale Setup form after New Project, filter
-      chips hidden on non-applicable tabs, Chart.js rebuild-once bug,
-      Compare Mode schema wiped on back-nav, stale analysis reachable
-      after re-upload, duplicate-file double-counting in Compare Mode).
-    v1.7 — sample-file link filenames fixed (repo renamed with "_For_").
-    v1.6 — custom domain move to studin.in; 3 hardcoded URLs updated;
-      service worker/manifest already env-aware, needed no changes.
-    v1.5 — Compare Sections routing fix: goes straight to upload step
-      instead of forcing Setup re-entry; first file's own SETUP tab
-      becomes the shared schema automatically.
-    v1.4 — first-load Institution/Individual mode prompt; New Project
-      preserves last-used mode instead of forcing Institution; Compare
-      Sections card hides in Individual mode.
-    v1.3 — "Update Existing Sheet" merge feature (add Test 2/3 without
-      losing Test 1 data); removed always-blank "Parent: --" PDF line.
-    v1.2 — 7 generic analytics add-ons on existing data columns: best/
-      worst test, subject-vs-class delta, rank movement, "first time
-      below pass" flag, report-card-comment field, attendance-vs-
-      performance correlation, class-wide subject weakness.
-    v1.1 — mark-overflow cap, Export gate, scrollable data-issue banner,
-      session-name-badge clearing, growth-rate clamp (all in §2 now,
-      not repeated here).
-    v1.0 — baseline: grouped-header detection, formula-injection
-      stripping, competition ranking, gender-gap privacy floor.
+12. CHANGELOG — terse, append-only; full reasoning for pre-v2.0 items (each entry compressed to one line; full multi-paragraph
+    reasoning for these lived here pre-v4.38 — see git history if needed)
+    - v4.38 — PIB maintenance pass: §12 CHANGELOG entries v2.4-v4.37 compressed from multi-paragraph dev-diary prose to one terse line each (this section alone was ~56KB of the ~90KB PIB); removed the dead backToIndividualBuckets() no-op (render-buckets.js) after confirming via grep + a full dom-smoke run that nothing calls it anymore, now that all inline onclick markup is gone.
+    - v4.37 note: several real fixes landed between v4.36 and this entry without individual PIB updates (sample-file tab prefix, "Start a new class/semester" leaving stale tabs, a literal `<b>` in the fork modal). v4.37 itself: bulk section template creation (generateBulkSectionTemplates()/toggleBulkSectionsUI(), js/template-upload.js).
+    - v4.30-v4.35 note: this repo's changelog top entry was v4.19 when the continuity feature arc (prompt-01 through prompt-05, plus this samples/docs merge pass) started, but the actual code had…
+    - v4.36 — built the real N-period SETUP/STUDENTS/MARKS parser (parseContinuityPeriods(), js/template-upload.js) — the single gap flagged repeatedly across v4.30-v4.35 as the reason the whole continuity arc wasn't usable end-to-end.
+    - v4.35 — samples/ revisit: fixed a real bug found while doing this — deriveContinuityTerminology()'s institutionTypeField matching checked for bare "school"/"college"/"university", which…
+    - v4.34 — prompt-05-institution-rollup-narrative.md, PARTIAL, final file in the 5-prompt continuity arc: deriveContinuityTerminology() (school "Class"/"Left"/"attrition" vs college…
+    - v4.33 — prompt-04-student-trajectory-forecast.md, PARTIAL: extended js/continuity-dashboard.js — clicking a roster row now opens a student trajectory detail view (line chart with real gaps…
+    - v4.32 — prompt-03-cohort-dashboard-ui.md, PARTIAL: added js/continuity-dashboard.js, a real "continuity" bucket wired into the bucket-list rail (render-dashboard.js…
+    - v4.31 — prompt-02-nperiod-import-fork.md, PARTIAL: added deriveRosterTimeline() and splitPeriodsForAnalysis() (js/compute-engine.js) — pure N-period generalization of Prompt 01's functions,…
+    - v4.30 — prompt-01-schema-foundation-2period.md, PARTIAL: added the two pure/no-UI functions it scoped as safe to build ahead of the real schema work (deriveRosterStatus,…
+    - v4.19 — ui-prompt-batch2.md items 1-3.
+    - v4.18 — Bug report: "most Shell-left/right headers not rendering." Couldn't reproduce/pin the exact root cause via code reading alone (no browser in this environment) — two things fixed…
+    - v4.17 — ui-prompt-template.md §6 (Export folds into Dashboard), resolved via open-questions-resolved.md.
+    - v4.16 — ui-prompt-template.md §4 items 1-8 (Home rail + Dashboard IDE redesign, in progress — items 1-8 done, §5/§6/§7 of the wider ui-prompt-template-2.md not started, open questions pending).
+    - v4.15 — vs-shell-plan-v2.md Task 8 (mobile fallback + regression review) — LAST task, vs-shell-plan-v2.md now fully implemented.
+    - v4.14 — vs-shell-plan-v2.md Task 6 (Dashboard right panel, Smart Query v2 — last of the content tasks).
+    - v4.13 — vs-shell-plan-v2.md Task 5 (right panel, non-Dashboard phases), using shell-redesign-plan.md §4.2's key list minus shell_right_continue (stale — AI panel has no Continue action since v3.2, see §9).
+    - v4.12 — vs-shell-plan-v2.md Task 4 (left panel content), using the key list from shell-redesign-plan.md §4.1.
+    - v4.11 — vs-shell-plan-v2.md Task 7 (session-persistent panel state).
+    - v4.10 — Correction to Task 3 (user-requested, not in vs-shell-plan-v2.md): whole app now fits the viewport on desktop (>768px) with no page-level scroll — only #main scrolls internally.
+    - v4.9 — vs-shell-plan-v2.md Task 3: VS-shell skeleton.
+    - v4.8 — vs-shell-plan-v2.md Tasks 1-2.
+    - v4.7 — App shell (Phases 1-3, shell-redesign-plan.md), Smart Query v2 core + UI (js/smart-query-v2.js, js/smart-query-v2-ui.js), Story-Deck-Run mode (js/story-deck.js), §5a…
+    - v4.6 — 2 remaining §5 parent features.
+    - v4.5 — i18n gap-fill (Project Bible v2 §4 review follow-up).
+    - v4.4 — Target-score tracker (Project Bible v2 §5, "For parents").
+    - v4.3 — 3 items from Project Bible v2 §4 (small/confirmed items): (1) markDirty()/markClean() gap fixed — markClean() existed but was never called; now fires at both analysis-success points…
+    - v4.2 — AI feature panel (42 features × label+sub = 84 keys) localized across all 13 languages, sourced from a re-uploaded old reference file's en/hi/kn — cross-verified id-for-id against…
+    - v4.1 — 4 bug fixes: (1/2) Setup/Sample Files/About/FAQ nav-lock rule unified — previously Sample/About/FAQ used a stricter "Home only" check that also blocked them mid-Setup (the actual…
+    - v4.0 — Full localization of Setup + About + FAQ-chrome across all 13 languages (English + 12 Indian languages), ~142 new keys ×13 = ~1,846 translated strings, on top of the existing ~40-key bucket/ Smart Search coverage.
+    - v3.9 — 4 mobile bug fixes from iPhone 13 Pro Max QA screenshots: (1) Setup Step 4's Back/Done/Download buttons all read as one confusing block on narrow screens — Back is now a quiet ghost…
+    - v3.8 — "0 rows detected" bug fixed: resolveMarksRows() was looking for a sheet named MARKS+CONTEXT (an old single-sheet template); current templates split marks across one sheet PER TEST…
+    - v3.7 — env-config.js added: single runtime settings file (js/env-config.js, loaded first) auto-detects QA/Prod/local from location.hostname and exposes window.APP_CONFIG {assetBase, projectPageUrl}.
+    - v3.6 — Bible §5/§8 "Student clustering / k-means": built for real, gated to n>=30 students exactly as the bible specifies (below that, the bucket simply doesn't appear — no fake/noisy clustering shown on small demo classes).
+    - v3.5 — Bible gap-fill (Project Bible §5 "Outlier detection, z-score, both directions"): the "Peer Outlier" checkbox has existed in AI_FEATURES since early versions but nothing ever computed it — toggling it did nothing.
+    - v3.4 — Analysis loader paced up slightly.
+    - v3.3 — Two fixes. (1) toast() was double-printing its status icon — the CSS (.toast.success/.error/.warn::before) already injects ✓/✕/⚠, but the JS toast() function was ALSO prepending its…
+    - v3.2 — Three bug fixes. (1) renderHomePage() reset every piece of import state EXCEPT the "Run Analysis" button itself, so removing the only uploaded file (resetHomeImport ->…
+    - v3.1 — Revision 2 overrides (§10.1-10.5 of the BUILD spec): Upload Data panel (panel-data) deleted entirely, along with every function that only ever targeted its DOM…
+    - v3.0 — Home-first redesign + multi-file/dashboard/chart/copy pass, per the "STUDENT INSIGHT — HOME-FIRST REDESIGN + THEME — BUILD SPEC": (1) Home rebuilt as a single centered focal action —…
+    - v2.6 — Bug fixes found via full end-to-end testing against a real sample workbook (Sample_04, Class 7 Section B, 10 students, 5 subjects, 4 tests): afterAllCompareFilesLoaded(),…
+    - v2.4 — Auto-run flow: the Analyse/checkbox screen is no longer a manual stop.
+    - v2.3 — Smart Reveal: Dashboard step (Institution+non-Compare mode) now opens on a 5-bucket screen (My Whole Class / One Student / One Subject / Who Needs Help / Top Performers) instead of…
+    - v2.2 — UI/UX pass (design tokens, dark-mode variables, WCAG-AA color/contrast fixes, full button/form/table/modal state coverage, 44px touch targets, keyboard-activation fix on…
+    - v2.1 — PIB restructured into numbered sections (format adapted from Spend-na's PIB); added §10 NOT BUILT and §11 AI AGENT RULES (both new — Spend-na had them, Student Insight's PIB didn't);…
+    - v2.0 — logo dedup (~368KB/31% size cut), removed 2 dead functions, PIB compressed from prose->index format.
+    - v1.9 — narrative fields redesigned (5 honest/severity-scaled fields replacing 6 overlapping ones), marks-table Total/opted column + Class Avg row, percentile suppressed <12 students, "needs…
+    - v1.8 — Management View for Compare Mode (multi-class grid/KPIs/ weak-subjects/flagged-sections, auto-activates at 2+ classes) + 8 bug fixes (dead Save button removed, stale validation-error…
+    - v1.7 — sample-file link filenames fixed (repo renamed with "_For_").
+    - v1.6 — custom domain move to studin.in; 3 hardcoded URLs updated; service worker/manifest already env-aware, needed no changes.
+    - v1.5 — Compare Sections routing fix: goes straight to upload step instead of forcing Setup re-entry; first file's own SETUP tab becomes the shared schema automatically.
+    - v1.4 — first-load Institution/Individual mode prompt; New Project preserves last-used mode instead of forcing Institution; Compare Sections card hides in Individual mode.
+    - v1.3 — "Update Existing Sheet" merge feature (add Test 2/3 without losing Test 1 data); removed always-blank "Parent: --" PDF line.
+    - v1.2 — 7 generic analytics add-ons on existing data columns: best/ worst test, subject-vs-class delta, rank movement, "first time below pass" flag, report-card-comment field, attendance-vs-…
+    - v1.1 — mark-overflow cap, Export gate, scrollable data-issue banner, session-name-badge clearing, growth-rate clamp (all in §2 now, not repeated here).
+    - v1.0 — baseline: grouped-header detection, formula-injection stripping, competition ranking, gender-gap privacy floor.
 ════════════════════════════════════════════════════════════════════════
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -2086,7 +1325,19 @@
     <button class="si-btn si-btn-primary" id="si-next" data-i18n="onboard_next">Next</button>
   </div>
 </div>
+
+<!-- Pitch-deck image viewer — SEPARATE from #si-onboard above. That one is
+     the native, theme-matched, 12-language onboarding tour (auto-shown on
+     first visit + "Replay intro / demo mode" in About). This one is the
+     original 5-slide image deck (NotebookLM-generated pitch art, English
+     only) — kept as a distinct on-demand option since some visitors/demos
+     prefer the richer illustrated deck over the native screens. Triggered
+     only from the "View pitch deck (slides)" button in About; never
+     auto-shown. Filled in by js/pitch-deck.js, same single-insertion-point
+     convention as #si-onboard. -->
+<div id="si-deck" hidden></div>
 <a href="#main" class="skip-link" data-i18n="shell_skip_to_content">Skip to main content</a>
+
 
 
 <header id="topbar">
@@ -2141,12 +1392,23 @@
     <div style="position:absolute;bottom:-70px;left:28%;width:180px;height:180px;background:rgba(46,196,182,.16);border-radius:50%;filter:blur(2px);pointer-events:none"></div>
     <div style="position:relative;z-index:1;max-width:680px;margin:0 auto;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.22)">
       <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border-radius:99px;padding:2px 12px;margin-bottom:5px;cursor:pointer" data-action="toggleTrust" data-arg="t1" role="button" tabindex="0">
-        <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.9);letter-spacing:.5px;text-transform:uppercase" data-i18n="home_trust_badge">Privacy First • Browser Based • No Student Data Uploaded ▾</span>
+        <span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.9);letter-spacing:.2px" data-i18n="home_trust_badge">Privacy First • Browser Based • No Student Data Uploaded ▾</span>
       </div>
       <div id="trust-detail" style="display:none;max-width:520px;margin:0 auto 8px;background:rgba(0,0,0,.18);border-radius:8px;padding:8px 14px">
         <div id="t1" class="trust-body" style="display:block;font-size:11px;color:rgba(255,255,255,.9);line-height:1.5" data-i18n="home_trust_detail">Nothing to comply with, because nothing is transmitted — all computation happens on the device, marks and names never leave the browser, there's no server to breach.</div>
       </div>
-      <h1 style="font-family:var(--font-display);font-size:clamp(16px,2.4vw + 6px,20px);font-weight:800;color:#fff;margin-bottom:3px;line-height:1.2" data-i18n="home_hero_title">Turn your students' marks into actionable insight</h1>
+      <h1 style="font-family:var(--font-display);font-size:clamp(16px,2.4vw + 6px,20px);font-weight:800;color:#fff;margin-bottom:3px;line-height:1.2" data-i18n="home_hero_title">Every test cycle, the same rankings, the same remarks — starting from zero again.</h1>
+      <!-- Hook line (HOOK_AND_POSITIONING_BRIEF.md §1) replaces the old
+           feature-descriptor h1 ("Turn your students' marks into
+           actionable insight") — that line now lives one line down as
+           home_hero_descriptor, playing the "product name / one-line
+           descriptor comes after the visual" role from §4 step 3.
+           STILL OPEN (brief §7, not done here): the brief's step 2 is a
+           before/after visual (messy marksheet → clean dashboard) between
+           the hook and the descriptor — that asset doesn't exist yet and
+           wasn't fabricated; this is a text-only interim structure until
+           it's created. -->
+      <div style="font-family:var(--font-display);font-size:12.5px;font-weight:700;color:rgba(255,255,255,.88);margin-bottom:2px" data-i18n="home_hero_descriptor">Turn your students' marks into actionable insight</div>
       <!-- UI redesign (2026-08): dropped the third hero line
            (home_hero_position — "not a school management system... no
            accounts, no data upload") — its content already duplicates the
@@ -2392,9 +1654,9 @@
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px"><input type="checkbox" id="sc-pf" style="accent-color:var(--c-primary)"/> <span data-i18n="setup_scoring_passfail">Pass/Fail</span></label>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          <div class="form-group" style="margin-bottom:0"><label style="font-size:9.5px" id="pass-threshold-label" data-i18n="setup_pass_threshold_label">Pass %</label><input id="pass-threshold" type="number" value="35" min="0" max="100" style="text-align:center"/></div>
-          <div class="form-group" style="margin-bottom:0"><label style="font-size:9.5px" data-i18n="setup_absent_alert_label">Absent Alert</label><input id="absent-alert" type="number" value="3" min="0" style="text-align:center"/></div>
-          <div class="form-group" style="margin-bottom:0"><label style="font-size:9.5px" data-i18n="setup_drop_alert_label">Drop Alert %</label><input id="drop-alert" type="number" value="20" min="0" max="100" style="text-align:center"/></div>
+          <div class="form-group" style="margin-bottom:0"><label style="font-size:11px" id="pass-threshold-label" data-i18n="setup_pass_threshold_label">Pass %</label><input id="pass-threshold" type="number" value="35" min="0" max="100" style="text-align:center"/></div>
+          <div class="form-group" style="margin-bottom:0"><label style="font-size:11px" data-i18n="setup_absent_alert_label">Absent Alert</label><input id="absent-alert" type="number" value="3" min="0" style="text-align:center"/></div>
+          <div class="form-group" style="margin-bottom:0"><label style="font-size:11px" data-i18n="setup_drop_alert_label">Drop Alert %</label><input id="drop-alert" type="number" value="20" min="0" max="100" style="text-align:center"/></div>
         </div>
       </div>
     </div>
@@ -2452,7 +1714,7 @@
     <div class="loader-msg" id="ai-loader-msg" data-i18n="setup_progress_initialising">Initialising…</div>
     <div class="loader-step-count" id="ai-loader-step" data-i18n="setup_progress_step_label">Step 1 of 10</div>
     <div style="max-width:320px;margin:0 auto">
-      <div class="prog-bar"><div class="prog-fill" id="ai-prog" style="width:0%"></div></div>
+      <div class="prog-bar"><div class="prog-fill" id="ai-prog"></div></div>
       <div style="text-align:center;font-size:11px;color:var(--c-text3);margin-top:5px" id="ai-prog-label">0%</div>
     </div>
     <div class="loader-hint" data-i18n="setup_progress_crunching">Crunching numbers in your browser — this only takes a few seconds.</div>
@@ -2577,7 +1839,7 @@
   <div class="db-tab-panel" id="tab-analytics" role="tabpanel" aria-labelledby="dbtab-analytics" tabindex="0">
     <div class="grid-2" style="margin-bottom:16px">
       <div class="chart-container"><div class="card-title" id="chart-subject-avg-title" data-i18n="dashboard_chart_subject_avg">Subject Averages</div><canvas id="chart-subject-avg"></canvas></div>
-      <div class="chart-container"><div class="card-title" id="chart-trend-title" data-i18n="dashboard_chart_class_trend">Class Trend</div><canvas id="chart-trend"></canvas></div>
+      <div class="chart-container" id="chart-trend-container"><div class="card-title" id="chart-trend-title" data-i18n="dashboard_chart_class_trend">Class Trend</div><canvas id="chart-trend"></canvas><div id="chart-trend-note" style="display:none;font-size:12px;color:var(--c-text3);margin-top:8px"></div></div>
     </div>
     <div id="cohort-charts-row">
       <div class="chart-container"><div class="card-title" data-i18n="dashboard_chart_marks_vs_attendance">Marks vs Attendance</div><canvas id="chart-scatter"></canvas></div>
@@ -2648,10 +1910,10 @@
     <div class="card">
       <div class="card-title"><span class="icon"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1z'/><rect x='5' y='5' width='14' height='16' rx='2'/></svg></span> <span data-i18n="export_whatgen_title">What Gets Generated</span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
-        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-primary)"><div style="font-weight:700;margin-bottom:4px" id="exp-student-card-title"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M20 21a8 8 0 1 0-16 0'/><circle cx='12' cy='8' r='4'/></svg> <span data-i18n="export_card_student_title">Student Reports</span></div><div style="font-size:12px;color:var(--c-text2)" id="exp-student-card-desc" data-i18n="export_card_student_desc">Individual academic summaries highlighting strengths, learning gaps and suggested improvement areas.</div></div>
-        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-success)" id="exp-teacher-card"><div style="font-weight:700;margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='4' y='3' width='16' height='18' rx='1'/><path d='M9 21V15h6v6'/><path d='M9 7h1M9 11h1M14 7h1M14 11h1'/></svg> <span data-i18n="export_card_teacher_title">Teacher Report</span></div><div style="font-size:12px;color:var(--c-text2)" data-i18n="export_card_teacher_desc">Comprehensive overview of class performance, trends, subject analysis and recommendations.</div></div>
-        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-purple)" id="exp-mgmt-card"><div style="font-weight:700;margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='4' y='3' width='16' height='18' rx='1'/><path d='M9 21V15h6v6'/><path d='M9 7h1M9 11h1M14 7h1M14 11h1'/></svg> <span data-i18n="export_card_mgmt_title">Management Report</span></div><div style="font-size:12px;color:var(--c-text2)" data-i18n="export_card_mgmt_desc">Executive summary of key academic indicators and performance highlights.</div></div>
-        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm);border-left:3px solid var(--c-warn)"><div style="font-weight:700;margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M21 8l-9-5-9 5v8l9 5 9-5V8z'/><path d='M3.3 8.5l8.7 4.5 8.7-4.5'/><path d='M12 22V13'/></svg> <span data-i18n="export_card_zip_title">ZIP Bundle</span></div><div style="font-size:12px;color:var(--c-text2)" data-i18n="export_card_zip_desc">All reports in a single download — ready to save or share with authorised stakeholders.</div></div>
+        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm)"><div style="font-weight:700;margin-bottom:4px" id="exp-student-card-title"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M20 21a8 8 0 1 0-16 0'/><circle cx='12' cy='8' r='4'/></svg> <span data-i18n="export_card_student_title">Student Reports</span></div><div style="font-size:12px;color:var(--c-text2)" id="exp-student-card-desc" data-i18n="export_card_student_desc">Individual academic summaries highlighting strengths, learning gaps and suggested improvement areas.</div></div>
+        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm)" id="exp-teacher-card"><div style="font-weight:700;margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='4' y='3' width='16' height='18' rx='1'/><path d='M9 21V15h6v6'/><path d='M9 7h1M9 11h1M14 7h1M14 11h1'/></svg> <span data-i18n="export_card_teacher_title">Teacher Report</span></div><div style="font-size:12px;color:var(--c-text2)" data-i18n="export_card_teacher_desc">Comprehensive overview of class performance, trends, subject analysis and recommendations.</div></div>
+        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm)" id="exp-mgmt-card"><div style="font-weight:700;margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='4' y='3' width='16' height='18' rx='1'/><path d='M9 21V15h6v6'/><path d='M9 7h1M9 11h1M14 7h1M14 11h1'/></svg> <span data-i18n="export_card_mgmt_title">Management Report</span></div><div style="font-size:12px;color:var(--c-text2)" data-i18n="export_card_mgmt_desc">Executive summary of key academic indicators and performance highlights.</div></div>
+        <div style="padding:14px;background:var(--c-surface2);border-radius:var(--r-sm)"><div style="font-weight:700;margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M21 8l-9-5-9 5v8l9 5 9-5V8z'/><path d='M3.3 8.5l8.7 4.5 8.7-4.5'/><path d='M12 22V13'/></svg> <span data-i18n="export_card_zip_title">ZIP Bundle</span></div><div style="font-size:12px;color:var(--c-text2)" data-i18n="export_card_zip_desc">All reports in a single download — ready to save or share with authorised stakeholders.</div></div>
       </div>
     </div>
     <div class="card" style="display:none" aria-hidden="true">
@@ -2686,7 +1948,7 @@
     <div id="export-loader" style="display:none;text-align:center;padding:30px">
       <div class="loader-ring" style="width:40px;height:40px;margin:0 auto 12px"></div>
       <div class="loader-msg" id="export-loader-msg" data-i18n="export_generating_pdfs">Generating PDFs…</div>
-      <div style="max-width:300px;margin:0 auto"><div class="prog-bar"><div class="prog-fill" id="export-prog" style="width:0%"></div></div></div>
+      <div style="max-width:300px;margin:0 auto"><div class="prog-bar"><div class="prog-fill" id="export-prog"></div></div></div>
     </div>
     <div id="export-fallback" style="display:none"></div>
   </div>
@@ -2850,7 +2112,7 @@
         <div style="flex:1;min-width:220px">
           <div style="font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:4px" data-i18n="about_bio_kicker">Who built this</div>
           <div style="font-family:var(--font-display);font-size:17px;font-weight:800;margin-bottom:6px" data-i18n="about_bio_name">Sandeep S Hakki</div>
-          <p style="font-size:13px;color:rgba(255,255,255,.8);line-height:1.7;margin-bottom:14px" data-i18n="about_bio_desc">Educator and builder based in India, working on free, privacy-first tools that give teachers, institutions, and parents back control of their own data — Student Insight is one of them, built as a social cause rather than a product.</p>
+          <p style="font-size:13px;color:rgba(255,255,255,.8);line-height:1.7;margin-bottom:14px" data-i18n="about_bio_desc">Educator and builder based in India, working on privacy-first tools that give teachers, institutions, and parents back control of their own data — Student Insight is one of them, built as a social cause rather than a product.</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             <a href="http://www.hakki.in/" target="_blank" rel="noopener" class="btn btn-sm" style="background:#2ec4b6;color:#0f2041;font-weight:700;border:none"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><circle cx='12' cy='12' r='10'/><line x1='2' y1='12' x2='22' y2='12'/><path d='M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z'/></svg> hakki.in</a>
             <a href="https://in.linkedin.com/in/sandeep-s-hakki-83174022" target="_blank" rel="noopener" class="btn btn-sm" style="background:#0A66C2;color:#fff;display:inline-flex;align-items:center;gap:6px;border:none">
@@ -2860,6 +2122,7 @@
             <a href="mailto:sandeep@hakki.in" class="btn btn-primary btn-sm"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='2' y='4' width='20' height='16' rx='2'/><path d='M2 6l10 7 10-7'/></svg> <span data-i18n="about_bio_email_btn">sandeep@hakki.in</span></a>
             <a id="project-page-link" href="https://studin.in/" target="_blank" rel="noopener" class="btn btn-secondary btn-sm"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><circle cx='12' cy='12' r='10'/><line x1='2' y1='12' x2='22' y2='12'/><path d='M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z'/></svg> <span data-i18n="about_bio_projectpage_btn">Project Page</span></a>
             <button type="button" id="si-replay-btn" class="btn btn-sm" style="background:#2b3a67;color:#fff;border:none"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><polygon points='5 3 19 12 5 21 5 3'/></svg> <span data-i18n="onboard_replay_btn">Replay intro / demo mode</span></button>
+            <button type="button" id="si-deck-btn" class="btn btn-sm" style="background:#5a4a8f;color:#fff;border:none"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='3' y='3' width='18' height='14' rx='2'/><path d='M8 21h8M12 17v4'/></svg> <span data-i18n="onboard_deck_btn">View pitch deck (slides)</span></button>
          </div>
         </div>
       </div>
@@ -2886,13 +2149,20 @@
 
     <!-- PRINCIPAL -->
     <details class="faq-section" open><summary class="faq-audience"><div class="icon-badge"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M2 9l10-5 10 5-10 5-10-5z'/><path d='M6 11v4c0 1.5 2.5 3 6 3s6-1.5 6-3v-4'/><path d='M22 9v6'/></svg></div><div class="txt" data-i18n="faq_audience_principal">From the Principal</div><div class="cnt" data-i18n="faq_cnt_principal">Money, liability, reputation</div><span class="faq-section-chevron">▾</span></summary><div class="faq-list">
-      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span><span data-i18n="faq_q_principal_1">Is this free forever, or a trial that starts charging later?</span><span class="faq-tag serious" data-i18n="faq_tag_serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a" data-i18n="faq_a_principal_1">It's free. There's no backend, no server cost, no subscription infrastructure — it's a single HTML file hosted on GitHub Pages, which is free hosting. There's nothing for me to "start charging" for later because there's no ongoing cost on my end to recover.</div></details>
       <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span><span data-i18n="faq_q_principal_2">What's the catch — what are you getting out of this?</span><span class="faq-tag serious" data-i18n="faq_tag_serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a" data-i18n="faq_a_principal_2">No catch in the commercial sense. I built it because I wanted a tool like this to exist and be genuinely private. There's no data collection, no ads, no lead-gen — it's a personal project, not a funded product.</div></details>
       <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span><span data-i18n="faq_q_principal_3">Who else is using this? Can you name another school?</span><span class="faq-tag serious" data-i18n="faq_tag_serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a" data-i18n="faq_a_principal_3">Right now, honestly — I can't point you to another school using it yet. You'd be among the first. I won't pretend otherwise.</div></details>
       <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span><span data-i18n="faq_q_principal_4">If a grade comes out wrong on a report card, who's responsible?</span><span class="faq-tag serious" data-i18n="faq_tag_serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a" data-i18n="faq_a_principal_4">The calculations are transparent formulas (averages, trends, rankings) applied to the numbers entered — there's no hidden AI making judgment calls. If a number is wrong, it's traceable to either the source data or a bug I need to fix. Every report should be reviewed by a teacher before it goes out, the same as anything drafted by a junior staff member.</div></details>
       <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span><span data-i18n="faq_q_principal_5">Do you have a registered company?</span><span class="faq-tag serious" data-i18n="faq_tag_serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a" data-i18n="faq_a_principal_5">No. This is an independent personal project, not a registered vendor. If procurement requires a registered entity, this can't satisfy that today.</div></details>
       <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span><span data-i18n="faq_q_principal_6">What happens if you stop maintaining this next year?</span><span class="faq-tag serious" data-i18n="faq_tag_serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a" data-i18n="faq_a_principal_6">Your data isn't stored anywhere by the app — it lives in your Excel files. Even if maintenance stopped entirely, no historical records would be lost; only future analysis via this specific tool would stop. That's a direct benefit of the stateless design.</div></details>
       <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span><span data-i18n="faq_q_principal_7">Does this replace our school ERP?</span><span class="faq-tag practical" data-i18n="faq_tag_practical">Practical</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a" data-i18n="faq_a_principal_7">No — it doesn't handle attendance, fees, or admissions. It's narrowly for turning marks into analysis and report cards, as an add-on for one specific job, not a replacement for a school management system.</div></details>
+      <!-- MERGE per HOOK_AND_POSITIONING_BRIEF.md §6: this "is it free"
+           question was previously FIRST in this section (and this section
+           auto-expands on FAQ load, per the parent `<details open>`), so
+           it was the literal first thing anyone saw here — exactly the
+           "headline question" placement the brief says to avoid. Moved to
+           after the workflow-value questions (esp. §7 above, "does this
+           replace our ERP") instead of leading with it; content unchanged. -->
+      <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span><span data-i18n="faq_q_principal_1">Is this free forever, or a trial that starts charging later?</span><span class="faq-tag serious" data-i18n="faq_tag_serious">Serious</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a" data-i18n="faq_a_principal_1">It's free. There's no backend, no server cost, no subscription infrastructure — it's a single HTML file hosted on GitHub Pages, which is free hosting. There's nothing for me to "start charging" for later because there's no ongoing cost on my end to recover.</div></details>
       <details class="faq-item"><summary><span class="faq-q-mark">Q</span><span><span data-i18n="faq_q_principal_8">Did you build this alone? Are you even a teacher?</span><span class="faq-tag silly" data-i18n="faq_tag_silly">Silly</span></span><span class="faq-chevron">▾</span></summary><div class="faq-a" data-i18n="faq_a_principal_8">Yes, alone, and no, not a teacher. This was built as a developer solving a well-defined problem — marks in, insight and report cards out — not as someone claiming pedagogical authority.</div></details>
     </div></details>
 
@@ -3036,7 +2306,7 @@
 
 <!-- FOOTER -->
 <footer id="footer">
-  <a id="footer-project-link" href="https://studin.in/" target="_blank" rel="noopener">Student Insight</a> <span data-i18n="footer_tagline">— Free &amp; Open Source · Contact:</span> <a href="mailto:sandeep@hakki.in">sandeep@hakki.in</a>
+  <a id="footer-project-link" href="https://studin.in/" target="_blank" rel="noopener">Student Insight</a> <span data-i18n="footer_tagline">— Open Source · Contact:</span> <a href="mailto:sandeep@hakki.in">sandeep@hakki.in</a>
 </footer>
 
 <!-- PERF: library scripts moved from <head> so they no longer block initial
@@ -3096,5 +2366,6 @@
 <script type="module" src="js/vs-shell.js"></script>
 <script type="module" src="js/inline-actions.js"></script>
 <script type="module" src="js/onboarding-slider.js"></script>
+<script type="module" src="js/pitch-deck.js"></script>
 </body>
 </html>

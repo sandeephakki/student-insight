@@ -4,7 +4,7 @@ import { openIndividualBucket } from './render-buckets.js';
 import { flagChapterSuffix } from './render-findings.js';
 import { renderDataIssueBanner, srT } from './render-i18n.js';
 import { APP, goStep, updateNavHomeOnlyState } from './state-nav.js';
-import { buildReadmeSheet, buildSetupSheet, handleHomeImportFiles, safeSheetName } from './template-upload.js';
+import { handleHomeImportFiles, resolveSheetName } from './template-upload.js';
 import { renderShellLeftRail, renderShellRightRail } from './vs-shell.js';
 
 // FIX (module-system conversion, HANDOVER #4): _charts used to be declared
@@ -156,7 +156,7 @@ function renderStudentCards(){
     const rm=a.rankMovement;
     const rmBadge=rm==null?"":rm>0?` <span style="color:var(--c-success);font-weight:700" title="Moved up ${rm} place(s) since the previous test">▲${rm}</span>`:rm<0?` <span style="color:var(--c-danger);font-weight:700" title="Moved down ${-rm} place(s) since the previous test">▼${-rm}</span>`:` <span style="color:var(--c-text3)" title="No change in rank since the previous test">—</span>`;
     const idLine=isIndividual?esc(st.id):`${esc(st.id)} · Rank #${a.rank}${rmBadge}`;
-    return `<div class="student-card" data-student-id="${esc(st.id)}"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px"><div style="min-width:0;flex:1" title="${esc(st.name)}"><div class="sc-name">${esc(st.name)}</div><div class="sc-id">${idLine}</div></div><div style="text-align:right;flex-shrink:0"><div class="sc-avg" style="color:${color}">${a.overallAvg}%</div><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:11px;color:var(--c-text3)">${a.grade}</span>${a.healthScore!=null?`<span style="font-size:9px;padding:1px 5px;border-radius:99px;font-weight:700;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'};color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥${a.healthScore}</span>`:''}</div></div></div><div class="sc-bar"><div class="sc-bar-fill" style="width:${a.overallAvg}%;background:${color}"></div></div>${sparkData.length>1?`<div style="margin:6px 0">${sparkSvg}</div>`:""}<div class="sc-flags">${flagBadges}</div></div>`;
+    return `<div class="student-card" data-student-id="${esc(st.id)}"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px"><div style="min-width:0;flex:1" title="${esc(st.name)}"><div class="sc-name">${esc(st.name)}</div><div class="sc-id">${idLine}</div></div><div style="text-align:right;flex-shrink:0"><div class="sc-avg" style="color:${color}">${a.overallAvg}%</div><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:11px;color:var(--c-text3)">${a.grade}</span>${a.healthScore!=null?`<span style="font-size:11px;padding:1px 5px;border-radius:99px;font-weight:700;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'};color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥${a.healthScore}</span>`:''}</div></div></div><div class="sc-bar"><div class="sc-bar-fill" style="transform:scaleX(${(a.overallAvg/100).toFixed(4)});background:${color}"></div></div>${sparkData.length>1?`<div style="margin:6px 0">${sparkSvg}</div>`:""}<div class="sc-flags">${flagBadges}</div></div>`;
   }).join(""));
 }
 function buildSparkPath(data){
@@ -252,7 +252,19 @@ function renderCharts(){
   const subjAvgs=subjects.map(s=>{const avgs=sts.map(st=>st.analysis.subjectAvgs[s]||0);return Math.round(avgs.reduce((a,b)=>a+b,0)/avgs.length);});
   _charts.subjectAvg=new Chart($("#chart-subject-avg")[0],{type:"bar",data:{labels:subjects,datasets:[{label:seriesLabel,data:subjAvgs,backgroundColor:"rgba(43,58,103,.7)",borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100}}}});
   const trendAvgs=tests.map((_,ti)=>{const avgs=sts.map(st=>st.analysis.testAvgs[ti]).filter(v=>v!==null);return avgs.length?Math.round(avgs.reduce((a,b)=>a+b,0)/avgs.length):null;});
-  _charts.trend=new Chart($("#chart-trend")[0],{type:"line",data:{labels:tests.map(t=>t.name),datasets:[{label:seriesLabel,data:trendAvgs,borderColor:primaryColor,backgroundColor:"rgba(43,58,103,.1)",tension:.3,fill:true}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:100}}}});
+  const validTrendPoints=trendAvgs.filter(v=>v!==null).length;
+  // Individual mode, single test on record: a line chart with exactly one
+  // point reads as broken, not "waiting for more data" — hide the canvas
+  // and say plainly what unlocks once a second test is added, instead of
+  // rendering a chart with nothing to show a trend across.
+  if(isIndividual&&validTrendPoints<2){
+    $("#chart-trend").hide();
+    $("#chart-trend-note").show().text("Only one test on record — add the next test's marks to see a progress trend here.");
+  }else{
+    $("#chart-trend").show();
+    $("#chart-trend-note").hide().text("");
+    _charts.trend=new Chart($("#chart-trend")[0],{type:"line",data:{labels:tests.map(t=>t.name),datasets:[{label:seriesLabel,data:trendAvgs,borderColor:primaryColor,backgroundColor:"rgba(43,58,103,.1)",tension:.3,fill:true}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:100}}}});
+  }
   // Cross-student comparison charts (attendance-vs-marks scatter, Top
   // Performers ranking) only render in Institution mode — the canvases
   // are hidden in Individual mode via #cohort-charts-row, but skip the
@@ -321,7 +333,7 @@ function renderSubjectCorrelation(){
     const varName=r>=0?"--c-success":"--c-danger";
     return `background:color-mix(in srgb, var(${varName}) ${Math.round(15+strength*55)}%, transparent);font-weight:${strength>=0.4?700:400}`;
   }
-  const head=`<th></th>${sc.subjects.map(s=>`<th style="writing-mode:vertical-rl;text-orientation:mixed;font-size:10.5px;padding:6px 2px;max-width:34px">${esc(s)}</th>`).join("")}`;
+  const head=`<th></th>${sc.subjects.map(s=>`<th style="writing-mode:vertical-rl;text-orientation:mixed;font-size:11px;padding:6px 2px;max-width:34px">${esc(s)}</th>`).join("")}`;
   const rows=sc.subjects.map((rowSubj,i)=>`<tr><td style="font-weight:600;font-size:11px;white-space:nowrap">${esc(rowSubj)}</td>${sc.matrix[i].map(r=>`<td style="text-align:center;font-size:11px;padding:6px 4px;${cellColor(r)}">${r===null?"—":r.toFixed(2)}</td>`).join("")}</tr>`).join("");
   const top=sc.pairs.slice(0,3).map(p=>{
     const strength=Math.abs(p.r)>=0.7?"strongly":Math.abs(p.r)>=0.4?"moderately":"weakly";
@@ -396,7 +408,7 @@ function buildStudentDetailHtml(st){
       opted++;sumScored+=parseFloat(v)||0;sumMax+=mx;
       return `<td>${esc(String(v))}/${mx}</td>`;
     }).join("");
-    const totalCell=opted>0?`${sumScored}/${sumMax}<div style="font-size:10px;color:var(--c-text3)">${opted}/${subjects.length} opted</div>`:`<span style="color:var(--c-text3)">-</span>`;
+    const totalCell=opted>0?`${sumScored}/${sumMax}<div style="font-size:11px;color:var(--c-text3)">${opted}/${subjects.length} opted</div>`:`<span style="color:var(--c-text3)">-</span>`;
     return `<tr><td style="font-weight:600">${esc(t.name)}</td>${cells}<td>${totalCell}</td><td style="font-weight:700">${a.testAvgs[ti]!==null?a.testAvgs[ti]+"%":"-"}</td><td>${td.absents||0}</td><td style="font-size:11px">${esc(td.remark||"")}${remarkToneBadgeHtml(td.remarkTone)}</td></tr>`;
   }).join("");
   // Class Avg row directly under the marks table (Institution mode only —
@@ -422,7 +434,7 @@ function buildStudentDetailHtml(st){
     ?srT("detail_rank_percentile",{rank:a.rank,total:APP.students.length,pct:a.percentile})
     :srT("detail_rank_only",{rank:a.rank,total:APP.students.length})+(classAvgAll!==null?srT("detail_rank_points_diff",{points:Math.abs(a.overallAvg-classAvgAll),dir:a.overallAvg>=classAvgAll?srT("val_above"):srT("val_below"),avg:classAvgAll}):""));
   const idLine=isIndividual?srT("detail_id_grade",{id:esc(st.id),grade:a.grade}):srT("detail_id_standing_grade",{id:esc(st.id),standing:standingBit,grade:a.grade});
-  return `<h3 style="font-family:var(--font-display);font-size:18px;margin-bottom:4px">${esc(st.name)}</h3><div style="font-size:12px;color:var(--c-text3);margin-bottom:16px">${idLine}</div><div class="grid-4" style="margin-bottom:16px"><div class="kpi-card"><div class="kpi-label">${esc(srT("detail_overall_avg"))}</div><div class="kpi-val">${a.overallAvg}%</div></div><div class="kpi-card"><div class="kpi-label">${esc(srT("kpi_trend"))}</div><div class="kpi-val" style="font-size:16px">${a.trend==="improving"?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><polyline points='3 17 9 11 13 15 21 6'/><polyline points='15 6 21 6 21 12'/></svg>":a.trend==="declining"?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><polyline points='3 7 9 13 13 9 21 18'/><polyline points='15 18 21 18 21 12'/></svg>":"➡"} ${esc(srT("val_trend_"+a.trend))}</div></div><div class="kpi-card"><div class="kpi-label">${esc(srT("card_total_absences"))}</div><div class="kpi-val">${a.totalAbsent}</div></div><div class="kpi-card" data-tip="${esc(srT("detail_stress_tip"))}"><div class="kpi-label">${esc(srT("detail_stress_label"))}</div><div class="kpi-val" style="font-size:16px">${a.wellbeingFlag}</div></div></div><div class="tbl-wrap" style="margin-bottom:4px"><table class="data-table"><thead><tr><th>${esc(srT("th_test"))}</th>${subjects.map(s=>`<th>${esc(s)}</th>`).join("")}<th>${esc(srT("th_total"))}</th><th>${esc(srT("th_avg"))}</th><th>${esc(srT("th_absent"))}</th><th>${esc(srT("th_remark"))}</th></tr></thead><tbody>${testRows}${classAvgRow}</tbody></table></div><div style="font-size:10.5px;color:var(--c-text3);margin-bottom:16px">${esc(srT("detail_total_formula_note"))}</div>${a.healthScore!=null?`<div style="margin-bottom:10px;padding:8px 12px;border-radius:var(--r-sm);display:flex;align-items:center;gap:10px;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'}" data-tip="${esc(srT("detail_health_score_tip"))}"><div style="font-size:22px;font-weight:700;font-family:var(--font-display);color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥ ${a.healthScore}</div><div><div style="font-weight:700;font-size:12px">${esc(srT("kpi_health_score"))} — ${a.healthBand?esc(srT("val_healthband_"+a.healthBand.toLowerCase().replace(/ /g,"_"))):''}</div><div style="font-size:11px;color:var(--c-text2)">${esc(srT("detail_health_score_breakdown"))}</div></div></div>`:""}
+  return `<h3 style="font-family:var(--font-display);font-size:18px;margin-bottom:4px">${esc(st.name)}</h3><div style="font-size:12px;color:var(--c-text3);margin-bottom:16px">${idLine}</div><div class="grid-4" style="margin-bottom:16px"><div class="kpi-card"><div class="kpi-label">${esc(srT("detail_overall_avg"))}</div><div class="kpi-val">${a.overallAvg}%</div></div><div class="kpi-card"><div class="kpi-label">${esc(srT("kpi_trend"))}</div><div class="kpi-val" style="font-size:16px">${a.trend==="improving"?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><polyline points='3 17 9 11 13 15 21 6'/><polyline points='15 6 21 6 21 12'/></svg>":a.trend==="declining"?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><polyline points='3 7 9 13 13 9 21 18'/><polyline points='15 18 21 18 21 12'/></svg>":"➡"} ${esc(srT("val_trend_"+a.trend))}</div></div><div class="kpi-card"><div class="kpi-label">${esc(srT("card_total_absences"))}</div><div class="kpi-val">${a.totalAbsent}</div></div><div class="kpi-card" data-tip="${esc(srT("detail_stress_tip"))}"><div class="kpi-label">${esc(srT("detail_stress_label"))}</div><div class="kpi-val" style="font-size:16px">${a.wellbeingFlag}</div></div></div><div class="tbl-wrap" style="margin-bottom:4px"><table class="data-table"><thead><tr><th>${esc(srT("th_test"))}</th>${subjects.map(s=>`<th>${esc(s)}</th>`).join("")}<th>${esc(srT("th_total"))}</th><th>${esc(srT("th_avg"))}</th><th>${esc(srT("th_absent"))}</th><th>${esc(srT("th_remark"))}</th></tr></thead><tbody>${testRows}${classAvgRow}</tbody></table></div><div style="font-size:11px;color:var(--c-text3);margin-bottom:16px">${esc(srT("detail_total_formula_note"))}</div>${a.healthScore!=null?`<div style="margin-bottom:10px;padding:8px 12px;border-radius:var(--r-sm);display:flex;align-items:center;gap:10px;background:${a.healthScore>=80?'#e6f9f7':a.healthScore>=65?'#eef0fd':a.healthScore>=50?'#fff4e0':'#fdecea'}" data-tip="${esc(srT("detail_health_score_tip"))}"><div style="font-size:22px;font-weight:700;font-family:var(--font-display);color:${a.healthScore>=80?'#1a5c50':a.healthScore>=65?'#2d3ab1':a.healthScore>=50?'#9a6200':'#8b1a1a'}">♥ ${a.healthScore}</div><div><div style="font-weight:700;font-size:12px">${esc(srT("kpi_health_score"))} — ${a.healthBand?esc(srT("val_healthband_"+a.healthBand.toLowerCase().replace(/ /g,"_"))):''}</div><div style="font-size:11px;color:var(--c-text2)">${esc(srT("detail_health_score_breakdown"))}</div></div></div>`:""}
 ${a.explainedWarnings&&a.explainedWarnings.length?`<div style="margin-bottom:12px"><div style="font-weight:600;font-size:11px;margin-bottom:6px">⚠ ${esc(srT("detail_alerts_explanations"))}</div>${a.explainedWarnings.map(f=>`<div style="margin-bottom:5px;padding:6px 10px;border-radius:var(--r-sm);background:${f.color}18;border-left:3px solid ${f.color}"><div style="font-weight:700;font-size:11px;color:${f.color}">${f.label}</div><div style="font-size:11px;color:var(--c-text2);margin-top:2px">${(f.reason||'')+flagChapterSuffix(st,f.type)}</div></div>`).join('')}</div>`:st.flags.length?`<div style="margin-bottom:14px"><div style="font-weight:600;margin-bottom:6px">${esc(srT("detail_flags_label"))}</div>${st.flags.map(f=>`<span class="badge" style="background:${f.color}22;color:${f.color};margin-right:6px">${f.label}</span>`).join("")}</div>`:""}
 <div class="grid-4" style="margin-bottom:14px">
   <div class="kpi-card"><div class="kpi-label">${esc(srT("detail_consistency"))}</div><div class="kpi-val" style="font-size:18px">${a.consistencyScore||"—"}%</div></div>
@@ -457,7 +469,7 @@ let _modalLastFocus=null;
 // only ever touches its own field on st.analysis, in-memory, same stateless
 // model as everything else.
 function narrativeCard(icon,title,field,value,studentId){
-  return `<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">${icon} ${title} <span style="font-weight:400;color:var(--c-text3);font-size:11px">(editable — used in the exported PDF)</span></div><textarea class="narrative-edit" data-field="${field}" style="width:100%;min-height:56px;font-size:13px;font-family:inherit;padding:8px;border:1px solid var(--c-border);border-radius:var(--r-sm);resize:vertical" oninput="$(this).next('.narrative-save-row').find('button').prop('disabled',false)">${esc(value||"")}</textarea><div class="narrative-save-row" style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn btn-secondary" style="padding:5px 14px;font-size:12px" disabled data-action="saveNarrativeField" data-arg="${esc(studentId)}" data-arg2="${field}">Save</button></div></div>`;
+  return `<div class="card" style="padding:12px"><div class="card-title" style="margin-bottom:6px">${icon} ${title} <span style="font-weight:400;color:var(--c-text3);font-size:11px">(editable — used in the exported PDF)</span></div><textarea class="narrative-edit" data-field="${field}" style="width:100%;min-height:56px;font-size:13px;font-family:inherit;padding:8px;border:1px solid var(--c-border);border-radius:var(--r-sm);resize:vertical" data-input-action="narrativeEdit">${esc(value||"")}</textarea><div class="narrative-save-row" style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn btn-secondary" style="padding:5px 14px;font-size:12px" disabled data-action="saveNarrativeField" data-arg="${esc(studentId)}" data-arg2="${field}">Save</button></div></div>`;
 }
 function saveNarrativeField(id,field,btnEl){
   const st=APP.students.find(s=>s.id===id);if(!st)return;
@@ -491,7 +503,7 @@ function remarkCardsHtml(st){
     const rlen=remark.length;
     const rcountText=rlen+" characters"+(rlen>300?" — long remarks may push other sections to extra pages in the PDF":"");
     const rcountColor=rlen>300?"var(--c-warn,#f9a826)":"var(--c-text3)";
-    return `<div><div style="font-size:11.5px;font-weight:700;color:var(--c-text2);margin-bottom:4px">${esc(t.name)}${remarkToneBadgeHtml(remarkTone)}</div><textarea class="narrative-edit remark-edit" data-test="${esc(t.name)}" id="${remarkId}" style="width:100%;min-height:44px;font-size:13px;font-family:inherit;padding:8px;border:1px solid var(--c-border);border-radius:var(--r-sm);resize:vertical" oninput="$(this).next('.narrative-save-row').find('button').prop('disabled',false);updateRemarkCharCount(this)">${esc(remark)}</textarea><div class="narrative-save-row" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px"><span class="remark-char-count" data-for="${remarkId}" style="font-size:11px;color:${rcountColor}">${rcountText}</span><button class="btn btn-secondary" style="padding:5px 14px;font-size:12px" disabled data-action="saveRemarkField" data-arg="${esc(st.id)}" data-arg2="${esc(t.name)}">Save</button></div></div>`;
+    return `<div><div style="font-size:11.5px;font-weight:700;color:var(--c-text2);margin-bottom:4px">${esc(t.name)}${remarkToneBadgeHtml(remarkTone)}</div><textarea class="narrative-edit remark-edit" data-test="${esc(t.name)}" id="${remarkId}" style="width:100%;min-height:44px;font-size:13px;font-family:inherit;padding:8px;border:1px solid var(--c-border);border-radius:var(--r-sm);resize:vertical" data-input-action="remarkEdit">${esc(remark)}</textarea><div class="narrative-save-row" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px"><span class="remark-char-count" data-for="${remarkId}" style="font-size:11px;color:${rcountColor}">${rcountText}</span><button class="btn btn-secondary" style="padding:5px 14px;font-size:12px" disabled data-action="saveRemarkField" data-arg="${esc(st.id)}" data-arg2="${esc(t.name)}">Save</button></div></div>`;
   }).join("")}</div></div>`;
 }
 // STRESS-TEST FIX (BUG-4, STRESS_TEST_REPORT.md): a very long remark (400+
@@ -578,57 +590,77 @@ function downloadUpdatedSheet_OLD(){
 }
 ════════════════════════════════════════════════════════════════════ */
 
-// NEW SCHEMA (multi-tab redesign): writes a full workbook back out —
-// SETUP is regenerated fresh from current settings, STUDENTS is copied
-// through byte-for-byte, and every test tab is copied through with only
-// its Remark column values refreshed from what's currently in memory
-// (edited via the student modal). Reuses buildSetupSheet()/safeSheetName()
-// from template-upload.js, same as the template generator and merge flow.
+// PRESERVATION POLICY (EXCEL_DATA_MATH_AUDIT_PROMPT.md item 7): clones the
+// ORIGINAL imported workbook object (kept in APP.rawWorkbook by
+// parseWorkbookSheets()) and patches only the Remark cell of each row in
+// each known test sheet, in place, rather than rebuilding a new workbook
+// from plain arrays. This preserves formulas, sheet order, cell
+// formatting/styles, validation rules, comments, hidden sheets, defined
+// names, column widths, filters, and every unrelated (non-test) sheet
+// exactly as imported — none of that survives an aoa_to_sheet() rebuild.
+// SETUP and STUDENTS are left completely untouched, not regenerated.
+// This is NOT a byte-for-byte copy (SheetJS still re-serializes the
+// .xlsx container on write), but every worksheet's content/structure is
+// preserved; only the specific Remark cells this app owns are modified.
 function downloadUpdatedSheet(){
   if(!APP.rawData||!APP.students.length){toast("No data loaded.","warn");return;}
-  const studentsArr=APP.rawData["_arr_STUDENTS"];
-  if(!studentsArr){toast(srT("val_cannot_find_students_tab"),"error");return;}
-  const wb=XLSX.utils.book_new();
-  const usedNames=new Set();
-  if(typeof buildSetupSheet==="function"){
-    XLSX.utils.book_append_sheet(wb,buildSetupSheet(),"SETUP");
-    usedNames.add("SETUP");
+  if(!APP.rawWorkbook){
+    toast("Can't find the original workbook in memory for this session — please re-import the file, then try again.","error");
+    return;
   }
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(studentsArr),typeof safeSheetName==="function"?safeSheetName("STUDENTS",usedNames):"STUDENTS");
+  let wb;
+  try{
+    wb=structuredClone(APP.rawWorkbook);
+  }catch(err){
+    toast("Couldn't safely copy the original workbook in this browser — try a different browser or device.","error");
+    return;
+  }
 
   const studentMap={};
   APP.students.forEach(st=>{ studentMap[String(st.id).trim().toUpperCase()]=st; });
 
+  const patchedSheets=[],skippedSheets=[];
   (APP.setup.tests||[]).forEach(t=>{
-    const rows=APP.rawData["_arr_"+t.name];
-    if(!rows){return;} // this test has no tab in the source file — nothing to write back for it
+    // Resolve to the worksheet's actual key (trim + case-fold), same
+    // canonical lookup parseStudents()/validateData() use — see item 5.
+    const resolvedKey=typeof resolveSheetName==="function"?resolveSheetName(APP.rawData,t.name):t.name;
+    const ws=resolvedKey?wb.Sheets[resolvedKey]:undefined;
+    if(!ws){skippedSheets.push(t.name);return;}
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+    if(!rows.length){skippedSheets.push(t.name);return;}
     const header=rows[0].map(h=>h==null?"":String(h).trim());
     const idIdx=header.indexOf("Student ID");
     const rmIdx=header.indexOf("Remark");
-    const updatedRows=rows.map((row,ri)=>{
-      if(ri===0||idIdx===-1||rmIdx===-1)return row;
+    if(idIdx===-1||rmIdx===-1){skippedSheets.push(t.name);return;}
+    for(let r=1;r<rows.length;r++){
+      const row=rows[r];if(!row)continue;
       const id=String(row[idIdx]||"").trim().toUpperCase();
+      if(!id)continue;
       const st=studentMap[id];
-      if(!st)return row;
-      const newRow=[...row];
-      newRow[rmIdx]=(st.testData[t.name]&&st.testData[t.name].remark)||"";
-      return newRow;
-    });
-    const sheetName=typeof safeSheetName==="function"?safeSheetName(t.name,usedNames):t.name;
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(updatedRows),sheetName);
+      if(!st)continue;
+      const newVal=(st.testData[t.name]&&st.testData[t.name].remark)||"";
+      const addr=XLSX.utils.encode_cell({r,c:rmIdx});
+      // Preserve the existing cell's style/format where one exists —
+      // only the value (and its type) is replaced. Drop any cached
+      // formatted-text ('w') so readers recompute it from the new value.
+      const existing=ws[addr];
+      const patched=existing?Object.assign({},existing,{t:"s",v:newVal}):{t:"s",v:newVal};
+      delete patched.w;
+      ws[addr]=patched;
+    }
+    patchedSheets.push(t.name);
   });
-
-  if(typeof buildReadmeSheet==="function"){
-    usedNames.add("README");
-    XLSX.utils.book_append_sheet(wb,buildReadmeSheet(),"README");
-  }
 
   const ts=new Date();
   const tag=ts.getFullYear()+String(ts.getMonth()+1).padStart(2,"0")+String(ts.getDate()).padStart(2,"0")
             +"_"+String(ts.getHours()).padStart(2,"0")+String(ts.getMinutes()).padStart(2,"0");
   const fname=(APP.setup.instName||"sheet")+"_remarks_"+tag+".xlsx";
   XLSX.writeFile(wb,fname);
-  toast(srT("toast_updated_sheet_downloaded",{fname:fname}),"success");
+  if(skippedSheets.length){
+    toast(`Downloaded — the original workbook was preserved unchanged, but remarks couldn't be updated in: ${skippedSheets.join(", ")} (tab not found, or missing a Student ID/Remark column).`,"warn");
+  } else {
+    toast(srT("toast_updated_sheet_downloaded",{fname:fname}),"success");
+  }
   APP._remarksDirty=false;
   $("#remarks-dirty-banner").remove();
 }
@@ -657,7 +689,7 @@ function showSampleFiles(){
   ];
   const badge={Institution:{bg:"#eafaf1",fg:"#1e8a5f"},Individual:{bg:"#e8edfb",fg:"var(--c-primary)"},Compare:{bg:"#fdf1e3",fg:"#b5690a"},Scale:{bg:"#f1ecf9",fg:"#7b5ea7"},Continuity:{bg:"#e6f7f5",fg:"#0f7a6e"}};
   const compareFiles=files.filter(f=>f.mode==="Compare").map(f=>f.file);
-  const rows=files.map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);margin-bottom:10px"><div><div style="font-weight:700;font-size:13px">${esc(f.name)} <span style="font-weight:600;font-size:10px;padding:1px 7px;border-radius:9px;background:${badge[f.mode].bg};color:${badge[f.mode].fg}">${f.mode==="Compare"?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='4' y='3' width='16' height='18' rx='1'/><path d='M9 21V15h6v6'/><path d='M9 7h1M9 11h1M14 7h1M14 11h1'/></svg> "+esc(srT("badge_compare_set")):esc(srT("val_mode_"+f.mode.toLowerCase()))}</span></div><div style="font-size:11.5px;color:var(--c-text3);margin-top:2px">${esc(f.desc)}</div></div><div style="display:flex;gap:6px;flex-shrink:0"><button type="button" class="btn btn-primary btn-sm" data-action="runSampleFile" data-arg="${f.file}"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M13 2 3 14h9l-1 8 10-12h-9l1-8z'/></svg> ${esc(srT("btn_try_now"))}</button><a class="btn btn-secondary btn-sm" href="${base}${f.file}" download title="${esc(srT("title_download_to_device"))}"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 3v12'/><polyline points='7 10 12 15 17 10'/><path d='M4 21h16'/></svg></a></div></div>`).join("");
+  const rows=files.map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);margin-bottom:10px"><div><div style="font-weight:700;font-size:13px">${esc(f.name)} <span style="font-weight:600;font-size:11px;padding:1px 7px;border-radius:9px;background:${badge[f.mode].bg};color:${badge[f.mode].fg}">${f.mode==="Compare"?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='4' y='3' width='16' height='18' rx='1'/><path d='M9 21V15h6v6'/><path d='M9 7h1M9 11h1M14 7h1M14 11h1'/></svg> "+esc(srT("badge_compare_set")):esc(srT("val_mode_"+f.mode.toLowerCase()))}</span></div><div style="font-size:11.5px;color:var(--c-text3);margin-top:2px">${esc(f.desc)}</div></div><div style="display:flex;gap:6px;flex-shrink:0"><button type="button" class="btn btn-primary btn-sm" data-action="runSampleFile" data-arg="${f.file}"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M13 2 3 14h9l-1 8 10-12h-9l1-8z'/></svg> ${esc(srT("btn_try_now"))}</button><a class="btn btn-secondary btn-sm" href="${base}${f.file}" download title="${esc(srT("title_download_to_device"))}"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 3v12'/><polyline points='7 10 12 15 17 10'/><path d='M4 21h16'/></svg></a></div></div>`).join("");
   const compareFilesArgLiteral="["+compareFiles.map(f=>"'"+f+"'").join(",")+"]";
   const compareCta=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px dashed var(--c-primary);border-radius:var(--r-sm);margin:-2px 0 14px;background:var(--c-primary-soft)"><div style="font-size:12.5px;color:var(--c-primary)"><strong>${esc(srT("compare_demo_want_full"))}</strong> ${esc(srT("compare_demo_run_together"))}</div><button type="button" class="btn btn-primary btn-sm" style="flex-shrink:0" data-action="runSampleFileCompareDemo" data-arg="${compareFiles.join(',')}"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M13 2 3 14h9l-1 8 10-12h-9l1-8z'/></svg> ${esc(srT("btn_try_all_3"))}</button></div>`;
   $("#modal-content").html(`<h3 style="font-family:var(--font-display);font-size:18px;margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><path d='M14 2v6h6'/><path d='M8 13h8M8 17h8M8 9h2'/></svg> ${esc(srT("modal_sample_files_title"))}</h3><div style="font-size:12px;color:var(--c-text3);margin-bottom:16px">${esc(srT("modal_sample_files_desc"))}</div>${rows}${compareCta}`);

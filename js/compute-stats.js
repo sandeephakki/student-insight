@@ -5,7 +5,8 @@ import { collectSetupForm, markClean, markDirty, startCompareMode, unlockStep } 
 import { renderStudentCards, updateExportGate } from './render-core.js';
 import { generateHomePlan, generateParentMessage, generateSchoolPlan, generateTrendFacts, srT } from './render-i18n.js';
 import { APP, goStep } from './state-nav.js';
-import { AI_FEATURES, autoInferSetup, parseContinuityPeriods, parseWorkbookSheets, selectAllAI } from './template-upload.js';
+import { AI_FEATURES, autoInferSetup, parseContinuityPeriods, parseWorkbookSheets, resolveSheetName, selectAllAI } from './template-upload.js';
+import { parseStrictAbsence, parseStrictMark } from './mark-parse.js';
 
 /* ════════════════════════════════════════════════════════════════════
    COMPUTE-STATS — per-student/per-class analysis, k-means clustering,
@@ -83,7 +84,7 @@ async function runAnalysis(){
       $("#ai-loader-msg").text(steps[i]);
       $("#ai-loader-step").text("Step "+(i+1)+" of "+steps.length);
       const pct=Math.round(((i+1)/steps.length)*100);
-      $("#ai-prog").css("width",pct+"%");$("#ai-prog-label").text(pct+"%");
+      $("#ai-prog").css("transform","scaleX("+(pct/100)+")");$("#ai-prog-label").text(pct+"%");
       await sleep(420+Math.random()*280);
     }
     parseStudents();
@@ -154,6 +155,23 @@ function validateData(){
   const normId=v=>String(v||"").trim().toUpperCase();
   const studentsRows=APP.rawData["STUDENTS"];
 
+  // Sheet-name collisions and invalid configured max marks are always
+  // blocking, and are also checked here (not only in validateSetupData(),
+  // which only runs on the Home quick-import path) so every route into
+  // runAnalysis() — sample files, continuity merges, compare-mode sections —
+  // gets the same guarantee. See EXCEL_DATA_MATH_AUDIT_PROMPT.md items 4/5.
+  ((APP.rawData&&APP.rawData._sheetCollisions)||[]).forEach(c=>{
+    w.push({e:1,m:`Two worksheet tabs have the same name once trimmed/case-folded: "${c.names[0]}" and "${c.names[1]}" — rename one of them and re-import.`});
+  });
+  ((APP.setup&&APP.setup._maxMarkErrors)||[]).forEach(e=>{
+    w.push({e:1,m:`Invalid maximum mark for "${e.label}": entered "${e.raw}" — ${e.reason}.`});
+  });
+  const findDupeNames=list=>{const seen=new Set(),dupes=new Set();(list||[]).forEach(v=>{const k=String(v).trim().toLowerCase();if(seen.has(k))dupes.add(v);seen.add(k);});return[...dupes];};
+  const dupeSubjects=findDupeNames(APP.setup&&APP.setup.subjects);
+  const dupeTests=findDupeNames(((APP.setup&&APP.setup.tests)||[]).map(t=>t.name));
+  if(dupeSubjects.length)w.push({e:1,m:srT("val_setup_dupe_subjects",{names:dupeSubjects.join(", ")})});
+  if(dupeTests.length)w.push({e:1,m:srT("val_setup_dupe_tests",{names:dupeTests.join(", ")})});
+
   if(studentsRows===undefined){
     w.push({e:1,m:"No STUDENTS tab found. If this is an older Student Insight file, please download a fresh template and re-enter your data — sorry for the inconvenience, the file format has been updated to one tab per test."});
     return w; // nothing else is checkable without a roster
@@ -167,8 +185,14 @@ function validateData(){
   // in Setup must exist as an actual tab name in the uploaded workbook —
   // confirms this is genuinely a Student Insight file, and catches a
   // renamed test/tab before it silently produces an empty test.
-  const sheetNamesUpper=new Set(Object.keys(APP.rawData).filter(k=>!k.startsWith("_")).map(n=>n.toUpperCase().trim()));
-  const missingTabs=(APP.setup.tests||[]).filter(t=>!sheetNamesUpper.has(t.name.toUpperCase().trim())).map(t=>t.name);
+  // Resolved via the same canonical (trim + case-fold) sheet index that
+  // parseStudents() below now uses for the actual lookup, so a tab that
+  // validates here is guaranteed to also be found there — see
+  // EXCEL_DATA_MATH_AUDIT_PROMPT.md item 5 (this was previously the bug:
+  // this check normalized case, but parseStudents() indexed by exact
+  // spelling, so a case-only-different tab validated here but then
+  // produced empty marks/data-issues in parseStudents()).
+  const missingTabs=(APP.setup.tests||[]).filter(t=>!resolveSheetName(APP.rawData,t.name)).map(t=>t.name);
   if(missingTabs.length)w.push({e:1,m:srT("val_no_tab_matching_test",{names:missingTabs.join('", "')})});
 
   // Gender is required by the template design (M/F) but only feeds the
@@ -184,7 +208,8 @@ function validateData(){
   const rosterIds=new Set(ids);
   let orphanCount=0;
   (APP.setup.tests||[]).forEach(t=>{
-    const sheet=APP.rawData[t.name];
+    const resolvedKey=resolveSheetName(APP.rawData,t.name);
+    const sheet=resolvedKey?APP.rawData[resolvedKey]:undefined;
     if(!sheet)return;
     sheet.forEach(row=>{
       const id=normId(row["Student ID"]);
@@ -399,17 +424,17 @@ function parseStudents(){
     }
     return null;
   }
-  function getVal(row,short){
-    const raw=getRawVal(row,short);
-    if(raw===null)return null;
-    const n=parseFloat(String(raw).replace(/[^0-9.-]/g,""));
-    return isNaN(n)?raw:n;
-  }
+
 
   // ── MARKS — one sheet per test, joined back to the roster by Student ID ──
   let orphanCount=0;
   tests.forEach(t=>{
-    const sheet=APP.rawData[t.name];
+    // Resolve to the worksheet's actual key (trim + case-fold) instead of
+    // indexing APP.rawData with the exact SETUP label — see item 5. Without
+    // this, a tab that validateData() accepted case-insensitively could
+    // still report "missing" here and produce empty marks.
+    const resolvedKey=resolveSheetName(APP.rawData,t.name);
+    const sheet=resolvedKey?APP.rawData[resolvedKey]:undefined;
     if(!sheet){
       // Also checked as a hard, blocking validation in validateData() —
       // this per-test note is the softer "this one test has nothing"
@@ -432,19 +457,17 @@ function parseStudents(){
       subjects.forEach(s=>{
         const raw=getRawVal(row,s);
         if(raw===null||raw===undefined)return; // genuinely blank cell — nothing to flag
-        const cleaned=String(raw).trim();
-        const stripped=cleaned.replace(/[^0-9.-]/g,"");
-        const n=parseFloat(stripped);
         const studentLabel=studentData[key].name;
-        if(isNaN(n)){
+        // Strict parse (item 2): a malformed value is REJECTED, never
+        // reinterpreted into a different number. No mark is stored for
+        // invalid input — export stays blocked via the data issue below.
+        const parsed=parseStrictMark(raw);
+        if(parsed.status==="invalid"){
           APP.dataIssues.push({studentId:rawId,studentName:studentLabel,test:t.name,subject:s,
-            message:`entered "${raw}" — not a valid number, mark ignored`});
+            message:`entered "${raw}" — ${parsed.reason}, mark ignored`});
           return;
         }
-        if(stripped!==cleaned){
-          APP.dataIssues.push({studentId:rawId,studentName:studentLabel,test:t.name,subject:s,
-            message:`entered "${raw}" — contained non-numeric characters, read as ${n}`});
-        }
+        const n=parsed.value;
         if(n<0){
           APP.dataIssues.push({studentId:rawId,studentName:studentLabel,test:t.name,subject:s,
             message:`entered ${n} — negative marks aren't valid, mark ignored`});
@@ -452,8 +475,22 @@ function parseStudents(){
         }
         studentData[key].testData[t.name].marks[s]=n;
       });
-      const ab=getVal(row,"Absent Days");
-      if(ab!==null&&ab!=="")studentData[key].testData[t.name].absents=parseInt(ab)||0;
+      // Strict non-negative-integer parse (item 3): malformed/negative
+      // absence counts are rejected with a visible data issue rather than
+      // silently becoming 0 or staying negative — either of which would
+      // otherwise inflate engagementIndex and could suppress a real
+      // absence alert.
+      const abRaw=getRawVal(row,"Absent Days");
+      if(abRaw!==null&&abRaw!==""){
+        const abParsed=parseStrictAbsence(abRaw);
+        if(abParsed.status==="invalid"){
+          APP.dataIssues.push({studentId:rawId,studentName:studentData[key].name,test:t.name,subject:"",
+            message:`Absent Days: entered "${abRaw}" — ${abParsed.reason}, ignored (treated as 0 for now, but export is blocked until corrected)`});
+        } else if(abParsed.status==="valid"){
+          studentData[key].testData[t.name].absents=abParsed.value;
+        }
+        // "blank" leaves the default of 0 already set at roster-build time.
+      }
       const rm=getRawVal(row,"Remark")||getRawVal(row,"Teacher Remark");
       if(rm!==null&&rm!==""){
         let remarkStr=String(rm);
@@ -532,7 +569,7 @@ function computeAnalysis(){
       const td=st.testData[t.name]||{marks:{},absents:0,remark:"",chapter:""};
       td.remarkTone=classifyRemarkTone(td.remark);
       let total=0,maxTotal=0,scored=0;
-      subjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){const mv=parseFloat(m)||0;if(mv>mx)APP.dataIssues.push({studentId:st.id,studentName:st.name,test:t.name,subject:s,message:`entered ${mv}, exceeds max of ${mx} — will inflate this test's percentage`});total+=Math.min(mv,mx);maxTotal+=mx;scored++;}else maxTotal+=mx;});
+      subjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){const mv=parseFloat(m)||0;if(mv>mx)APP.dataIssues.push({studentId:st.id,studentName:st.name,test:t.name,subject:s,message:`Entered ${mv}; maximum is ${mx}. The calculation is temporarily capped at ${mx}, and export remains blocked until the source workbook is corrected.`});total+=Math.min(mv,mx);maxTotal+=mx;scored++;}else maxTotal+=mx;});
       testAvgs.push(scored?Math.round((total/maxTotal)*100):null);
       if(scored){cumMarks+=total;cumMax+=maxTotal;}
       // Cumulative avg *as of this test* (not the final overallAvg) — used
@@ -928,10 +965,16 @@ function computeClassStats(){
   const avgs=APP.students.map(st=>st.analysis.overallAvg).filter(v=>!isNaN(v)).sort((a,b)=>a-b);
   if(!avgs.length){APP.classStats={};return APP.classStats;}
   const n=avgs.length;
-  const mean=Math.round(avgs.reduce((a,b)=>a+b,0)/n);
+  // Standard deviation must be computed from the unrounded mean — rounding
+  // the mean first (then using that rounded value as the deviation origin)
+  // is mathematically wrong, even though it happens not to move the
+  // displayed SD for the audit sample. Only the final displayed mean/SD
+  // are rounded, deviations themselves are not.
+  const rawMean=avgs.reduce((a,b)=>a+b,0)/n;
+  const mean=Math.round(rawMean);
   const median=n%2===0?(avgs[n/2-1]+avgs[n/2])/2:avgs[Math.floor(n/2)];
   const q1=avgs[Math.floor(n*0.25)];const q3=avgs[Math.floor(n*0.75)];
-  const sd=Math.round(Math.sqrt(avgs.reduce((a,b)=>a+(b-mean)**2,0)/n));
+  const sd=Math.round(Math.sqrt(avgs.reduce((a,b)=>a+(b-rawMean)**2,0)/n));
   const hAvg=Math.round(APP.students.reduce((s,st)=>s+(st.analysis.healthScore||0),0)/n);
   // Attendance-vs-performance correlation (class level only). Min group
   // size of 2 on both sides is a basic anonymity/noise floor — same spirit

@@ -1,6 +1,7 @@
 import { esc, toast, validateSetup } from './app-utils-init.js';
 import { applyCompareModeUI } from './compute-compare.js';
 import { computeAnalysis } from './compute-stats.js';
+import { parseStrictMaxMark } from './mark-parse.js';
 import { i18nLabel, srT } from './render-i18n.js';
 import { APP, goStep } from './state-nav.js';
 import { handleHomeImportFiles } from './template-upload.js';
@@ -24,6 +25,11 @@ function startNewSession(){
   APP.students=[];APP.rawData=null;APP.classStats=null;APP.genderAnalysis=null;subjectCount=0;testCount=0;
   APP.mergeMode=false;APP.mergeSource=null;$("#merge-banner").hide();
   APP.compareMode=false;APP.sections=[];APP.sectionComparison=[];
+  // Issue 3 fix: clear multi-period continuity state on every reset
+  // boundary — otherwise a later unrelated project can inherit a prior
+  // project's longitudinal trends/labels/PDF content if student IDs
+  // happen to overlap.
+  APP.continuity=null;APP._continuityActivePeriodIdx=0;APP._continuitySelectedId=null;
   APP.setupWizardStep=1;APP.setupCard1Choice=null;
   $("#btn-download-template").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 3v12'/><polyline points='7 10 12 15 17 10'/><path d='M4 21h16'/></svg> "+i18nLabel("setup_btn_download_template","Download Template"));$("#btn-load-existing").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 21V9'/><polyline points='7 14 12 9 17 14'/><path d='M4 21h16'/></svg> "+i18nLabel("setup_btn_load_existing","Load Existing Filled Sheet"));
   $("#subjects-list").empty();$("#tests-list").empty();
@@ -48,6 +54,8 @@ function startCompareMode(){
   APP.students=[];APP.rawData=null;APP.classStats=null;APP.genderAnalysis=null;subjectCount=0;testCount=0;
   APP.mergeMode=false;APP.mergeSource=null;$("#merge-banner").hide();
   APP.compareMode=true;APP.sections=[];APP.sectionComparison=[];APP._compareAutoRan=false;APP.homeSingleFile=null;
+  // Issue 3 fix — see the matching comment in startNewSession().
+  APP.continuity=null;APP._continuityActivePeriodIdx=0;APP._continuitySelectedId=null;
   APP.setupWizardStep=1;APP.setupCard1Choice=null;
   $("#home-file-list").hide().empty();
   $("#btn-download-template").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 3v12'/><polyline points='7 10 12 15 17 10'/><path d='M4 21h16'/></svg> "+i18nLabel("setup_btn_download_template","Download Template"));$("#btn-load-existing").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M12 21V9'/><polyline points='7 14 12 9 17 14'/><path d='M4 21h16'/></svg> "+i18nLabel("setup_btn_load_existing","Load Existing Filled Sheet"));
@@ -131,13 +139,13 @@ initFAQAccordion();
 /* ════ SETUP FORM ════ */
 function addSubject(name=""){
   subjectCount++;
-  const row=$(`<div class="subj-row" data-subj="subj-${subjectCount}"><span class="row-num">${subjectCount}</span><input type="text" value="${esc(name)}" placeholder="e.g. Mathematics" oninput="updateTestSubjectCols();markDirty();validateSetup()"/><button class="del-btn" data-action="deleteSubjectRow">✕</button></div>`);
+  const row=$(`<div class="subj-row" data-subj="subj-${subjectCount}"><span class="row-num">${subjectCount}</span><input type="text" value="${esc(name)}" placeholder="e.g. Mathematics" data-input-action="updateTestSubjectCols"/><button class="del-btn" data-action="deleteSubjectRow">✕</button></div>`);
   $("#subjects-list").append(row);updateTestSubjectCols();
 }
 function addTest(name="",date=""){
   testCount++;const id="test-"+testCount;const subjects=getSubjects();
-  const mmCols=subjects.map((s,i)=>`<div class="mm-chip"><label>${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="100" min="1" oninput="markDirty()"/></div>`).join("");
-  const row=$(`<div class="test-row-wrap" data-test="${id}"><div class="test-row"><span class="row-num">${testCount}</span><input type="text" class="test-name-inp" value="${esc(name)}" placeholder="e.g. Unit Test 1" oninput="markDirty();validateSetup()"/><input type="date" class="test-date-inp" value="${date}" oninput="markDirty()"/><button class="del-btn" data-action="deleteTestRow">✕</button></div><div style="font-size:11px;color:var(--c-text3);margin:6px 0 2px 30px">${esc(srT("setup_max_marks_per_subject"))}</div><div class="mm-grid">${mmCols}</div></div>`);
+  const mmCols=subjects.map((s,i)=>`<div class="mm-chip"><label>${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="100" min="1" data-input-action="markDirty"/></div>`).join("");
+  const row=$(`<div class="test-row-wrap" data-test="${id}"><div class="test-row"><span class="row-num">${testCount}</span><input type="text" class="test-name-inp" value="${esc(name)}" placeholder="e.g. Unit Test 1" data-input-action="markDirtyValidate"/><input type="date" class="test-date-inp" value="${date}" data-input-action="markDirty"/><button class="del-btn" data-action="deleteTestRow">✕</button></div><div style="font-size:11px;color:var(--c-text3);margin:6px 0 2px 30px">${esc(srT("setup_max_marks_per_subject"))}</div><div class="mm-grid">${mmCols}</div></div>`);
   $("#tests-list").append(row);
 }
 function getSubjects(){return $("#subjects-list .subj-row input").map(function(){return $(this).val().trim();}).get().filter(Boolean);}
@@ -145,7 +153,7 @@ function updateTestSubjectCols(){
   const subjects=getSubjects();
   $("#tests-list .test-row-wrap").each(function(){
     const wrap=$(this);const existing=wrap.find(".mm-grid");
-    const mmCols=subjects.map((s,i)=>{const curVal=wrap.find(".mm-inp[data-subj=\""+i+"\"]").val()||100;return `<div class="mm-chip"><label>${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="${curVal}" min="1" oninput="markDirty()"/></div>`;}).join("");
+    const mmCols=subjects.map((s,i)=>{const curVal=wrap.find(".mm-inp[data-subj=\""+i+"\"]").val()||100;return `<div class="mm-chip"><label>${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="${curVal}" min="1" data-input-action="markDirty"/></div>`;}).join("");
     existing.html(mmCols);
   });
 }
@@ -181,9 +189,26 @@ function collectSetupForm(){
   APP.setup.dropAlert=clampNum("#drop-alert",0,100,20);
   APP.setup.scoring={marks:$("#sc-marks").is(":checked"),pct:$("#sc-pct").is(":checked"),grade:$("#sc-grade").is(":checked"),pf:$("#sc-pf").is(":checked")};
   APP.setup.subjects=getSubjects();APP.setup.tests=[];
+  APP.setup._maxMarkErrors=[]; // reset per collection — see mark-parse.js / recordMaxMarkError() in template-upload.js
   $("#tests-list .test-row-wrap").each(function(){
     const name=$(this).find(".test-name-inp").val().trim();const date=$(this).find(".test-date-inp").val();
-    const maxMarks={};APP.setup.subjects.forEach((s,i)=>{maxMarks[s]=parseInt($(this).find(`.mm-inp[data-subj="${i}"]`).val())||100;});
+    const maxMarks={};
+    APP.setup.subjects.forEach((s,i)=>{
+      const raw=$(this).find(`.mm-inp[data-subj="${i}"]`).val();
+      const r=parseStrictMaxMark(raw);
+      if(r.status==="valid"){
+        maxMarks[s]=r.value;
+      } else if(r.status==="blank"){
+        maxMarks[s]=100; // documented legacy fallback for a genuinely empty field
+      } else {
+        // A SUPPLIED but invalid value (0, negative, decimal, non-numeric)
+        // is never silently swapped for 100 — record it as a blocking
+        // setup error instead. The field itself is left as typed so the
+        // user can see and correct exactly what they entered.
+        APP.setup._maxMarkErrors.push({label:`Max Marks - ${s} (${name||"Test "+(i+1)})`,raw,reason:r.reason});
+        maxMarks[s]=100; // placeholder only — validateSetupData()/validateData() block analysis regardless
+      }
+    });
     if(name)APP.setup.tests.push({name,date,maxMarks});
   });
 }

@@ -389,12 +389,69 @@ const SmartQueryV2 = (function(){
      than a full fuzzy-match; it's matching against a small (dozens,
      not thousands) fixed question set, not free-form documents. ── */
   function tokenize(s){
-    return String(s||"").toLowerCase().replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(Boolean);
+    return String(s||"").toLowerCase().replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(Boolean).map(stem);
+  }
+  // Minimal suffix-stripping stemmer — NOT a full Porter stemmer (overkill
+  // and riskier for short domain words). Strips at most one suffix per
+  // token, longest-first ("ers" tried before "s", so "teachers" -> "teach"
+  // not "teacher"), and only if the remaining stem is >=4 chars.
+  //
+  // Two small guards on top of the length rule, both needed to keep short
+  // domain words intact (spot-checked: "class"/"gender"/"rank"/"average"
+  // must all come out unchanged):
+  //  - doubled-letter guard: don't strip a single-char "s" suffix if the
+  //    letter before it is also "s" ("class"/"glass"/"process" have a
+  //    genuine double-s ending, not an added plural "s").
+  //  - silent-e restore: stripping "ing"/"ed" from a word that dropped a
+  //    silent e to take the suffix ("score"+"ing" -> "scoring") needs the
+  //    "e" put back so "scoring" and "score" collapse to the same stem —
+  //    classic single-syllable CVC (consonant-vowel-consonant, last
+  //    consonant not w/x/y) heuristic, same one Porter's algorithm uses
+  //    for this exact case.
+  //  - DOMAIN_STEM_EXCEPTIONS: a short explicit list for the rare word
+  //    that looks like suffix+root but isn't ("gender" ends in "er" but
+  //    isn't a comparative of "gend") — cheaper and safer than a general
+  //    rule that would risk under- or over-stemming everything else.
+  const STEM_SUFFIXES = ["ing","ers","ness","est","er","ed","es","s"];
+  const DOMAIN_STEM_EXCEPTIONS = new Set(["gender"]);
+  function isVowel(c){ return c==="a"||c==="e"||c==="i"||c==="o"||c==="u"; }
+  function looksLikeSilentEDrop(s){
+    if(s.length<3) return false;
+    const c1=s[s.length-1], c2=s[s.length-2], c3=s[s.length-3];
+    return !isVowel(c1) && isVowel(c2) && !isVowel(c3) && c1!=="w" && c1!=="x" && c1!=="y";
+  }
+  function stem(t){
+    if(DOMAIN_STEM_EXCEPTIONS.has(t)) return t;
+    for(let i=0;i<STEM_SUFFIXES.length;i++){
+      const suf = STEM_SUFFIXES[i];
+      if(t.length > suf.length && t.slice(-suf.length) === suf){
+        if(suf==="s" && t[t.length-2]===t[t.length-1]) continue; // doubled-letter guard, e.g. "class"
+        let stripped = t.slice(0, -suf.length);
+        if((suf==="ing"||suf==="ed") && looksLikeSilentEDrop(stripped)) stripped += "e";
+        if(stripped.length >= 4) return stripped;
+      }
+    }
+    return t;
   }
 
   function isOutOfDomain(queryTokens){
     if(!_bank || !Array.isArray(_bank.domainVocabulary) || !_bank.domainVocabulary.length) return false;
-    const vocab = new Set(_bank.domainVocabulary.map(v=>v.toLowerCase()));
+    // BUG FIX (report: "english topper"/"maths topper" hit the flat
+    // deflection wall even though "topper" is literally in
+    // domainVocabulary): queryTokens here are already stemmed (tokenize()
+    // stems every token — "topper" -> "topp"), but this vocab set was
+    // built straight off the raw domainVocabulary strings ("topper"
+    // unstemmed), so "topp" never matched the literal "topper" entry and
+    // every query containing a stem-strippable domain word (any word
+    // ending in "er"/"ing"/"s"/etc — "toppers", "scoring", "students"...)
+    // was wrongly treated as out-of-domain. Run each vocab word through
+    // the same tokenize() pipeline the query already went through so both
+    // sides of the comparison are in the same (stemmed) space. A prior fix
+    // attempt (see the comment in match() above, near "topper got the
+    // same flat wall as gibberish") added the soft-suggestion path but
+    // missed that isOutOfDomain() itself was still the thing returning the
+    // wrong answer, so it never got a chance to run.
+    const vocab = new Set(_bank.domainVocabulary.flatMap(v => tokenize(v)));
     return !queryTokens.some(t => vocab.has(t));
   }
 
@@ -418,6 +475,46 @@ const SmartQueryV2 = (function(){
       });
     });
     return best;
+  }
+
+  // Iterative Levenshtein edit distance (not recursive, no library) — used
+  // only as a typo-tolerant fallback in match()'s scoring loop below, not
+  // in isOutOfDomain() (that vocabulary list is long; fuzzy-matching it on
+  // every query token would be needlessly expensive for little benefit).
+  function levenshtein(a, b){
+    const m = a.length, n = b.length;
+    if(m===0) return n;
+    if(n===0) return m;
+    let prev = new Array(n+1);
+    let curr = new Array(n+1);
+    for(let j=0;j<=n;j++) prev[j] = j;
+    for(let i=1;i<=m;i++){
+      curr[0] = i;
+      for(let j=1;j<=n;j++){
+        const cost = a[i-1]===b[j-1] ? 0 : 1;
+        curr[j] = Math.min(prev[j]+1, curr[j-1]+1, prev[j-1]+cost);
+      }
+      [prev,curr] = [curr,prev];
+    }
+    return prev[n];
+  }
+  // Typo-tolerant token match: only invoked once the exact indexOf() check
+  // has already missed, and only for query tokens >=5 chars (short words
+  // are cheap to typo into an unrelated real word, so fuzzy-matching them
+  // would produce false positives — "of"/"the" etc must never fuzzy-hit).
+  // Tighter distance-1 threshold under 7 chars, distance-2 at 7+ — a
+  // 2-edit gap on a 5-char word is nearly a different word, but on a
+  // longer word ("attandance" vs "attendance", 1 edit; "perfomance" vs
+  // "performance", 1 edit) 2 edits still reads as clearly-the-same-word.
+  function fuzzyIncludes(token, candidateTokens){
+    if(token.length < 5) return false;
+    const threshold = token.length < 7 ? 1 : 2;
+    for(let i=0;i<candidateTokens.length;i++){
+      const c = candidateTokens[i];
+      if(Math.abs(c.length - token.length) > threshold) continue; // cheap pre-filter
+      if(levenshtein(token, c) <= threshold) return true;
+    }
+    return false;
   }
 
   function match(queryText, limit){
@@ -456,6 +553,13 @@ const SmartQueryV2 = (function(){
         if(labelTokens.indexOf(t) !== -1) score += 3;
         else if(keywordTokens.indexOf(t) !== -1) score += 2;
         else if(catTokens.indexOf(t) !== -1) score += 1;
+        // Typo fallback — only reached once every exact check above has
+        // missed. Lower bonus than the exact-match tiers so a real match
+        // always outranks a typo-match when both exist for the same
+        // query (e.g. "attendance correlation" still beats "attandance
+        // correlation" for the attendance_correlation question).
+        else if(fuzzyIncludes(t, labelTokens)) score += 2;
+        else if(fuzzyIncludes(t, keywordTokens)) score += 1;
       });
       // A named student is a strong signal the question is about THEM —
       // without this, a class-wide question that happens to share an
