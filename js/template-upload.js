@@ -83,7 +83,11 @@ function buildSetupSheet(){
   const setupRows=[["MODE",""],["Usage Mode",APP.setup.mode||"institution"],["INSTITUTION",""],["Institution Name",instName],["Type",APP.setup.instType||""],["Location",APP.setup.location||""],["Contact",APP.setup.contact||""],["CLASS",""],["Class / Batch",APP.setup.className],["Section",APP.setup.section||""],["Academic Year",APP.setup.year],["Class Teacher",APP.setup.teacher||""],["SUBJECTS",""]];
   subjects.forEach((s,i)=>setupRows.push(["Subject "+(i+1),s]));
   setupRows.push(["TESTS",""]);
-  tests.forEach((t,i)=>{setupRows.push(["Test "+(i+1)+" Name",t.name]);setupRows.push(["Test "+(i+1)+" Date",t.date||""]);subjects.forEach(s=>setupRows.push(["Max Marks - "+s+" (Test "+(i+1)+")",(t.maxMarks&&t.maxMarks[s])||100]));});
+  tests.forEach((t,i)=>{setupRows.push(["Test "+(i+1)+" Name",t.name]);setupRows.push(["Test "+(i+1)+" Date",t.date||""]);
+    // subjectsIncluded absent = legacy test saved before the per-test picker
+    // existed -> every subject was included, same as current fallback below.
+    const included=t.subjectsIncluded||subjects;
+    subjects.filter(s=>included.includes(s)).forEach(s=>setupRows.push(["Max Marks - "+s+" (Test "+(i+1)+")",(t.maxMarks&&t.maxMarks[s])||100]));});
   setupRows.push(["Scoring Method",Object.keys(APP.setup.scoring).filter(k=>APP.setup.scoring[k]).join(", ")]);
   setupRows.push(["Pass Threshold %",passThreshold],["Absent Alert Days",absentAlert],["Sharp Drop Alert %",dropAlert]);
   const SECTION_LABELS=new Set(["MODE","INSTITUTION","CLASS","SUBJECTS","TESTS"]);
@@ -129,7 +133,8 @@ function buildContinuitySetupSheet(periods){
     p.tests.forEach((t,ti)=>{
       rows.push(["Period "+n+" Test "+(ti+1)+" Name",t.name]);
       rows.push(["Period "+n+" Test "+(ti+1)+" Date",t.date||""]);
-      p.subjects.forEach(s=>rows.push(["Period "+n+" Max Marks - "+s+" (Test "+(ti+1)+")",(t.maxMarks&&t.maxMarks[s])||100]));
+      const included=t.subjectsIncluded||p.subjects;
+      p.subjects.filter(s=>included.includes(s)).forEach(s=>rows.push(["Period "+n+" Max Marks - "+s+" (Test "+(ti+1)+")",(t.maxMarks&&t.maxMarks[s])||100]));
     });
   });
   rows.push(["SCORING CONFIG",""]);
@@ -170,8 +175,12 @@ function buildStudentsSheet(){
 // per subject + Absent Days + Chapter (optional) + Remark (optional).
 // Roster fields (Name/Gender) live on STUDENTS only, not repeated here.
 function buildTestSheet(test,subjects){
+  // Only generate marks columns for subjects this test actually includes
+  // (subjectsIncluded, when the Setup UI's per-test picker set it) — a
+  // test that excluded a subject shouldn't get a column for it at all.
+  const testSubjects=(test.subjectsIncluded&&test.subjectsIncluded.length)?test.subjectsIncluded:subjects;
   const hdr=["Student ID"];
-  subjects.forEach(s=>hdr.push(s+" Marks"));
+  testSubjects.forEach(s=>hdr.push(s+" Marks"));
   hdr.push("Absent Days","Chapter","Remark");
   const rows=[hdr];
   for(let i=1;i<=5;i++)rows.push(["SAMPLE-"+i,...Array(hdr.length-1).fill("")]);
@@ -197,8 +206,9 @@ function buildTestSheet(test,subjects){
 // the real roster resolve to "" via the IF-guard (STUDENTS!A{r}=""), not
 // an error or a stray 0.
 function buildTestSheetWithFormulas(test,subjects,studentCount){
+  const testSubjects=(test.subjectsIncluded&&test.subjectsIncluded.length)?test.subjectsIncluded:subjects;
   const hdr=["Student ID"];
-  subjects.forEach(s=>hdr.push(s+" Marks"));
+  testSubjects.forEach(s=>hdr.push(s+" Marks"));
   hdr.push("Absent Days","Chapter","Remark");
   const rows=[hdr];
   const totalRows=studentCount+5;
@@ -1287,9 +1297,17 @@ function validateSetupData(){
   const dupeTests=findDupes((s.tests||[]).map(t=>t.name));
   if(dupeSubjects.length)errs.push({required:true,msg:srT("val_setup_dupe_subjects",{names:dupeSubjects.join(", ")})});
   if(dupeTests.length)errs.push({required:true,msg:srT("val_setup_dupe_tests",{names:dupeTests.join(", ")})});
-  // Check that tests have subjects with max marks
+  // Check that tests have subjects with max marks — only for subjects this
+  // test actually includes (t.subjectsIncluded). A subject deliberately
+  // excluded from a test (unchecked in the per-test picker, or absent from
+  // an imported workbook's Max Marks rows for that test) has no maxMarks
+  // entry by design — that's not a missing value to warn about, it's not
+  // part of this test at all. Checking against the full subject list
+  // produced a false "Max Marks not set for Computer Science" warning on
+  // every import where a test legitimately didn't cover every subject.
   (s.tests||[]).forEach((t,i)=>{
-    const missing=(s.subjects||[]).filter(sub=>!t.maxMarks||!t.maxMarks[sub]);
+    const relevantSubjects=(t.subjectsIncluded&&t.subjectsIncluded.length)?t.subjectsIncluded:(s.subjects||[]);
+    const missing=relevantSubjects.filter(sub=>!t.maxMarks||!t.maxMarks[sub]);
     if(missing.length)errs.push({required:false,msg:srT("val_setup_max_marks_not_set",{test:t.name,subjects:missing.join(", ")})});
   });
   // Invalid (supplied-but-not-usable) max marks — 0, negative, decimal,
@@ -1448,9 +1466,22 @@ function extractPeriodBlocks(kv){
     while(kv[`Period ${p} Test ${ti} Name`]){
       const tname=kv[`Period ${p} Test ${ti} Name`];
       const date=kv[`Period ${p} Test ${ti} Date`]||"";
-      const maxMarks={};
-      subjects.forEach(s=>{maxMarks[s]=readMaxMark(kv[`Period ${p} Max Marks - ${s} (Test ${ti})`],`Period ${p} Max Marks - ${s} (Test ${ti})`);});
-      tests.push({name:tname,date,maxMarks});
+      const maxMarks={};const subjectsIncluded=[];
+      // Same fix as the main (non-continuity) Format-A parser above: only a
+      // subject with an actual "Period N Max Marks - X (Test M)" key present
+      // is part of this test. Previously every period subject got a maxMarks
+      // entry unconditionally (missing ones silently defaulted to 100 via
+      // readMaxMark(undefined,...)), and since no subjectsIncluded was
+      // recorded, that phantom 100 flowed into the current period's
+      // Format-A aliasing below and inflated the denominator for a subject
+      // no one was actually tested on.
+      subjects.forEach(s=>{
+        const raw=kv[`Period ${p} Max Marks - ${s} (Test ${ti})`];
+        if(raw===undefined)return;
+        maxMarks[s]=readMaxMark(raw,`Period ${p} Max Marks - ${s} (Test ${ti})`);
+        subjectsIncluded.push(s);
+      });
+      tests.push({name:tname,date,maxMarks,subjectsIncluded});
       ti++;
     }
     periods.push({label,year,teacher,subjects,tests});
@@ -1471,7 +1502,13 @@ function parseContinuityPeriods(kv){
   cur.subjects.forEach((s,i)=>{kv[`Subject ${i+1}`]=s;});
   cur.tests.forEach((t,i)=>{
     kv[`Test ${i+1} Name`]=t.name;
-    cur.subjects.forEach(s=>{kv[`Max Marks - ${s} (Test ${i+1})`]=String(t.maxMarks[s]);});
+    // Only alias subjects this test actually covers (t.subjectsIncluded, set
+    // above in extractPeriodBlocks) — aliasing every cur.subjects entry
+    // unconditionally used to manufacture a "Max Marks - X (Test N)" key
+    // for a subject this test never included, which then defeated the main
+    // Format-A parser's own subjectsIncluded restriction (it saw the key
+    // present and wrongly counted the subject in).
+    (t.subjectsIncluded||cur.subjects).forEach(s=>{kv[`Max Marks - ${s} (Test ${i+1})`]=String(t.maxMarks[s]);});
   });
 
   // Build APP.continuity — per-student overall % per period, present-only
@@ -1626,6 +1663,22 @@ function autoInferSetup(){
     const name=kv["Test "+t+" Name"]||kv["Test "+t]||"";
     if(!name){t++;continue;}
     const maxMarks={};
+    // subjectsIncluded: which subjects this specific test actually covers.
+    // Format A only writes a "Max Marks - X (Test N)" row for subjects the
+    // Setup UI's per-test picker had checked (see buildSetupSheet()) — a
+    // subject with no such row here was deliberately excluded from this
+    // test, not just "not filled in yet". Previously this parser read
+    // every subject regardless (defaulting a missing one to the 100
+    // legacy fallback via readMaxMark(null,...)) and never set
+    // subjectsIncluded at all, so fillSetupForm()/collectSetupForm()'s own
+    // "no subjectsIncluded -> default every subject to included" fallback
+    // then wrongly re-included it — adding its max marks to the
+    // denominator with no matching numerator and deflating the test %
+    // (e.g. a student who actually scored 87% on the 7 subjects a test
+    // covered showed as 55% once an 8th, untested subject's max marks got
+    // counted against them). Restrict both maxMarks and subjectsIncluded
+    // to subjects with an actual row present, matching the write side.
+    const subjectsIncluded=[];
     // Format A: per-subject max marks stored separately
     // Presence-check (not truthiness-check) for Format A detection/lookup:
     // a supplied max mark of 0 is falsy but MUST still be treated as
@@ -1637,17 +1690,20 @@ function autoInferSetup(){
     if(hasFormatA){
       subjects.forEach(s=>{
         const vA=kv["Max Marks - "+s+" (Test "+t+")"],vB=kv["Max Marks — "+s+" (Test "+t+")"];
-        const v=vA!==undefined?vA:(vB!==undefined?vB:null);
+        if(vA===undefined&&vB===undefined)return; // no row for this subject -> not part of this test
+        const v=vA!==undefined?vA:vB;
         maxMarks[s]=readMaxMark(v,`Max Marks - ${s} (Test ${t}: ${name})`);
+        subjectsIncluded.push(s);
       });
     } else {
-      // Format B: one global max for all subjects, found in same row as test name
+      // Format B: one global max for all subjects, found in same row as test name —
+      // no per-subject picker in this legacy format, so every subject applies.
       const testRow=rawRows.find(r=>String(r[0]||"").trim()==="Test "+t&&String(r[1]||"").trim()===name);
       const globalRaw=testRow&&testRow[2]==="Max Marks"?testRow[3]:null;
       const globalMax=readMaxMark(globalRaw,`Max Marks (Test ${t}: ${name})`);
-      subjects.forEach(s=>{maxMarks[s]=globalMax;});
+      subjects.forEach(s=>{maxMarks[s]=globalMax;subjectsIncluded.push(s);});
     }
-    tests.push({name,date:kv["Test "+t+" Date"]||"",maxMarks});
+    tests.push({name,date:kv["Test "+t+" Date"]||"",maxMarks,subjectsIncluded});
     t++;
   }
   if(tests.length)APP.setup.tests=tests;

@@ -459,20 +459,33 @@ const SmartQueryV2 = (function(){
   // student ones — "should be all mix"): institution mode has many
   // students, so there's no single "the student" the way individual mode
   // has APP.students[0] — this scans the query text itself for a name.
-  // Matches on any single name-token (first or last name) at least 3
-  // chars long, so "Priya" or "Sharma" both work; picks the longest
-  // matching token if more than one student's name appears, since a
-  // longer/more specific name match is less likely to be a coincidence.
+  // Scores each student by how many of their name tokens (first, last,
+  // middle — each >=3 chars) appear in the query, not just the single
+  // longest matching token. The old single-token version broke on two
+  // students sharing a surname: "Akash Kulkarni" vs "Reyansh Kulkarni"
+  // both contain the token "kulkarni" (9 chars), and since the old code
+  // only advanced on a STRICTLY longer token (`>`, not `>=`), whichever
+  // student got scanned first "won" via that shared surname alone — the
+  // first name never got a chance to matter, so "What might Akash
+  // Kulkarni score?" answered about Reyansh instead. Now a student
+  // matching on BOTH first and last name (score 2) always beats one
+  // matching on the surname alone (score 1); total matched-token length
+  // breaks ties within the same match count.
   function resolveStudentByName(queryTokens){
     if(!window.APP || !APP.students || !APP.students.length) return null;
-    let best = null, bestLen = 0;
+    let best = null, bestMatchCount = 0, bestMatchedLen = 0;
     APP.students.forEach(function(s){
       if(!s || !s.name) return;
+      let matchCount = 0, matchedLen = 0;
       tokenize(s.name).forEach(function(nt){
-        if(nt.length >= 3 && nt.length > bestLen && queryTokens.indexOf(nt) !== -1){
-          best = s; bestLen = nt.length;
+        if(nt.length >= 3 && queryTokens.indexOf(nt) !== -1){
+          matchCount++; matchedLen += nt.length;
         }
       });
+      if(matchCount === 0) return;
+      if(matchCount > bestMatchCount || (matchCount === bestMatchCount && matchedLen > bestMatchedLen)){
+        best = s; bestMatchCount = matchCount; bestMatchedLen = matchedLen;
+      }
     });
     return best;
   }
@@ -657,6 +670,18 @@ const SmartQueryV2 = (function(){
     answerQuestion,
     match,
     ask,
+    // Institution mode's canned/left-rail list (availableQuestions() alone)
+    // deliberately excludes per_student questions — evalRequires's
+    // "selectedStudent" guard only passes in individual mode, since there's
+    // no query text there to read a name from (see match()'s comment
+    // above). That's still correct for scoring/matching, but a UI report
+    // asked for these to be listed too (merged into one list, not a
+    // separate "Individual" grid) so a teacher can see they exist at all
+    // without already knowing to type a name. Exposed here rather than
+    // relaxing evalRequires, so match()'s scoring/dedup logic is untouched.
+    perStudentQuestions: function(){
+      return flatQuestions().filter(q => q._categoryId==="per_student" && questionAiFeatureOk(q));
+    },
     // exposed for debugging / future UI layers, not part of the stable
     // "ask a question" contract above
     _resolveComputeKey: resolveComputeKey,

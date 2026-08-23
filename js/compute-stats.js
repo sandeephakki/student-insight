@@ -557,8 +557,30 @@ function classifyRemarkTone(text){
   return "neutral";
 }
 
+// Per-test subject list: a test only covers `t.subjectsIncluded` when the
+// Setup UI explicitly recorded it. For tests created before that field
+// existed (or imported from a legacy workbook), infer it: a subject counts
+// as part of the test only if at least one student actually has a mark for
+// it there. A subject blank for every student is treated as "not part of
+// this test" rather than as a universal zero (this is the fix for the bug
+// where a test missing one subject deflated/inflated overall % by dividing
+// against the full global subject list). If inference finds nothing at all
+// (e.g. a brand-new test with no marks entered yet), fall back to the full
+// subject list so an empty test doesn't zero out its own max marks.
+function effectiveTestSubjects(t,subjects){
+  if(t.subjectsIncluded&&t.subjectsIncluded.length)return t.subjectsIncluded;
+  const inferred=subjects.filter(s=>APP.students.some(st=>{
+    const td=st.testData[t.name];const m=td&&td.marks&&td.marks[s];
+    return m!==null&&m!==undefined&&m!=="";
+  }));
+  return inferred.length?inferred:subjects;
+}
+
 function computeAnalysis(){
   const {subjects,tests,passThreshold,absentAlert,dropAlert}=APP.setup;
+  // Resolve once per test (not per student) — cheap, and every student
+  // shares the same effective subject list for a given test.
+  tests.forEach(t=>{t._effSubjects=effectiveTestSubjects(t,subjects);});
   // Not reset here — parseStudents() (which always runs immediately before
   // this) already reset it at the true start of the analysis run, and owns
   // the invalid/negative-mark issues it detects. Resetting again here would
@@ -569,7 +591,11 @@ function computeAnalysis(){
       const td=st.testData[t.name]||{marks:{},absents:0,remark:"",chapter:""};
       td.remarkTone=classifyRemarkTone(td.remark);
       let total=0,maxTotal=0,scored=0;
-      subjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){const mv=parseFloat(m)||0;if(mv>mx)APP.dataIssues.push({studentId:st.id,studentName:st.name,test:t.name,subject:s,message:`Entered ${mv}; maximum is ${mx}. The calculation is temporarily capped at ${mx}, and export remains blocked until the source workbook is corrected.`});total+=Math.min(mv,mx);maxTotal+=mx;scored++;}else maxTotal+=mx;});
+      // Only the subjects actually part of THIS test count toward its max
+      // marks — a subject this test never included must not be divided
+      // into the denominator (that's what silently treated "not tested" as
+      // "scored zero" and deflated the overall %).
+      t._effSubjects.forEach(s=>{const m=td.marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;if(m!==null&&m!==undefined&&m!==""){const mv=parseFloat(m)||0;if(mv>mx)APP.dataIssues.push({studentId:st.id,studentName:st.name,test:t.name,subject:s,message:`Entered ${mv}; maximum is ${mx}. The calculation is temporarily capped at ${mx}, and export remains blocked until the source workbook is corrected.`});total+=Math.min(mv,mx);maxTotal+=mx;scored++;}else maxTotal+=mx;});
       testAvgs.push(scored?Math.round((total/maxTotal)*100):null);
       if(scored){cumMarks+=total;cumMax+=maxTotal;}
       // Cumulative avg *as of this test* (not the final overallAvg) — used
@@ -620,7 +646,13 @@ function computeAnalysis(){
     st.analysis.totalAbsent=totalAbsent;
     if(totalAbsent>=absentAlert)st.flags.push({type:"absent",label:srT("flag_badge_high_absence"),color:"var(--c-purple)"});
     if(valid.length>=2){const mean=valid.reduce((a,b)=>a+b,0)/valid.length;const variance=valid.reduce((a,b)=>a+(b-mean)**2,0)/valid.length;if(Math.sqrt(variance)>15)st.flags.push({type:"volatile",label:srT("flag_badge_volatile"),color:"#3bc9db"});}
-    const subjectAvgs={};subjects.forEach(s=>{const vals=tests.map(t=>{const m=(st.testData[t.name]||{}).marks&&st.testData[t.name].marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;return m!==null&&m!==undefined&&m!==""?Math.min(100,m/mx*100):null;}).filter(v=>v!==null);subjectAvgs[s]=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0;});
+    // Only give a subject an entry here if the student actually has a real
+    // score for it in at least one test — a subject no test ever included
+    // (or the student was never marked in) used to default to 0, which the
+    // Subject Breakdown chart then rendered as a "0%, needs attention" bar
+    // indistinguishable from a genuine zero score. Omitting the key instead
+    // lets renderers show "Not yet assessed" rather than a misleading 0%.
+    const subjectAvgs={};subjects.forEach(s=>{const vals=tests.map(t=>{const m=(st.testData[t.name]||{}).marks&&st.testData[t.name].marks[s];const mx=(t.maxMarks&&t.maxMarks[s])||100;return m!==null&&m!==undefined&&m!==""?Math.min(100,m/mx*100):null;}).filter(v=>v!==null);if(vals.length)subjectAvgs[s]=Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);});
     st.analysis.subjectAvgs=subjectAvgs;
     const sortedSubjs=Object.entries(subjectAvgs).sort((a,b)=>b[1]-a[1]);
     st.analysis.strongSubject=sortedSubjs[0]&&sortedSubjs[0][0];st.analysis.weakSubject=sortedSubjs[sortedSubjs.length-1]&&sortedSubjs[sortedSubjs.length-1][0];
@@ -666,8 +698,12 @@ function computeAnalysis(){
 
     // ── DATA QUALITY ── (computed before explainedWarnings below so a
     // flag pushed here still picks up its explanation text)
+    // Only flag a subject as "missing" if some test actually included it —
+    // a subject no test ever covered isn't a data gap, it's just not part
+    // of this student's assessment plan.
+    const everIncludedSubjects=subjects.filter(s=>tests.some(t=>t._effSubjects.includes(s)));
     const filledSubjects=subjects.filter(s=>tests.some(t=>st.testData[t.name]&&st.testData[t.name].marks[s]!=null&&st.testData[t.name].marks[s]!==""));
-    st.analysis.missingSubjects=subjects.filter(s=>!filledSubjects.includes(s));
+    st.analysis.missingSubjects=everIncludedSubjects.filter(s=>!filledSubjects.includes(s));
     st.analysis.hasDataGaps=st.analysis.missingSubjects.length>0||(valid.length<tests.length);
     // This was computed but never surfaced anywhere in the UI — a student
     // missing marks for an entire subject had no visible indicator at all.
@@ -1120,7 +1156,7 @@ function computeGenderAnalysis(){
 
 
 // --- ES module exports (added for module-system conversion, HANDOVER #4) ---
-export { REMARK_CONCERN_WORDS, REMARK_POSITIVE_WORDS, _kmEuclidSq, _kmPlusPlusInit, _kmRun, _kmSingleRun, classifyRemarkTone, computeAnalysis, computeClassStats, computeCohortClusters, computeExtraInsights, computeGenderAnalysis, computePeerOutliers, normGender, parseStudents, runAnalysis, scrollToEl, sleep, validateData };
+export { REMARK_CONCERN_WORDS, REMARK_POSITIVE_WORDS, _kmEuclidSq, _kmPlusPlusInit, _kmRun, _kmSingleRun, classifyRemarkTone, computeAnalysis, computeClassStats, computeCohortClusters, computeExtraInsights, computeGenderAnalysis, computePeerOutliers, effectiveTestSubjects, normGender, parseStudents, runAnalysis, scrollToEl, sleep, validateData };
 
 // Legacy-global compatibility shim: modules don't leak top-level
 // declarations onto window the way classic scripts did. The handful of
@@ -1128,4 +1164,4 @@ export { REMARK_CONCERN_WORDS, REMARK_POSITIVE_WORDS, _kmEuclidSq, _kmPlusPlusIn
 // (out of scope for HANDOVER #3 — only onclick was converted) still need a
 // bare global to resolve, so every exported name is also mirrored onto
 // window here. Harmless duplication for anything already imported properly.
-if(typeof window!=='undefined'){window.REMARK_CONCERN_WORDS=REMARK_CONCERN_WORDS;window.REMARK_POSITIVE_WORDS=REMARK_POSITIVE_WORDS;window._kmEuclidSq=_kmEuclidSq;window._kmPlusPlusInit=_kmPlusPlusInit;window._kmRun=_kmRun;window._kmSingleRun=_kmSingleRun;window.classifyRemarkTone=classifyRemarkTone;window.computeAnalysis=computeAnalysis;window.computeClassStats=computeClassStats;window.computeCohortClusters=computeCohortClusters;window.computeExtraInsights=computeExtraInsights;window.computeGenderAnalysis=computeGenderAnalysis;window.computePeerOutliers=computePeerOutliers;window.normGender=normGender;window.parseStudents=parseStudents;window.runAnalysis=runAnalysis;window.scrollToEl=scrollToEl;window.sleep=sleep;window.validateData=validateData;}
+if(typeof window!=='undefined'){window.REMARK_CONCERN_WORDS=REMARK_CONCERN_WORDS;window.REMARK_POSITIVE_WORDS=REMARK_POSITIVE_WORDS;window._kmEuclidSq=_kmEuclidSq;window._kmPlusPlusInit=_kmPlusPlusInit;window._kmRun=_kmRun;window._kmSingleRun=_kmSingleRun;window.classifyRemarkTone=classifyRemarkTone;window.computeAnalysis=computeAnalysis;window.computeClassStats=computeClassStats;window.computeCohortClusters=computeCohortClusters;window.computeExtraInsights=computeExtraInsights;window.computeGenderAnalysis=computeGenderAnalysis;window.computePeerOutliers=computePeerOutliers;window.effectiveTestSubjects=effectiveTestSubjects;window.normGender=normGender;window.parseStudents=parseStudents;window.runAnalysis=runAnalysis;window.scrollToEl=scrollToEl;window.sleep=sleep;window.validateData=validateData;}

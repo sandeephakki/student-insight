@@ -144,16 +144,29 @@ function addSubject(name=""){
 }
 function addTest(name="",date=""){
   testCount++;const id="test-"+testCount;const subjects=getSubjects();
-  const mmCols=subjects.map((s,i)=>`<div class="mm-chip"><label>${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="100" min="1" data-input-action="markDirty"/></div>`).join("");
+  const mmCols=subjects.map((s,i)=>`<div class="mm-chip"><input type="checkbox" id="mm-chk-${id}-${i}" class="mm-inc" data-subj="${i}" checked data-change-action="toggleMmSubject"/><label for="mm-chk-${id}-${i}" class="mm-name">${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="100" min="1" data-input-action="markDirty"/></div>`).join("");
   const row=$(`<div class="test-row-wrap" data-test="${id}"><div class="test-row"><span class="row-num">${testCount}</span><input type="text" class="test-name-inp" value="${esc(name)}" placeholder="e.g. Unit Test 1" data-input-action="markDirtyValidate"/><input type="date" class="test-date-inp" value="${date}" data-input-action="markDirty"/><button class="del-btn" data-action="deleteTestRow">✕</button></div><div style="font-size:11px;color:var(--c-text3);margin:6px 0 2px 30px">${esc(srT("setup_max_marks_per_subject"))}</div><div class="mm-grid">${mmCols}</div></div>`);
   $("#tests-list").append(row);
 }
 function getSubjects(){return $("#subjects-list .subj-row input").map(function(){return $(this).val().trim();}).get().filter(Boolean);}
+// Un-checking a subject for a test means that test didn't cover it — hide
+// (not just visually grey out) its Max Marks field so it's obvious no
+// value is being collected, and so collectSetupForm() below knows to leave
+// that subject out of both subjectsIncluded and maxMarks for this test.
+function toggleMmSubject(el){
+  const checked=$(el).is(":checked");
+  $(el).closest(".mm-chip").find(".mm-inp").toggle(checked);
+  markDirty();validateSetup();
+}
 function updateTestSubjectCols(){
   const subjects=getSubjects();
   $("#tests-list .test-row-wrap").each(function(){
-    const wrap=$(this);const existing=wrap.find(".mm-grid");
-    const mmCols=subjects.map((s,i)=>{const curVal=wrap.find(".mm-inp[data-subj=\""+i+"\"]").val()||100;return `<div class="mm-chip"><label>${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="${curVal}" min="1" data-input-action="markDirty"/></div>`;}).join("");
+    const wrap=$(this);const existing=wrap.find(".mm-grid");const id=wrap.attr("data-test");
+    const mmCols=subjects.map((s,i)=>{
+      const curVal=wrap.find(".mm-inp[data-subj=\""+i+"\"]").val()||100;
+      const wasChecked=wrap.find(".mm-inc[data-subj=\""+i+"\"]").length?wrap.find(".mm-inc[data-subj=\""+i+"\"]").is(":checked"):true;
+      return `<div class="mm-chip"><input type="checkbox" id="mm-chk-${id}-${i}" class="mm-inc" data-subj="${i}" ${wasChecked?"checked":""} data-change-action="toggleMmSubject"/><label for="mm-chk-${id}-${i}" class="mm-name">${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="${curVal}" min="1" data-input-action="markDirty" style="${wasChecked?"":"display:none"}"/></div>`;
+    }).join("");
     existing.html(mmCols);
   });
 }
@@ -192,8 +205,15 @@ function collectSetupForm(){
   APP.setup._maxMarkErrors=[]; // reset per collection — see mark-parse.js / recordMaxMarkError() in template-upload.js
   $("#tests-list .test-row-wrap").each(function(){
     const name=$(this).find(".test-name-inp").val().trim();const date=$(this).find(".test-date-inp").val();
-    const maxMarks={};
+    const maxMarks={};const subjectsIncluded=[];
     APP.setup.subjects.forEach((s,i)=>{
+      const incEl=$(this).find(`.mm-inc[data-subj="${i}"]`);
+      // No checkbox on this chip (e.g. a legacy saved session re-rendered
+      // before fillSetupForm restores checked state) -> default included,
+      // same as the pre-picker behavior.
+      const included=incEl.length?incEl.is(":checked"):true;
+      if(!included)return; // subject not part of this test — no maxMarks entry, no marks column
+      subjectsIncluded.push(s);
       const raw=$(this).find(`.mm-inp[data-subj="${i}"]`).val();
       const r=parseStrictMaxMark(raw);
       if(r.status==="valid"){
@@ -209,7 +229,7 @@ function collectSetupForm(){
         maxMarks[s]=100; // placeholder only — validateSetupData()/validateData() block analysis regardless
       }
     });
-    if(name)APP.setup.tests.push({name,date,maxMarks});
+    if(name)APP.setup.tests.push({name,date,maxMarks,subjectsIncluded});
   });
 }
 function fillSetupForm(s){
@@ -223,7 +243,17 @@ function fillSetupForm(s){
   subjectCount=0;testCount=0;$("#subjects-list").empty();$("#tests-list").empty();
   (s.subjects||[]).forEach(sub=>addSubject(sub));
   (s.tests||[]).forEach((t,ti)=>{addTest(t.name,t.date);});
-  if(s.tests)s.tests.forEach((t,ti)=>{const wrap=$("#tests-list .test-row-wrap").eq(ti);(s.subjects||[]).forEach((sub,si)=>{wrap.find(`.mm-inp[data-subj="${si}"]`).val((t.maxMarks&&t.maxMarks[sub])||100);});});
+  if(s.tests)s.tests.forEach((t,ti)=>{
+    const wrap=$("#tests-list .test-row-wrap").eq(ti);
+    (s.subjects||[]).forEach((sub,si)=>{
+      // subjectsIncluded absent = legacy test saved before the per-test
+      // picker existed -> every subject defaults to included, same as
+      // current behavior.
+      const included=t.subjectsIncluded?t.subjectsIncluded.includes(sub):true;
+      wrap.find(`.mm-inc[data-subj="${si}"]`).prop("checked",included);
+      wrap.find(`.mm-inp[data-subj="${si}"]`).val((t.maxMarks&&t.maxMarks[sub])||100).toggle(included);
+    });
+  });
   // Bug fix: jQuery's .val() above does NOT fire the "input" event, so the
   // oninput="markDirty();validateSetup()" handlers on these fields never
   // ran — any red-border/"required" warning left over from before the
@@ -319,7 +349,7 @@ function applyModeUI(){
 
 
 // --- ES module exports (added for module-system conversion, HANDOVER #4) ---
-export { _unsaved, addSubject, addTest, applyModeLockUI, applyModeUI, collectSetupForm, fillSetupForm, filterFAQ, getSubjects, initFAQAccordion, lockStep, lockUsageMode, markClean, markDirty, setUsageMode, startCompareMode, startNewSession, subjectCount, testCount, unlockStep, updateTestSubjectCols };
+export { _unsaved, addSubject, addTest, applyModeLockUI, applyModeUI, collectSetupForm, fillSetupForm, filterFAQ, getSubjects, initFAQAccordion, lockStep, lockUsageMode, markClean, markDirty, setUsageMode, startCompareMode, startNewSession, subjectCount, testCount, toggleMmSubject, unlockStep, updateTestSubjectCols };
 
 // Legacy-global compatibility shim: modules don't leak top-level
 // declarations onto window the way classic scripts did. The handful of
@@ -327,4 +357,4 @@ export { _unsaved, addSubject, addTest, applyModeLockUI, applyModeUI, collectSet
 // (out of scope for HANDOVER #3 — only onclick was converted) still need a
 // bare global to resolve, so every exported name is also mirrored onto
 // window here. Harmless duplication for anything already imported properly.
-if(typeof window!=='undefined'){window._unsaved=_unsaved;window.addSubject=addSubject;window.addTest=addTest;window.applyModeLockUI=applyModeLockUI;window.applyModeUI=applyModeUI;window.collectSetupForm=collectSetupForm;window.fillSetupForm=fillSetupForm;window.filterFAQ=filterFAQ;window.getSubjects=getSubjects;window.initFAQAccordion=initFAQAccordion;window.lockStep=lockStep;window.lockUsageMode=lockUsageMode;window.markClean=markClean;window.markDirty=markDirty;window.setUsageMode=setUsageMode;window.startCompareMode=startCompareMode;window.startNewSession=startNewSession;window.subjectCount=subjectCount;window.testCount=testCount;window.unlockStep=unlockStep;window.updateTestSubjectCols=updateTestSubjectCols;}
+if(typeof window!=='undefined'){window._unsaved=_unsaved;window.addSubject=addSubject;window.addTest=addTest;window.applyModeLockUI=applyModeLockUI;window.applyModeUI=applyModeUI;window.collectSetupForm=collectSetupForm;window.fillSetupForm=fillSetupForm;window.filterFAQ=filterFAQ;window.getSubjects=getSubjects;window.initFAQAccordion=initFAQAccordion;window.lockStep=lockStep;window.lockUsageMode=lockUsageMode;window.markClean=markClean;window.markDirty=markDirty;window.setUsageMode=setUsageMode;window.startCompareMode=startCompareMode;window.startNewSession=startNewSession;window.subjectCount=subjectCount;window.testCount=testCount;window.toggleMmSubject=toggleMmSubject;window.unlockStep=unlockStep;window.updateTestSubjectCols=updateTestSubjectCols;}

@@ -1343,6 +1343,7 @@ const SR_STRINGS_EN={
   smart_needs_ai_feature:"This needs an AI feature that isn't enabled — turn it on from the AI panel first.",
   smart_not_enough_data:"Not enough data yet to answer this.",
   smart_select_student_first:"Select a student first.",
+  smart_which_student_prompt:"Which student? Type their name below and tap Ask.",
   smart_moderate_gap:"A moderate gap — steady improvement in weaker subjects should narrow this.",
   smart_significant_gap:"A significant gap — worth a focused improvement plan rather than broad effort.",
   smart_worth_checkin:"Worth a check-in before this becomes a pattern.",

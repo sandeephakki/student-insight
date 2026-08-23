@@ -3,7 +3,7 @@ import { exportAllSectionsPDFs, exportComparisonReportPDF, exportSectionPDFs, re
 import { runAnalysis } from './compute-stats.js';
 import { selectContinuityPeriod, selectContinuityStudent, toggleContinuityProjection } from './continuity-dashboard.js';
 import { generateAllPDFs } from './export-pdf.js';
-import { addSubject, addTest, filterFAQ, markDirty, setUsageMode, startNewSession, updateTestSubjectCols } from './project-setup.js';
+import { addSubject, addTest, filterFAQ, markDirty, setUsageMode, startNewSession, toggleMmSubject, updateTestSubjectCols } from './project-setup.js';
 import { backToBucketList, backToBuckets, openBucket, openIndividualBucket, renderCompareResult, renderDashboardSampleBanner, setTargetScore, smartChatAskCanned, smartChatSubmit } from './render-buckets.js';
 import { closeModal, dbTabKeyNav, downloadUpdatedSheet, filterStudents, runSampleFile, saveNarrativeField, saveRemarkField, selectIndividualStudent, setFilter, showSampleFiles, sortStudents, updateRemarkCharCount } from './render-core.js';
 import { filterPickerList, onBucketStudentPick, onBucketSubjectPick, openFinding } from './render-findings.js';
@@ -293,6 +293,7 @@ import { smartQueryRailAnswer, smartQueryRailAsk, vsShellToggle } from './vs-she
     switch(action){
       case 'renderCompareResult': renderCompareResult(); break;
       case 'toggleContinuityProjection': toggleContinuityProjection(el.checked); break;
+      case 'toggleMmSubject': toggleMmSubject(el); break;
       default:
         window.__unknownActions = window.__unknownActions || [];
         window.__unknownActions.push(action);

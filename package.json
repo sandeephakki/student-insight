@@ -17,8 +17,10 @@
   "scripts": {
     "audit-deps": "npm audit --omit=dev=false",
     "test": "node test/compute-engine.test.js",
+    "test:regression-audit": "node test/regression-audit.test.js",
     "test:dom-smoke": "node test/dom-smoke.js",
-    "test:dom-smoke-esm": "node test/dom-smoke-esm.js"
+    "test:dom-smoke-esm": "node test/dom-smoke-esm.js",
+    "test:browser-smoke": "node test/browser-smoke.js"
   },
   "keywords": []
 }
