@@ -1,0 +1,692 @@
+[
+  {
+    "id": "C7A001",
+    "name": "Devansh Shetty",
+    "annualFamilyIncome": "480000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        89,
+        92,
+        96,
+        88
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 94,
+        "Science": 90,
+        "English": 89,
+        "Kannada": 91,
+        "Social Studies": 92
+      },
+      "overallAvg": 91
+    }
+  },
+  {
+    "id": "C7A002",
+    "name": "Aadhya Kumar",
+    "annualFamilyIncome": "210000",
+    "category": "OBC",
+    "analysis": {
+      "testAvgs": [
+        89,
+        85,
+        87,
+        77
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 85,
+        "Science": 84,
+        "English": 84,
+        "Kannada": 83,
+        "Social Studies": 86
+      },
+      "overallAvg": 83
+    }
+  },
+  {
+    "id": "C7A003",
+    "name": "Krishna Sharma",
+    "annualFamilyIncome": "620000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        83,
+        85,
+        82,
+        77
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 83,
+        "Science": 80,
+        "English": 80,
+        "Kannada": 84,
+        "Social Studies": 82
+      },
+      "overallAvg": 81
+    }
+  },
+  {
+    "id": "C7A004",
+    "name": "Riya Shetty",
+    "annualFamilyIncome": "145000",
+    "category": "SC",
+    "analysis": {
+      "testAvgs": [
+        69,
+        58,
+        60,
+        72
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 65,
+        "Science": 64,
+        "English": 64,
+        "Kannada": 65,
+        "Social Studies": 67
+      },
+      "overallAvg": 65
+    }
+  },
+  {
+    "id": "C7A005",
+    "name": "Rohan Iyer",
+    "annualFamilyIncome": "",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        56,
+        62,
+        60,
+        59
+      ],
+      "totalAbsent": 2,
+      "subjectAvgs": {
+        "Mathematics": 62,
+        "Science": 58,
+        "English": 60,
+        "Kannada": 56,
+        "Social Studies": 62
+      },
+      "overallAvg": 60
+    }
+  },
+  {
+    "id": "C7A006",
+    "name": "Sneha Patel",
+    "annualFamilyIncome": "180000",
+    "category": "EWS",
+    "analysis": {
+      "testAvgs": [
+        56,
+        54,
+        56,
+        54
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 54,
+        "Science": 56,
+        "English": 56,
+        "Kannada": 55,
+        "Social Studies": 54
+      },
+      "overallAvg": 55
+    }
+  },
+  {
+    "id": "C7A007",
+    "name": "Akash Hegde",
+    "annualFamilyIncome": "550000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        44,
+        35,
+        41,
+        34
+      ],
+      "totalAbsent": 1,
+      "subjectAvgs": {
+        "Mathematics": 40,
+        "Science": 38,
+        "English": 38,
+        "Kannada": 38,
+        "Social Studies": 38
+      },
+      "overallAvg": 37
+    }
+  },
+  {
+    "id": "C7A008",
+    "name": "Swathi Hegde",
+    "annualFamilyIncome": "260000",
+    "category": "OBC",
+    "analysis": {
+      "testAvgs": [
+        38,
+        39,
+        42,
+        34
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 42,
+        "Science": 38,
+        "English": 37,
+        "Kannada": 36,
+        "Social Studies": 38
+      },
+      "overallAvg": 38
+    }
+  },
+  {
+    "id": "C7A009",
+    "name": "Vihaan Kumar",
+    "annualFamilyIncome": "95000",
+    "category": "ST",
+    "analysis": {
+      "testAvgs": [
+        16,
+        14,
+        14,
+        17
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 17,
+        "Science": 16,
+        "English": 13,
+        "Kannada": 15,
+        "Social Studies": 14
+      },
+      "overallAvg": 15
+    }
+  },
+  {
+    "id": "C7A010",
+    "name": "Tanya Patel",
+    "annualFamilyIncome": "410000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        37,
+        51,
+        68,
+        88
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 60,
+        "Science": 60,
+        "English": 60,
+        "Kannada": 62,
+        "Social Studies": 61
+      },
+      "overallAvg": 64
+    }
+  },
+  {
+    "id": "C7A011",
+    "name": "Nikhil Desai",
+    "annualFamilyIncome": "230000",
+    "category": "OBC",
+    "analysis": {
+      "testAvgs": [
+        79,
+        60,
+        38,
+        18
+      ],
+      "totalAbsent": 4,
+      "subjectAvgs": {
+        "Mathematics": 48,
+        "Science": 48,
+        "English": 47,
+        "Kannada": 51,
+        "Social Studies": 50
+      },
+      "overallAvg": 45
+    }
+  },
+  {
+    "id": "C7A012",
+    "name": "Ananya Singh",
+    "annualFamilyIncome": "700000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        62,
+        57,
+        43,
+        56
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 56,
+        "Science": 53,
+        "English": 56,
+        "Kannada": 52,
+        "Social Studies": 54
+      },
+      "overallAvg": 55
+    }
+  },
+  {
+    "id": "C7A013",
+    "name": "Arjun Bhat",
+    "annualFamilyIncome": "890000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        96,
+        94,
+        96,
+        97
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 97,
+        "Science": 97,
+        "English": 94,
+        "Kannada": 98,
+        "Social Studies": 94
+      },
+      "overallAvg": 96
+    }
+  },
+  {
+    "id": "C7A014",
+    "name": "Pooja Hegde",
+    "annualFamilyIncome": "160000",
+    "category": "SC",
+    "analysis": {
+      "testAvgs": [
+        80,
+        78,
+        78,
+        84
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 79,
+        "Science": 82,
+        "English": 80,
+        "Kannada": 80,
+        "Social Studies": 80
+      },
+      "overallAvg": 80
+    }
+  },
+  {
+    "id": "C7A015",
+    "name": "Vikram Verma",
+    "annualFamilyIncome": "520000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        85,
+        82,
+        86,
+        79
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 83,
+        "Science": 84,
+        "English": 82,
+        "Kannada": 83,
+        "Social Studies": 83
+      },
+      "overallAvg": 82
+    }
+  },
+  {
+    "id": "C7A016",
+    "name": "Riya Kulkarni",
+    "annualFamilyIncome": "195000",
+    "category": "EWS",
+    "analysis": {
+      "testAvgs": [
+        53,
+        56,
+        57,
+        56
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 54,
+        "Science": 57,
+        "English": 58,
+        "Kannada": 55,
+        "Social Studies": 53
+      },
+      "overallAvg": 56
+    }
+  },
+  {
+    "id": "C7A017",
+    "name": "Vihaan Naik",
+    "annualFamilyIncome": "275000",
+    "category": "OBC",
+    "analysis": {
+      "testAvgs": [
+        65,
+        65,
+        68,
+        67
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 67,
+        "Science": 64,
+        "English": 68,
+        "Kannada": 66,
+        "Social Studies": 66
+      },
+      "overallAvg": 66
+    }
+  },
+  {
+    "id": "C7A018",
+    "name": "Riya Naik",
+    "annualFamilyIncome": "",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        62,
+        61,
+        57,
+        63
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 63,
+        "Science": 60,
+        "English": 59,
+        "Kannada": 60,
+        "Social Studies": 62
+      },
+      "overallAvg": 61
+    }
+  },
+  {
+    "id": "C7A019",
+    "name": "Rahul Sharma",
+    "annualFamilyIncome": "130000",
+    "category": "SC",
+    "analysis": {
+      "testAvgs": [
+        36,
+        33,
+        29,
+        34
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 34,
+        "Science": 34,
+        "English": 34,
+        "Kannada": 29,
+        "Social Studies": 33
+      },
+      "overallAvg": 33
+    }
+  },
+  {
+    "id": "C7A020",
+    "name": "Myra Desai",
+    "annualFamilyIncome": "610000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        34,
+        38,
+        32,
+        33
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 37,
+        "Science": 33,
+        "English": 35,
+        "Kannada": 33,
+        "Social Studies": 34
+      },
+      "overallAvg": 35
+    }
+  },
+  {
+    "id": "C7A021",
+    "name": "Nikhil Sharma",
+    "annualFamilyIncome": "340000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        27,
+        18,
+        19,
+        23
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 22,
+        "Science": 22,
+        "English": 22,
+        "Kannada": 22,
+        "Social Studies": 20
+      },
+      "overallAvg": 21
+    }
+  },
+  {
+    "id": "C7A022",
+    "name": "Shreya Prabhu",
+    "annualFamilyIncome": "220000",
+    "category": "OBC",
+    "analysis": {
+      "testAvgs": [
+        32,
+        50,
+        69,
+        90
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 58,
+        "Science": 62,
+        "English": 60,
+        "Kannada": 58,
+        "Social Studies": 61
+      },
+      "overallAvg": 63
+    }
+  },
+  {
+    "id": "C7A023",
+    "name": "Yash Patel",
+    "annualFamilyIncome": "480000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        88,
+        67,
+        45,
+        26
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 54,
+        "Science": 56,
+        "English": 57,
+        "Kannada": 59,
+        "Social Studies": 58
+      },
+      "overallAvg": 53
+    }
+  },
+  {
+    "id": "C7A024",
+    "name": "Kavya Iyer",
+    "annualFamilyIncome": "175000",
+    "category": "EWS",
+    "analysis": {
+      "testAvgs": [
+        43,
+        71,
+        60,
+        53
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 58,
+        "Science": 54,
+        "English": 57,
+        "Kannada": 56,
+        "Social Studies": 58
+      },
+      "overallAvg": 59
+    }
+  },
+  {
+    "id": "C7A025",
+    "name": "Vihaan Pai",
+    "annualFamilyIncome": "560000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        96,
+        98,
+        93,
+        96
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 97,
+        "Science": 96,
+        "English": 95,
+        "Kannada": 94,
+        "Social Studies": 96
+      },
+      "overallAvg": 96
+    }
+  },
+  {
+    "id": "C7A026",
+    "name": "Sneha Kumar",
+    "annualFamilyIncome": "110000",
+    "category": "ST",
+    "analysis": {
+      "testAvgs": [
+        82,
+        78,
+        79,
+        79
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 82,
+        "Science": 78,
+        "English": 82,
+        "Kannada": 77,
+        "Social Studies": 78
+      },
+      "overallAvg": 79
+    }
+  },
+  {
+    "id": "C7A027",
+    "name": "Sameer Singh",
+    "annualFamilyIncome": "430000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        86,
+        79,
+        78,
+        83
+      ],
+      "totalAbsent": 2,
+      "subjectAvgs": {
+        "Mathematics": 79,
+        "Science": 82,
+        "English": 82,
+        "Kannada": 82,
+        "Social Studies": 82
+      },
+      "overallAvg": 81
+    }
+  },
+  {
+    "id": "C7A028",
+    "name": "Sara Iyer",
+    "annualFamilyIncome": "250000",
+    "category": "OBC",
+    "analysis": {
+      "testAvgs": [
+        57,
+        54,
+        60,
+        59
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 60,
+        "Science": 60,
+        "English": 56,
+        "Kannada": 56,
+        "Social Studies": 58
+      },
+      "overallAvg": 57
+    }
+  },
+  {
+    "id": "C7A029",
+    "name": "Varun Shetty",
+    "annualFamilyIncome": "395000",
+    "category": "General",
+    "analysis": {
+      "testAvgs": [
+        54,
+        56,
+        57,
+        59
+      ],
+      "totalAbsent": 2,
+      "subjectAvgs": {
+        "Mathematics": 59,
+        "Science": 56,
+        "English": 56,
+        "Kannada": 55,
+        "Social Studies": 58
+      },
+      "overallAvg": 57
+    }
+  },
+  {
+    "id": "C7A030",
+    "name": "Neha Desai",
+    "annualFamilyIncome": "150000",
+    "category": "SC",
+    "analysis": {
+      "testAvgs": [
+        72,
+        60,
+        68,
+        64
+      ],
+      "totalAbsent": 0,
+      "subjectAvgs": {
+        "Mathematics": 67,
+        "Science": 62,
+        "English": 68,
+        "Kannada": 64,
+        "Social Studies": 68
+      },
+      "overallAvg": 65
+    }
+  }
+]

@@ -1,0 +1,1224 @@
+// TODO(planner): mixed UI+BAL, split pending — see planner.md decisions log
+import { esc, startAiLoaderCardCycle, stopAiLoaderCardCycle, toast } from '../../core/app-utils-init.js';
+import { deriveRosterStatus } from '../common/compute-continuity.js';
+import { computeAnalysis, computeGenderAnalysis, parseStudents, runAnalysis, scrollToEl, sleep } from '../common/compute-stats.js';
+import { parseStrictMaxMark } from '../common/mark-parse.js';
+import { isFeatureOn } from '../../core/feature-registry.js';
+import { bcp47TagFor, srT } from '../../core/render-i18n.js';
+import { lockStep, markClean, unlockStep } from '../../core/project-setup.js';
+import { buildCompareSectionListHtml, openBucket, openIndividualBucket, renderComparePicker, renderDashboardSampleBanner } from '../../ui/common/render-buckets.js';
+import { buildFeatureLockedHtml } from '../../ui/common/feature-locked-modal.js';
+import { updateExportGate } from '../../ui/common/render-core.js';
+import { renderClusterGroups } from '../../ui/common/render-findings.js';
+import { APP, goStep } from '../../core/state-nav.js';
+import { autoInferSetup, handleHomeImportFiles, parseWorkbookSheets, resetHomeImport, selectAllAI, validateUploadFile } from '../../core/template-upload.js';
+import { renderShellLeftRail, setRightRail, setShellRailOpen, setShellRailsOpen } from '../../core/vs-shell.js';
+
+// FIX (module-system conversion, HANDOVER #4): moved here from state-nav.js
+// (never used there) — this file is the real owner, incrementing it via
+// addCompareSection(). See the matching note in state-nav.js.
+let _compareSectionSeq = 0;
+
+/* ════════════════════════════════════════════════════════════════════
+   COMPUTE-COMPARE — multi-file comparison, management grid, schema
+   matching across uploaded sections, weak-subject/flagged-section
+   rollups, export section picker.
+   Split out of the former compute-engine.js (review #5) — pure move,
+   no logic changed. Depends on nothing from compute-stats.js at load
+   time (only calls its functions later, at runtime, same as before).
+   ════════════════════════════════════════════════════════════════════ */
+function safeFileName(n){return String(n||"").replace(/[^\w\s-]/g,"").replace(/\s+/g,"_");}
+
+/* ── Upload handlers ── */
+// v3.0 rev2: triggerCompareFileUpload()/handleCompareFileSelect()/
+// handleCompareFileDrop() removed — targeted #compare-drop-zone/
+// #compare-file-input, both deleted with the old Upload Data panel.
+// processCompareFile() itself is kept — Home's own multi-file drop calls
+// it directly (see handleHomeImportFiles).
+// Shared by fingerprintRawData()/addCompareSection() (Compare mode) and the
+// single-file Home upload path alike — one place that knows how to find the
+// MARKS+CONTEXT sheet regardless of minor naming variants.
+// BUG FIX (v3.8): current templates split marks across one sheet PER TEST
+// ("Prelims Mock 1", "Unit Test 1", etc.) with the roster in its own
+// STUDENTS sheet — there is no single "MARKS+CONTEXT" sheet in any current
+// sample/template. Looking for a sheet name containing "MARK" therefore
+// always came back empty, showing "0 rows detected" on every real upload
+// (cosmetic on the Home single-file card, but also made Compare Mode wrongly
+// flag every valid file with "No student rows found"). STUDENTS is the
+// reliable roster regardless of how the per-test sheets are named; the old
+// MARKS+CONTEXT lookup is kept as a fallback for any legacy single-sheet file.
+function resolveMarksRows(rawData){
+  if(rawData["STUDENTS"]&&rawData["STUDENTS"].length)return rawData["STUDENTS"];
+  const markKey=Object.keys(rawData).find(k=>k.includes("MARK")&&k.includes("CONTEXT"))||Object.keys(rawData).find(k=>k.includes("MARK"))||"";
+  return rawData["MARKS+CONTEXT"]||rawData["MARKS_CONTEXT"]||rawData[markKey]||[];
+}
+function processCompareFile(file,done){
+  const err=validateUploadFile(file,["xlsx","xls"]);
+  if(err){toast(file.name+": "+err,"error");if(done)done();return;}
+  // Bug fix: the same file could be uploaded twice with zero validation —
+  // it would silently get added as a second, separate section, double-
+  // counting those students in the comparison (and their averages moving
+  // the school-wide/class numbers) with no warning it had happened.
+  // Cheapest, most common case: reject on an exact filename match before
+  // even reading the file. A content-based check below (in
+  // addCompareSection) also catches a renamed copy of the same data.
+  if(APP.sections.some(s=>s.fileName.toLowerCase()===file.name.toLowerCase())){
+    toast(srT("val_file_already_uploaded_compare",{fname:file.name}),"warn");
+    if(done)done();
+    return;
+  }
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:"array"});
+      parseWorkbookSheets(wb); // overwrites the shared APP.rawData — snapshotted into this section immediately below, so it's safe even though later files will overwrite it again
+      const sectionRawData=APP.rawData;
+      const peek=peekSectionSetup(sectionRawData);
+      // v1.6 (per confirmed spec): no shared APP.setup schema is adopted or
+      // enforced here anymore — every file carries its OWN schema (subjects/
+      // tests/max-marks straight off its own SETUP tab), and validity is
+      // purely "does this look like a Student Insight template" (see
+      // addCompareSection). Whether two files' schemas happen to MATCH each
+      // other is decided later, per group, in computeCompareGroups() — not
+      // gated here against whichever file happened to be uploaded first.
+      addCompareSection(file.name,sectionRawData,peek);
+    }catch(err2){
+      toast(srT("val_error_reading_named",{fname:file.name,msg:err2.message}),"error");
+    }
+    if(done)done();
+  };
+  reader.onerror=()=>{toast(srT("val_could_not_read_named",{fname:file.name}),"error");if(done)done();};
+  reader.readAsArrayBuffer(file);
+}
+// Read a section file's own SETUP tab (subjects/tests/max-marks/label)
+// WITHOUT touching the shared APP.setup — this is a read-only peek used
+// purely for validation + auto-labelling, mirroring autoInferSetup()'s
+// SETUP-tab parsing but never assigning anything to global state.
+function peekSectionSetup(rawData){
+  const setupRows=rawData["SETUP"]||[];
+  const kv={};
+  setupRows.forEach(row=>{const k=String(row[0]||"").trim();const v=row[1]===undefined||row[1]===null?"":String(row[1]).trim();if(k)kv[k]=v;});
+  const subjects=[];let i=1;while(kv["Subject "+i]){subjects.push(kv["Subject "+i]);i++;}
+  const rawRows=setupRows.map(row=>Object.values(row));
+  const tests=[];let t=1;
+  const maxMarkErrors=[];
+  // Mirrors autoInferSetup()'s Format A ("Max Marks - <Subject> (Test N)")
+  // / Format B (single "Max Marks" cell shared by all subjects) handling —
+  // duplicated here (read-only) rather than calling autoInferSetup() itself,
+  // since that function mutates the shared APP.setup as a side effect and
+  // this is only ever meant to peek at a file, never apply it. Max-mark
+  // parsing uses the same strict parser/fallback rule as autoInferSetup()
+  // (item 4): a genuinely blank field falls back to 100, but a *supplied*
+  // invalid value (0, negative, decimal, non-numeric) is never silently
+  // replaced with 100 — it's collected in maxMarkErrors instead.
+  while(kv["Test "+t+" Name"]||kv["Test "+t]){
+    const name=kv["Test "+t+" Name"]||kv["Test "+t]||"";
+    if(!name){t++;continue;}
+    const maxMarks={};
+    const readMax=(raw,label)=>{
+      const r=parseStrictMaxMark(raw);
+      if(r.status==="valid")return r.value;
+      if(r.status==="blank")return 100;
+      maxMarkErrors.push({label,raw,reason:r.reason});
+      return 100;
+    };
+    // Presence-check (not truthiness-check): an explicit max mark of 0
+    // must still reach readMax() and be flagged invalid, not fall through
+    // to the blank-field 100 fallback the way `kv[k]||kv[k2]` would treat
+    // a falsy-but-present 0. See EXCEL_DATA_MATH_AUDIT_PROMPT.md item 4.
+    const hasFormatA=subjects.some(s=>kv["Max Marks - "+s+" (Test "+t+")"]!==undefined||kv["Max Marks — "+s+" (Test "+t+")"]!==undefined);
+    if(hasFormatA){
+      subjects.forEach(s=>{
+        const vA=kv["Max Marks - "+s+" (Test "+t+")"],vB=kv["Max Marks — "+s+" (Test "+t+")"];
+        const v=vA!==undefined?vA:(vB!==undefined?vB:null);
+        maxMarks[s]=readMax(v,`Max Marks - ${s} (Test ${t}: ${name})`);
+      });
+    } else {
+      const testRow=rawRows.find(r=>String(r[0]||"").trim()==="Test "+t&&String(r[1]||"").trim()===name);
+      const globalRaw=testRow&&testRow[2]==="Max Marks"?testRow[3]:null;
+      const globalMax=readMax(globalRaw,`Max Marks (Test ${t}: ${name})`);
+      subjects.forEach(s=>{maxMarks[s]=globalMax;});
+    }
+    tests.push({name,maxMarks});
+    t++;
+  }
+  const instName=kv["Institution Name"]||"";
+  const instType=kv["Type"]||"";
+  const className=kv["Class / Batch"]||kv["Class/Batch"]||kv["Class"]||"";
+  const section=kv["Section"]||"";
+  // Issue 5 fix: peek also needs to carry the rest of the report-header
+  // metadata (academic year, teacher, pass threshold) — previously only
+  // subjects/tests/className/section were read here, so selecting a
+  // section in Compare mode left institution name/year/teacher/threshold
+  // pointing at whichever section (or blank state) came before it.
+  const year=kv["Academic Year"]||"";
+  const teacher=kv["Class Teacher"]||kv["Teacher Name"]||"";
+  const clampNum=(raw,min,max,fallback)=>{const n=parseInt(raw);return isNaN(n)?fallback:Math.min(max,Math.max(min,n));};
+  const passThreshold=kv["Pass Threshold %"]?clampNum(kv["Pass Threshold %"],0,100,35):35;
+  const label=[className,section].filter(Boolean).join(" - ")||instName||"";
+  // Duplicate subject/test names (case-insensitive, trimmed) — same
+  // blocking rule as validateSetupData()/validateData() (item 6), applied
+  // here too since compare-mode sections build their schema straight from
+  // this peek rather than going through autoInferSetup().
+  const findDupes=list=>{const seen=new Set(),dupes=new Set();(list||[]).forEach(v=>{const k=String(v).trim().toLowerCase();if(seen.has(k))dupes.add(v);seen.add(k);});return[...dupes];};
+  const duplicateErrors=[];
+  const dupeSubjects=findDupes(subjects);
+  const dupeTests=findDupes(tests.map(x=>x.name));
+  if(dupeSubjects.length)duplicateErrors.push(`Duplicate subject name(s): ${dupeSubjects.join(", ")}`);
+  if(dupeTests.length)duplicateErrors.push(`Duplicate test name(s): ${dupeTests.join(", ")}`);
+  return {instName,instType,className,section,year,teacher,passThreshold,label,subjects,tests,maxMarkErrors,duplicateErrors};
+}
+// Structural template check ONLY — "does this look like a Student Insight
+// file at all" (recognizable Subjects/Tests in its own SETUP tab, and at
+// least one student row) — NOT "does it match any other uploaded file".
+// Whether two files' schemas match each other is a separate question,
+// answered later per-group in computeCompareGroups(); a file failing THIS
+// check is unrecoverable (we have no schema to analyse it with at all), but
+// a file that passes is always analysed on its own, whether or not any
+// other uploaded file shares its subjects/tests.
+function validateTemplateStructure(peek,rowCount){
+  const errors=[];
+  if(!peek.subjects||!peek.subjects.length)errors.push(srT("val_couldnt_detect_subjects_setup"));
+  if(!peek.tests||!peek.tests.length)errors.push(srT("val_couldnt_detect_tests_setup"));
+  if(!rowCount)errors.push(srT("val_no_student_rows_setup"));
+  // Invalid max marks (item 4) and duplicate subject/test names (item 6)
+  // are always blocking, same as the single-file import path — a compare
+  // section with either of these would corrupt its own per-student totals
+  // and the cross-section comparison built on top of them.
+  (peek.maxMarkErrors||[]).forEach(e=>{
+    errors.push(`Invalid maximum mark for "${e.label}": entered "${e.raw}" — ${e.reason}.`);
+  });
+  (peek.duplicateErrors||[]).forEach(m=>errors.push(m));
+  return errors;
+}
+// Cheap content fingerprint for a section's marks data — used to catch a
+// duplicate upload even when the file was renamed (the filename check in
+// processCompareFile only catches an exact name match).
+function fingerprintRawData(rawData){
+  return JSON.stringify(resolveMarksRows(rawData));
+}
+function addCompareSection(fileName,rawData,peek){
+  const rowCount=resolveMarksRows(rawData).length;
+  const errors=validateTemplateStructure(peek,rowCount);
+  const fp=fingerprintRawData(rawData);
+  const dup=APP.sections.find(s=>s._fp===fp&&fp!=="[]");
+  if(dup){
+    toast(fileName+": this has the same student data as \""+dup.label+"\" (already added under a different filename) — skipped to avoid double-counting.","warn");
+    return;
+  }
+  const id="sec"+(++_compareSectionSeq);
+  // Each section keeps its OWN schema straight off its own SETUP tab —
+  // no shared/adopted schema anymore. computeCompareGroups() (run once
+  // analysis starts) is what decides which sections' schemas match closely
+  // enough to be silently compared against each other.
+  // className/section carried alongside subjects/tests purely so
+  // schemaSignature() can strip THIS file's own "<Class><Section>-" tab
+  // prefix (applyTabPrefix()'s convention, baked into every generated
+  // template's Test N Name) before comparing test names across files —
+  // see schemaSignature() for why this matters.
+  // Issue 5 fix: carry the full report-header metadata (not just
+  // className/section) in the immutable per-section snapshot, so
+  // selectCompareSection()/exportSectionPDFs() can restore a section's
+  // OWN institution name/type/year/teacher/pass-threshold instead of
+  // leaving APP.setup pointing at whichever section was active before.
+  const schema=errors.length?null:{subjects:peek.subjects.slice(),tests:peek.tests.map(t=>({name:t.name,date:"",maxMarks:Object.assign({},t.maxMarks)})),className:peek.className,section:peek.section,instName:peek.instName,instType:peek.instType,year:peek.year,teacher:peek.teacher,passThreshold:peek.passThreshold};
+  APP.sections.push({id,fileName,rawData,label:peek.label||fileName.replace(/\.[^.]+$/,""),
+    valid:errors.length===0,errors,rowCount,schema,students:null,classStats:null,genderAnalysis:null,dataIssues:null,_fp:fp});
+  invalidateStaleComparison();
+  toast(errors.length?fileName+": "+errors.join(" "):fileName+" added ("+rowCount+" row"+(rowCount===1?"":"s")+").",errors.length?"error":"success");
+  renderHomeFileList();
+}
+// v3.0 rev2 (BUILD spec §10.3/10.5) originally removed renameCompareSection()/
+// removeCompareSection()/renderCompareSectionsList()/updateCompareContinueButton()
+// /triggerCompareFileUpload()/handleCompareFileSelect()/handleCompareFileDrop()
+// since they only ever targeted the old Setup-panel Compare upload UI
+// (#compare-sections-list, #btn-compare-continue, #compare-drop-zone), which
+// no longer exists now that Home's single upload zone is the only surface
+// (§10.1/10.3). Re-added below as Home-native equivalents (#home-file-list)
+// so a multi-file drop still shows a persistent, editable list of what's
+// been uploaded — not just transient toasts — mirroring the old Compare
+// panel's list UX but living under Home's own drop zone instead.
+function renderHomeFileList(){
+  const wrap=$("#home-file-list");
+  if(APP.compareMode&&APP.sections.length){
+    const validCount=APP.sections.filter(s=>s.valid).length;
+    wrap.html(`<div class="card" style="padding:14px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">${APP.sections.length} file(s) uploaded · ${validCount} valid section(s)</div>
+      ${APP.sections.map(sec=>`
+        <div style="padding:8px 0;border-top:1px solid var(--c-border)">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:220px">
+              <span style="font-size:16px" aria-hidden="true">${sec.valid?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false' style='color:var(--c-success)'><path d='M22 11.1V12a10 10 0 1 1-5.9-9.1'/><polyline points='22 4 12 14.5 9 11.5'/></svg>":"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false' style='color:var(--c-danger)'><circle cx='12' cy='12' r='10'/><line x1='15' y1='9' x2='9' y2='15'/><line x1='9' y1='9' x2='15' y2='15'/></svg>"}</span>
+              <input type="text" value="${esc(sec.label)}" data-input-action="renameHomeCompareFile" data-arg="${sec.id}" aria-label="Section label for ${esc(sec.fileName)}" style="padding:5px 8px;font-size:13px;font-weight:700;border:1px solid var(--c-border);border-radius:var(--r-sm);min-width:160px" placeholder="Section label"/>
+              <span style="font-size:11.5px;color:var(--c-text3)">${esc(sec.fileName)} · ${sec.rowCount} row${sec.rowCount===1?"":"s"}</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" data-action="removeHomeCompareFile" data-arg="${sec.id}">✕ Remove</button>
+          </div>
+          ${sec.errors&&sec.errors.length?`<div style="margin-top:8px;font-size:12px;color:var(--c-danger)">${sec.errors.map(e=>"⚠ "+esc(e)).join("<br>")}</div>`:""}
+        </div>`).join("")}
+    </div>`);
+    wrap.show();
+    return;
+  }
+  // Single-file path (not Compare mode) — same "here's what's uploaded,
+  // ✕ to remove it" card, just for the one file, so it doesn't silently
+  // vanish between the drop zone and the Run Analysis button.
+  if(APP.homeSingleFile){
+    const f=APP.homeSingleFile;
+    wrap.html(`<div class="card" style="padding:14px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:220px">
+          <span style="font-size:16px" aria-hidden="true"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false' style='color:var(--c-success)'><path d='M22 11.1V12a10 10 0 1 1-5.9-9.1'/><polyline points='22 4 12 14.5 9 11.5'/></svg></span>
+          <div>
+            <div style="font-weight:700;font-size:13px">${esc(f.fileName)}</div>
+            <div style="font-size:11.5px;color:var(--c-text3)">${f.rowCount} row${f.rowCount===1?"":"s"} detected</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" data-action="resetHomeImport">✕ Remove</button>
+      </div>
+    </div>`);
+    wrap.show();
+    return;
+  }
+  wrap.hide().empty();
+}
+function renameHomeCompareFile(id,val){
+  const sec=APP.sections.find(s=>s.id===id);
+  if(sec)sec.label=val.trim()||sec.fileName.replace(/\.[^.]+$/,"");
+}
+// Mirrors old code's removeCompareSection(), but re-evaluates Home's own
+// status area/Run Analysis button afterwards instead of the old Setup-panel
+// Continue button, since that's the only surface left (§10.1/10.3).
+function removeHomeCompareFile(id){
+  APP.sections=APP.sections.filter(s=>s.id!==id);
+  invalidateStaleComparison();
+  if(!APP.sections.length){
+    // Nothing left — fully reset back to a blank Home import state rather
+    // than leaving an empty compare-mode limbo behind.
+    resetHomeImport();
+    return;
+  }
+  renderHomeFileList();
+  const btn=document.getElementById("btn-home-run-analysis");
+  const validCount=APP.sections.filter(s=>s.valid).length;
+  if(validCount>=1){
+    if(btn){btn.style.display="inline-flex";btn.disabled=false;btn.style.opacity=1;btn.style.cursor="pointer";btn.classList.add("btn-glow");}
+    $("#home-import-status").hide().empty();
+  } else {
+    if(btn){btn.style.display="none";}
+    const statusEl=document.getElementById("home-import-status");
+    statusEl.innerHTML=`<div class="card" style="border-color:var(--c-warn)">
+      <b style="color:var(--c-warn)">No valid files left</b>
+      <div style="font-size:12.5px;color:var(--c-text2);margin-top:6px">Drop another Student Insight file below.</div>
+    </div>`;
+    statusEl.style.display="block";
+  }
+}
+// Bug fix (shared by add/removeCompareSection): once a Compare Mode
+// comparison has actually been run, APP.sectionComparison holds results for
+// that exact set of sections, and Dashboard/Export get unlocked. If the
+// section list then changes (a section added, removed, or swapped) without
+// re-running "Run Comparison Analysis", those steps used to stay unlocked
+// and would keep showing the comparison computed for the OLD set of
+// sections — silently stale. Clear it and re-lock so the only way back
+// into Dashboard/Export is to actually re-run the comparison.
+function invalidateStaleComparison(){
+  if(APP.sectionComparison&&APP.sectionComparison.length){
+    APP.sectionComparison=[];
+    lockStep("dashboard");lockStep("export");
+    toast(srT("val_section_list_changed"),"info");
+  }
+}
+/* ── Per-section analysis (reuses parseStudents/computeAnalysis/computeGenderAnalysis as-is) ── */
+async function runCompareAnalysisCore(){
+  const validSections=APP.sections.filter(s=>s.valid);
+  if(validSections.length<1){toast(srT("toast_compare_no_valid_files"),"warn");return;}
+  if(!APP.aiFeatures.size)selectAllAI();
+  goStep("ai"); // v2.4: bring the loader on-screen even without a manual stop here
+  $("#ai-loader").show();
+  startAiLoaderCardCycle();
+  // btn-analyse removed (v3.2) — panel-ai is now a pure progress screen.
+  scrollToEl(document.getElementById("ai-loader"));
+  for(let i=0;i<validSections.length;i++){
+    const sec=validSections[i];
+    $("#ai-loader-msg").text("Analysing "+sec.label+"…");
+    $("#ai-loader-step").text("Section "+(i+1)+" of "+validSections.length);
+    const pct=Math.round(((i+1)/validSections.length)*100);
+    $("#ai-prog").css("transform","scaleX("+(pct/100)+")");$("#ai-prog-label").text(pct+"%");
+    await sleep(280+Math.random()*220);
+    // Each file is parsed against its OWN schema (not a shared one) — a
+    // UPSC aspirant's file and a Class 7 file can both be analysed
+    // correctly in the same batch, each using its own Subjects/Tests.
+    APP.setup.subjects=(sec.schema&&sec.schema.subjects)||[];
+    APP.setup.tests=(sec.schema&&sec.schema.tests)||[];
+    APP.rawData=sec.rawData;
+    parseStudents();await computeAnalysis();await computeGenderAnalysis();
+    sec.students=APP.students;sec.classStats=APP.classStats;sec.genderAnalysis=APP.genderAnalysis;sec.dataIssues=APP.dataIssues;sec.cohortClusters=APP.cohortClusters;
+  }
+  $("#ai-loader").hide();
+  stopAiLoaderCardCycle();
+  computeCompareGroups();
+  unlockStep("dashboard");unlockStep("export");
+  const comparable=APP.compareGroups.filter(g=>g.sections.length>=2);
+  const msg=comparable.length
+    ? " — "+comparable.length+" matching group"+(comparable.length===1?"":"s")+" ("+comparable.map(g=>g.sections.length).join(", ")+" section"+(comparable.some(g=>g.sections.length!==1)?"s":"")+") compared automatically."
+    : validSections.length>1?" — no two files share the same subjects/tests, so each is shown individually.":".";
+  toast(validSections.length+" file(s) analysed"+msg,"success");
+  // GOTCHA FIX (v4.3): same reasoning as the single-file path in
+  // runAnalysis() above — Compare Mode has its own separate success point,
+  // so it needs its own markClean() call rather than relying on the one
+  // in runAnalysis() (which this function's caller returns out of early,
+  // before ever reaching it).
+  markClean();
+  goStep("dashboard");
+}
+// A schema "signature" used purely to silently GROUP sections that share
+// the same subjects/tests/max-marks (same class, different section/batch)
+// — normalized so upload order and subject/test ORDER don't matter, only
+// the actual content does. Two sections landing in the same group is what
+// triggers a silent side-by-side comparison; sections with no match in the
+// batch just stay standalone (still fully analysed, still in the dropdown).
+// Every generated template names its test tabs "<Class><Section>-<Test
+// Name>" (applyTabPrefix() in template-upload.js — e.g. "Class7A-Final
+// Exam"), so two otherwise-identical sections (same subjects/tests/max
+// marks, different section) NEVER had equal t.name strings — the whole
+// point of Compare Mode (silently grouping "same class, different
+// section" files) could never fire. Strip each file's OWN class+section
+// prefix (reconstructed the same way applyTabPrefix built it, from that
+// file's own peeked SETUP tab — schema.className/section) before hashing
+// test names, so the comparison is on the test's real name, not on which
+// section it came from. Falls back to the untouched name if the test
+// wasn't actually prefixed (e.g. an older/manually-edited file).
+function stripSectionTestPrefix(name,schema){
+  const prefix=(String((schema&&schema.className)||"")+String((schema&&schema.section)||"")).replace(/[^a-zA-Z0-9]/g,"").slice(0,18);
+  if(prefix&&name.toLowerCase().startsWith(prefix.toLowerCase()+"-"))return name.slice(prefix.length+1);
+  return name;
+}
+function schemaSignature(schema){
+  const subjectsLc=(schema.subjects||[]).map(s=>s.trim().toLowerCase()).sort();
+  const maxMarksLookup=Object.create(null);
+  (schema.subjects||[]).forEach(s=>{maxMarksLookup[s.trim().toLowerCase()]=s;});
+  const testsSig=(schema.tests||[]).map(t=>{
+    const mm=(schema.subjects||[]).slice().sort((a,b)=>a.trim().toLowerCase().localeCompare(b.trim().toLowerCase()))
+      .map(s=>s.trim().toLowerCase()+":"+((t.maxMarks&&t.maxMarks[s])||100)).join(",");
+    const bareName=stripSectionTestPrefix(t.name.trim(),schema);
+    return bareName.toLowerCase()+"["+mm+"]";
+  }).sort();
+  return JSON.stringify({subjectsLc,testsSig});
+}
+// Groups every analysed valid section by matching schema signature. Groups
+// of 2+ get a silent comparison computed (computeSectionComparisonFor) —
+// this is the "two files match the class but section/batch differ" case.
+// Singleton groups (a file that matches nothing else in the batch, e.g. an
+// individual aspirant's sheet dropped alongside a school class) are left
+// as standalone entries — still fully analysed, just not compared against
+// anything, since there's nothing compatible to compare them to.
+function computeCompareGroups(){
+  const analysed=APP.sections.filter(s=>s.valid&&s.schema&&s.students&&s.students.length);
+  const bySig={};
+  analysed.forEach(s=>{
+    const sig=schemaSignature(s.schema);
+    (bySig[sig]=bySig[sig]||{schema:s.schema,sections:[]}).sections.push(s);
+  });
+  APP.compareGroups=Object.values(bySig).map((g,i)=>({
+    id:"grp"+(i+1),
+    subjects:g.schema.subjects,
+    sections:g.sections,
+    comparison:g.sections.length>=2?computeSectionComparisonFor(g.sections,g.schema.subjects):null
+  }));
+}
+/* ── Management View: Class × Section aggregation for a school director ──
+   Compare Mode already lets you upload arbitrary "sections" with free-text
+   labels (e.g. "Class 7 - C"). Rather than rebuild Setup/Upload to support
+   a formal multi-class model, this parses the labels already in use to
+   detect a Class × Section structure, and degrades gracefully (falls back
+   to the existing flat section-ranking view) whenever it can't confidently
+   find one — e.g. a normal single-class comparison of Section A/B/C. */
+function parseClassSection(label){
+  const s=(label||"").trim();
+  // "Class 7 - C", "Class 7 – Section C", "Grade 6 Section B"
+  let m=s.match(/^(.*?)[\s\-–—:,]*\bsec(?:tion)?\.?\s*([A-Za-z0-9]+)\s*$/i);
+  if(m&&m[1].trim())return{cls:m[1].trim(),sec:m[2].trim().toUpperCase()};
+  // "Class 7 - C", "7th Grade-B", "Class 7C" trailing " - X" / "X" token
+  m=s.match(/^(.*?)[\s]*[-–—][\s]*([A-Za-z0-9]{1,3})\s*$/);
+  if(m&&m[1].trim())return{cls:m[1].trim(),sec:m[2].trim().toUpperCase()};
+  // "6A", "10B" — class number directly followed by a section letter
+  m=s.match(/^(.*\d)\s*([A-Za-z])$/);
+  if(m&&m[1].trim())return{cls:m[1].trim(),sec:m[2].trim().toUpperCase()};
+  return {cls:s,sec:""}; // couldn't confidently split — whole label is the "class"
+}
+function computeManagementGrid(){
+  const rows=APP.sectionComparison||[];
+  if(!rows.length)return null;
+  const parsed=rows.map(r=>({...r,...parseClassSection(r.label)}));
+  const classKeys=[...new Set(parsed.map(r=>r.cls))];
+  // Only worth showing as a grid if we found more than one class AND at
+  // least some rows actually carried a distinct section token — otherwise
+  // this is just the normal single-class section comparison, and the
+  // existing flat Section Ranking table below is the right view for that.
+  const hasSections=parsed.some(r=>r.sec);
+  if(classKeys.length<2||!hasSections)return null;
+  const sectionKeys=[...new Set(parsed.map(r=>r.sec).filter(Boolean))].sort();
+  const classes=classKeys.map(cls=>{
+    const secs=parsed.filter(r=>r.cls===cls).sort((a,b)=>a.sec.localeCompare(b.sec));
+    const n=secs.reduce((a,r)=>a+r.n,0);
+    const avg=n?Math.round(secs.reduce((a,r)=>a+r.avg*r.n,0)/n):0;
+    const passRate=n?Math.round(secs.reduce((a,r)=>a+r.passRate*r.n,0)/n):0;
+    const atRisk=secs.reduce((a,r)=>a+r.atRisk,0);
+    return {cls,secs,n,avg,passRate,atRisk};
+  }).sort((a,b)=>b.avg-a.avg);
+  const totalStudents=rows.reduce((a,r)=>a+r.n,0);
+  const schoolAvg=totalStudents?Math.round(rows.reduce((a,r)=>a+r.avg*r.n,0)/totalStudents):0;
+  const schoolPassRate=totalStudents?Math.round(rows.reduce((a,r)=>a+r.passRate*r.n,0)/totalStudents):0;
+  const totalAtRisk=rows.reduce((a,r)=>a+r.atRisk,0);
+  const subjects=APP.setup.subjects||[];
+  const subjSchoolAvg=subjects.map(sub=>{
+    const w=rows.reduce((a,r)=>a+(r.subjectAvgs[sub]||0)*r.n,0);
+    return {subject:sub,avg:totalStudents?Math.round(w/totalStudents):0};
+  }).sort((a,b)=>a.avg-b.avg); // weakest first
+  return {classes,sectionKeys,parsed,totalStudents,schoolAvg,schoolPassRate,totalAtRisk,subjSchoolAvg};
+}
+// Computes ranked comparison rows for an explicit set of (already-matching-
+// schema) sections against an explicit subjects list — used per-group by
+// computeCompareGroups() rather than reading a single global shared schema,
+// since different groups in the same batch can have entirely different
+// subjects (e.g. a school class group vs. a UPSC-aspirant group).
+function computeSectionComparisonFor(sections,subjects){
+  const passThreshold=APP.setup.passThreshold||35;
+  const rows=sections.map(sec=>{
+    const n=sec.students.length;
+    const avg=n?Math.round(sec.students.reduce((a,st)=>a+(st.analysis.overallAvg||0),0)/n):0;
+    const passCount=sec.students.filter(st=>(st.analysis.overallAvg||0)>=passThreshold).length;
+    const passRate=n?Math.round(passCount/n*100):0;
+    const atRisk=sec.students.filter(st=>st.flags&&st.flags.some(f=>f.type==="at-risk")).length;
+    const topper=sec.students.slice().sort((a,b)=>(b.analysis.overallAvg||0)-(a.analysis.overallAvg||0))[0];
+    const subjectAvgs={};
+    (subjects||[]).forEach(sub=>{
+      const vals=sec.students.map(st=>st.analysis.subjectAvgs&&st.analysis.subjectAvgs[sub]).filter(v=>v!=null&&!isNaN(v));
+      subjectAvgs[sub]=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0;
+    });
+    return {id:sec.id,label:sec.label,n,avg,passRate,atRisk,topperName:topper?topper.name:"—",topperAvg:topper?(topper.analysis.overallAvg||0):0,subjectAvgs};
+  }).sort((a,b)=>b.avg-a.avg);
+  rows.forEach((r,i)=>r.rank=i+1);
+  return rows;
+}
+
+/* ── Compare Dashboard: section list + overview + drill-down ──
+   Lists every analysed file individually (so mixed/incompatible uploads —
+   an individual aspirant's sheet next to a school class — still each get
+   their own dashboard), PLUS one "Compare:" entry per group of 2+
+   sections that share the same schema (computeCompareGroups()). The list
+   itself now lives in the left rail — see buildCompareSectionListHtml()
+   in js/render-dashboard.js (v4.22-compare-mode-shell-parity §1) — this
+   used to populate an inline #compare-section-picker dropdown instead. */
+// v4.22-compare-mode-shell-parity §2: selecting a single section now
+// works exactly like Institution mode's own bucket flow — once this
+// section's data is loaded into APP.students/APP.setup/APP.cohortClusters
+// (the same shape openBucket() already expects), every existing bucket —
+// My Whole Class through Export — works for it with zero changes to the
+// bucket functions themselves. Replaces the old selectCompareView(val)'s
+// "else" branch.
+/* ── Compare Students Across Sections ──
+   The existing "Compare Two Students" picker (renderComparePicker() in
+   render-buckets.js) is deliberately scoped to ONE roster (APP.students) —
+   its own comment explains cross-file comparison is structurally
+   impossible there. This is that missing cross-section version: pick any
+   student from any two (or more, or the same) analysed sections and
+   compare them side-by-side. */
+function renderCrossSectionComparePicker(){
+  // BUG FIX (Sandy: "compare" feature lock inconsistency — single-file
+  // "Compare Two Students" (openBucket("compare")) already correctly
+  // shows the Pro-locked upsell when Feature_Compare isn't unlocked, but
+  // this cross-section entry point (data-action="openCrossSectionCompare"
+  // in inline-actions.js) bypassed openBucket() entirely and called
+  // straight in here — so a locked account still got a fully working
+  // cross-class comparison through this door while the same-class door
+  // was locked. Both are the same "compare" feature; both must honor the
+  // same flag. Mirrors openBucket()'s own lockedKey branch exactly
+  // (render into #bucket-answer-screen, same empty-state markup).
+  if(!isFeatureOn(APP.features,"compare")){
+    if(APP.currentStep!=="dashboard"){
+      APP._viewingCrossCompare=true;APP._activeCompareSectionId=null;APP._activeCompareGroupId=null;
+      if(typeof goStep==="function") goStep("dashboard");
+      return;
+    }
+    APP._currentBucketId="compare";
+    if(typeof renderShellLeftRail==="function") renderShellLeftRail("dashboard");
+    if(typeof setShellRailOpen==="function") setShellRailOpen("end", false);
+    if(typeof setRightRail==="function") setRightRail("");
+    $("#legacy-dashboard-body,#panel-export").hide();
+    $("#bucket-answer-screen").html(`<div class="bucket-empty-state" style="max-width:480px;margin:60px auto">${buildFeatureLockedHtml("compare")}</div>`).show();
+    return;
+  }
+  // Same dead-end fix as selectCompareGroup()/selectCompareSection(): the
+  // left rail's bucket-list (which this row lives in) is also shown on
+  // the Scholarship step, so a click from there needs to switch panels
+  // first. goStep's dashboard branch re-enters here via renderBuckets()
+  // since APP._viewingCrossCompare is set below before it's called.
+  if(APP.currentStep!=="dashboard"){
+    APP._viewingCrossCompare=true;APP._activeCompareSectionId=null;APP._activeCompareGroupId=null;
+    if(typeof goStep==="function") goStep("dashboard");
+    return;
+  }
+  const secs=(APP.sections||[]).filter(s=>s.valid&&s.students&&s.students.length);
+  if(typeof setRightRail==="function") setRightRail(""); // no per-item right-rail content, same as renderComparePicker()
+  APP._activeCompareSectionId=null;APP._activeCompareGroupId=null;APP._viewingCrossCompare=true;
+  APP._currentBucketId=null; // clears any stale "export-comparison"/"export-persection" highlight (see openBucket())
+  if(typeof renderShellLeftRail==="function") renderShellLeftRail("dashboard"); // refresh active-row highlight
+  // BUG FIX (stuck panel): this view (like selectCompareGroup()) only
+  // touches #bucket-answer-screen — if #panel-export was left visible from
+  // a previous "Section Comparison Report"/"Per-Section Reports" click, it
+  // rendered ON TOP of this instead of being replaced by it.
+  $("#legacy-dashboard-body,#panel-export").hide();
+  $("#bucket-answer-screen").show();
+  // One Student dropdown per uploaded file/section (already capped at 5 —
+  // see MAX_COMPARE_FILES in template-upload.js), not a fixed A/B pair —
+  // any 2 or more can be picked, in any combination.
+  const columns=secs.map(sec=>{
+    const opts=sec.students.map(st=>`<option value="${esc(st.id)}">${esc(st.name)}</option>`).join("");
+    return `<div class="cross-compare-col">
+      <div class="cross-compare-col-label">${esc(sec.label)}</div>
+      <select class="cross-compare-student-select" data-change-action="crossCompareStudentChange" data-arg="${esc(sec.id)}" style="width:100%;padding:8px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:13px">
+        <option value="">${esc(srT("val_select_student"))}</option>${opts}
+      </select>
+    </div>`;
+  }).join("");
+  $("#bucket-answer-screen").html(`
+    <div class="bucket-answer-title">${esc(srT("bucket_cross_compare_title"))}</div>
+    <div class="bucket-picker-hint">${esc(srT("bucket_cross_compare_hint"))}</div>
+    <div class="cross-compare-frame">${columns}</div>
+    <div id="cross-compare-result" style="margin-top:16px"></div>
+  `);
+}
+function renderCrossSectionCompareResult(){
+  const el=$("#cross-compare-result");
+  if(!el.length)return;
+  // Read every column's current pick fresh off the DOM each time (rather
+  // than tracking state separately) — one dropdown per uploaded section,
+  // so no two picks can ever point at the same section+student.
+  const picks=[];
+  $(".cross-compare-student-select").each(function(){
+    const stId=$(this).val();
+    if(!stId)return;
+    const secId=$(this).attr("data-arg");
+    const sec=(APP.sections||[]).find(s=>s.id===secId);
+    const st=sec&&sec.students.find(x=>x.id===stId);
+    if(sec&&st)picks.push({sec:sec,st:st});
+  });
+  if(picks.length<2){
+    el.html(picks.length===1?`<div style="color:var(--c-text3);padding:10px">${esc(srT("val_pick_at_least_two"))}</div>`:"");
+    return;
+  }
+  // Subjects UNION, not intersection: each section carries its own schema
+  // (addCompareSection() — no shared schema is ever forced across
+  // sections), so the picked students may genuinely have different
+  // subject lists. A subject only some sides had shows "—" for the rest
+  // rather than being silently dropped.
+  const subjectsSet=new Set();
+  picks.forEach(p=>{((p.sec.schema&&p.sec.schema.subjects)||[]).forEach(s=>subjectsSet.add(s));});
+  const subjects=[...subjectsSet];
+  // Generalises "highlight whichever is better" to N columns: highlight
+  // every cell tied for the best value in that row (lowerIsBetter flips
+  // which extreme counts as "best"), same as computeAnalysis()'s own tie
+  // handling elsewhere in the app.
+  function rowHtml(label,vals,unit,lowerIsBetter){
+    const nums=vals.filter(v=>typeof v==="number");
+    const best=nums.length>=2?(lowerIsBetter?Math.min(...nums):Math.max(...nums)):null;
+    const cells=vals.map(v=>{
+      const isBest=best!==null&&v===best;
+      return `<td style="text-align:center;white-space:nowrap;${isBest?"font-weight:700;color:var(--c-success)":""}">${v!==null&&v!==undefined?esc(String(v))+(unit||""):"—"}</td>`;
+    }).join("");
+    return `<tr><td style="font-weight:600;color:var(--c-text2);white-space:nowrap">${esc(label)}</td>${cells}</tr>`;
+  }
+  let rows="";
+  rows+=rowHtml(srT("th_section"),picks.map(p=>p.sec.label),"");
+  rows+=rowHtml(srT("detail_overall_avg"),picks.map(p=>(p.st.analysis||{}).overallAvg??null),"%");
+  rows+=rowHtml(srT("kpi_grade"),picks.map(p=>(p.st.analysis||{}).grade??null),"");
+  rows+=rowHtml(srT("th_section_rank"),picks.map(p=>(p.st.analysis||{}).rank??null),"",true);
+  rows+=rowHtml(srT("kpi_trend"),picks.map(p=>(p.st.analysis||{}).trend??null),"");
+  rows+=rowHtml(srT("detail_consistency"),picks.map(p=>(p.st.analysis||{}).consistencyScore??null),"");
+  const absVals=picks.map(p=>(p.st.analysis||{}).totalAbsent??null);
+  rows+=rowHtml(srT("card_total_absences"),absVals,absVals.some(v=>typeof v==="number")?" days":"",true);
+  subjects.forEach(s=>{
+    rows+=rowHtml(s,picks.map(p=>{const v=((p.st.analysis||{}).subjectAvgs||{})[s];return v!==undefined?v:null;}),"%");
+  });
+  const headerCells=picks.map(p=>`<th style="text-align:center;white-space:nowrap">${esc(p.st.name)}<div style="font-weight:400;color:var(--c-text3);font-size:10.5px">${esc(p.sec.label)}</div></th>`).join("");
+  el.html(`<div class="tbl-wrap tbl-wrap-scroll"><table class="data-table"><thead><tr><th></th>${headerCells}</tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="font-size:11px;color:var(--c-text3);margin-top:10px">${esc(srT("val_cross_compare_footnote"))}</div>`);
+}
+function selectCompareSection(id){
+  const sec=APP.sections.find(s=>s.id===id);
+  if(!sec||!sec.students)return;
+  APP._viewingCrossCompare=false; // leaving the cross-section compare picker, if it was open
+  // Each section carries its own schema — restore it before rendering,
+  // since a different section (or the group/comparison view) may have
+  // last set APP.setup.subjects/tests to something else entirely.
+  APP.setup.subjects=(sec.schema&&sec.schema.subjects)||APP.setup.subjects;
+  APP.setup.tests=(sec.schema&&sec.schema.tests)||APP.setup.tests;
+  // Issue 5 fix: restore this section's OWN report-header metadata —
+  // previously only subjects/tests were restored here, so the dashboard/
+  // PDFs kept showing whichever institution name/year/teacher/threshold
+  // happened to be in APP.setup from a prior section or blank state.
+  if(sec.schema){
+    APP.setup.instName=sec.schema.instName||"";
+    APP.setup.instType=sec.schema.instType||"";
+    APP.setup.className=sec.schema.className||"";
+    APP.setup.section=sec.schema.section||"";
+    APP.setup.year=sec.schema.year||"";
+    APP.setup.teacher=sec.schema.teacher||"";
+    if(sec.schema.passThreshold!=null)APP.setup.passThreshold=sec.schema.passThreshold;
+  }
+  APP.students=sec.students;APP.classStats=sec.classStats;APP.genderAnalysis=sec.genderAnalysis;
+  APP.dataIssues=sec.dataIssues||[];APP.cohortClusters=sec.cohortClusters||null; // §5 fix — this section's own clusters, not whichever ran last
+  APP._activeCompareSectionId=id;
+  APP._activeCompareGroupId=null;
+  APP._viewingCrossCompare=false; // leaving the cross-section compare picker, if it was open
+  APP.sectionComparison=[];
+  if(typeof updateExportGate==="function") updateExportGate();
+  if(typeof renderShellLeftRail==="function") renderShellLeftRail("dashboard"); // refresh active-row highlight, same pattern as openBucket()/openIndividualBucket()
+  if(typeof setShellRailsOpen==="function") setShellRailsOpen(true);
+  $("#bucket-screen,#bucket-list-screen").hide();
+  // BUG FIX (highlight/stuck-panel): "export-comparison"/"export-persection"
+  // only make sense at the top compare level (buildCompareExportControlsHtml()),
+  // not as a per-section bucket — reusing either here as-is would reopen
+  // the group-level export view instead of this section's own dashboard,
+  // AND leave that stale id sitting in APP._currentBucketId so the export
+  // row's highlight never went away either. Falls back to "class" instead,
+  // same as if no bucket had been remembered at all.
+  const savedBucket=(APP._currentBucketId==="export-comparison"||APP._currentBucketId==="export-persection")?"class":(APP._currentBucketId||"class");
+  openBucket(savedBucket);
+}
+// v4.22-compare-mode-shell-parity §3: promotes the existing comparison
+// (renderCompareOverview() — ranked section table + management grid when
+// detected, already fully computed by computeCompareGroups()) into the
+// same persistent center container every other bucket-equivalent view
+// uses, instead of a separate #compare-overview-panel. No per-item
+// picker for this view (it's a report, not a list to drill into further)
+// — same "no properties" pattern renderComparePicker()/renderClusterGroups()
+// already use for the right rail.
+function selectCompareGroup(groupId){
+  const group=(APP.compareGroups||[]).find(g=>g.id===groupId);
+  if(!group)return;
+  APP._viewingCrossCompare=false; // leaving the cross-section compare picker, if it was open
+  APP._currentBucketId=null; // clears any stale "export-comparison"/"export-persection" highlight (see openBucket())
+  APP.sectionComparison=group.comparison||[];
+  APP.setup.subjects=group.subjects||[];
+  APP._activeCompareSectionId=null;
+  APP._activeCompareGroupId=groupId;
+  // Same dead-end fix as openBucket()/selectCompareSection(): this only
+  // touches elements inside #panel-dashboard, so calling it from a bucket
+  // row shown on the Scholarship step (left rail now shows this list
+  // there too) needs to switch the top-level panel back first. goStep's
+  // dashboard branch re-enters here via renderBuckets() using the
+  // APP._activeCompareGroupId just set above.
+  if(APP.currentStep!=="dashboard"){
+    if(typeof goStep==="function") goStep("dashboard");
+    return;
+  }
+  if(typeof renderShellLeftRail==="function") renderShellLeftRail("dashboard");
+  if(typeof setShellRailsOpen==="function") setShellRailsOpen(true);
+  if(typeof setShellRailOpen==="function") setShellRailOpen("end", false);
+  if(typeof setRightRail==="function") setRightRail("");
+  $("#legacy-dashboard-body,#bucket-screen,#bucket-list-screen").hide();
+  $("#bucket-answer-screen").show();
+  renderDashboardSampleBanner();
+  renderCompareOverview(); // retargeted to #bucket-answer-screen, see below
+  if(typeof unlockStep==="function") unlockStep("export");
+  if(typeof updateExportGate==="function") updateExportGate();
+}
+function renderManagementGrid(mg){
+  if(!mg)return "";
+  const kpis=`<div class="grid-4" style="margin-bottom:16px">
+    <div class="kpi-card"><div class="kpi-label">Classes × Sections</div><div class="kpi-val">${mg.classes.length} × ${mg.sectionKeys.length}</div></div>
+    <div class="kpi-card"><div class="kpi-label">School Avg</div><div class="kpi-val" style="color:${mg.schoolAvg>=60?"var(--c-success)":mg.schoolAvg>=35?"var(--c-warn)":"var(--c-danger)"}">${mg.schoolAvg}%</div></div>
+    <div class="kpi-card"><div class="kpi-label">School Pass Rate</div><div class="kpi-val">${mg.schoolPassRate}%</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total At-Risk</div><div class="kpi-val" style="color:${mg.totalAtRisk>0?"var(--c-danger)":"inherit"}">${mg.totalAtRisk}</div></div>
+  </div>`;
+  const cellColor=v=>v>=80?"#e3f9f2":v>=60?"#eef1fe":v>=35?"#fff6e5":"#fdecea";
+  const cellText=v=>v>=80?"#0e7a63":v>=60?"#3346a8":v>=35?"#8a5b00":"#b23328";
+  const headerRow=`<tr><th style="text-align:left">${esc(srT("th_class"))}</th>${mg.sectionKeys.map(sk=>`<th>${esc(sk)}</th>`).join("")}<th>${esc(srT("card_class_avg"))}</th></tr>`;
+  const bodyRows=mg.classes.map(c=>{
+    const cells=mg.sectionKeys.map(sk=>{
+      const row=c.secs.find(r=>r.sec===sk);
+      if(!row)return `<td style="text-align:center;color:var(--c-text3)">—</td>`;
+      return `<td style="text-align:center;cursor:pointer" data-action="selectCompareSection" data-arg="${row.id}" title="${esc(srT("title_click_to_open",{label:row.label}))}">
+        <div style="background:${cellColor(row.avg)};color:${cellText(row.avg)};border-radius:6px;padding:6px 4px;font-weight:700">${row.avg}%<div style="font-size:11px;font-weight:500;opacity:.8">${row.n} students</div></div>
+      </td>`;
+    }).join("");
+    return `<tr><td style="font-weight:700;white-space:nowrap">${esc(c.cls)}</td>${cells}<td style="text-align:center;font-weight:800;color:${cellText(c.avg)}">${c.avg}%</td></tr>`;
+  }).join("");
+  const grid=`<div class="card" style="margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><rect x='4' y='3' width='16' height='18' rx='1'/><path d='M9 21V15h6v6'/><path d='M9 7h1M9 11h1M14 7h1M14 11h1'/></svg> Class × Section Overview</div>
+    <div style="font-size:11.5px;color:var(--c-text2);margin-bottom:12px">Colour = average score. Click any cell to open that section's full dashboard.</div>
+    <div class="tbl-wrap"><table class="data-table"><thead>${headerRow}</thead><tbody>${bodyRows}</tbody></table></div>
+  </div>`;
+  const bestClass=mg.classes[0],worstClass=mg.classes[mg.classes.length-1];
+  // Weak-subjects and flagged-sections cards used to be built here too, but
+  // that meant they only ever showed up in the (rarer) multi-class case —
+  // a director comparing sections of ONE class needs them just as much.
+  // They're now computed generally in renderCompareOverview() (see
+  // computeWeakSubjects()/computeFlaggedSections()) and shown regardless
+  // of whether this Class×Section grid is present at all.
+  return `<div class="card" style="margin-bottom:16px;background:linear-gradient(135deg,#1e3a5f,#2a4a7f);color:#fff">
+    <div style="font-weight:800;font-size:15px;margin-bottom:2px">Management Summary — All Classes &amp; Sections</div>
+    <div style="font-size:11.5px;opacity:.85">Best performing class: ${esc(bestClass.cls)} (${bestClass.avg}%) · Needs most attention: ${esc(worstClass.cls)} (${worstClass.avg}%)</div>
+  </div>`+kpis+grid;
+}
+// General-purpose, ALWAYS-available versions of the two most useful bits of
+// the Management grid — weakest subjects and flagged sections — that don't
+// require multi-class detection. computeManagementGrid() still gates the
+// actual Class×Section GRID TABLE on 2+ classes (that visualisation only
+// makes sense with real classes), but a director comparing sections of a
+// SINGLE class needs "which subject is weakest" and "which sections need
+// attention" just as much — these used to only appear when the class grid
+// did, which was backwards.
+function computeWeakSubjects(rows){
+  const subjects=APP.setup.subjects||[];
+  const totalN=rows.reduce((a,r)=>a+r.n,0);
+  if(!totalN)return [];
+  return subjects.map(sub=>{
+    const w=rows.reduce((a,r)=>a+(r.subjectAvgs[sub]||0)*r.n,0);
+    return {subject:sub,avg:Math.round(w/totalN)};
+  }).sort((a,b)=>a.avg-b.avg);
+}
+function computeFlaggedSections(rows){
+  return rows.filter(r=>r.avg<(APP.setup.passThreshold||35)||r.atRisk>=Math.max(3,Math.round(r.n*0.2)));
+}
+function renderWeakSubjectsCard(weakest){
+  weakest=weakest.slice(0,5);
+  if(!weakest.length)return "";
+  const bars=weakest.map(w=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <div style="width:110px;font-size:11px;color:var(--c-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(w.subject)}</div>
+    <div style="flex:1;background:var(--c-surface2);border-radius:4px;height:14px;overflow:hidden"><div style="width:${w.avg}%;background:${w.avg<35?"var(--c-danger)":w.avg<60?"var(--c-warn)":"var(--c-primary)"};height:100%"></div></div>
+    <div style="width:38px;font-size:11px;font-weight:700;text-align:right">${w.avg}%</div>
+  </div>`).join("");
+  return `<div class="card" style="margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:4px"><svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><polyline points='3 7 9 13 13 9 21 18'/><polyline points='15 18 21 18 21 12'/></svg> ${esc(srT("card_weakest_subjects_compared"))}</div>
+    <div style="font-size:11.5px;color:var(--c-text2);margin-bottom:10px">${esc(srT("card_averaged_across_sections"))}</div>
+    ${bars}
+  </div>`;
+}
+function renderFlaggedSectionsCard(flagged){
+  if(!flagged.length)return "";
+  return `<div class="card" style="margin-bottom:16px;background:var(--c-danger-bg)">
+    <div class="card-title" style="margin-bottom:8px">🚩 Sections Needing Attention</div>
+    ${flagged.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--c-border);cursor:pointer" data-action="selectCompareSection" data-arg="${r.id}">
+      <span style="font-weight:600">${esc(r.label)}</span>
+      <span style="font-size:12px;color:var(--c-text2)">${r.avg}% avg · ${r.atRisk} at-risk of ${r.n}</span>
+    </div>`).join("")}
+  </div>`;
+}
+// Issue 4 fix: shared helper for "does the CURRENT comparison/group
+// contain any section with data-quality issues" — used to gate both the
+// comparison PDF export and the UI path that leads to it. Deliberately
+// looks at every section actually represented in `rows` (the comparison
+// currently on screen), not just APP.dataIssues (which only ever reflects
+// whichever single section was analysed/opened last — see the §5-style
+// bug this mirrors).
+function sectionsWithDataIssues(rows){
+  return (rows||[])
+    .map(r=>APP.sections.find(s=>s.id===r.id))
+    .filter(sec=>sec&&Array.isArray(sec.dataIssues)&&sec.dataIssues.length);
+}
+// Cross-Section "All Students" ranking — every student across every
+// section in this comparison group, pooled into one class-wide ranking.
+// This is the answer to "who's the topper of Class 7 overall" — the
+// per-section Rank each student already carries (computeAnalysis(),
+// compute-stats.js) only ranks them within their OWN section's roster, so
+// it can't answer that on its own. classRank here is the high-precedence
+// column; sectionRank is carried alongside for context, not instead of it.
+function computeAllStudentsRanking(group){
+  const flat=[];
+  (group.sections||[]).forEach(sec=>{
+    (sec.students||[]).forEach(st=>{
+      const a=st.analysis||{};
+      flat.push({
+        name:st.name,
+        sectionLabel:sec.label,
+        sectionRank:a.rank||null,
+        avg:a.overallAvg||0,
+        scoreText:a.totalMarksMax?(a.totalMarksScored+"/"+a.totalMarksMax):"—",
+        trend:a.trend||"stable"
+      });
+    });
+  });
+  flat.sort((x,y)=>y.avg-x.avg);
+  // Same standard-competition tie rule as computeAnalysis()'s own rank
+  // (tied students share a rank; the next distinct score resumes at its
+  // true position, not the next integer) — consistent with every other
+  // rank shown elsewhere in the app.
+  flat.forEach((r,i)=>{r.classRank=(i>0&&r.avg===flat[i-1].avg)?flat[i-1].classRank:i+1;});
+  return flat;
+}
+function renderAllStudentsRankingTable(rows){
+  if(!rows||!rows.length)return "";
+  const trendIcon=t=>t==="improving"
+    ?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false' style='color:var(--c-success);vertical-align:-2px'><polyline points='3 17 9 11 13 15 21 6'/><polyline points='15 6 21 6 21 12'/></svg>"
+    :t==="declining"
+    ?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false' style='color:var(--c-danger);vertical-align:-2px'><polyline points='3 7 9 13 13 9 21 18'/><polyline points='15 18 21 18 21 12'/></svg>"
+    :"➡";
+  const bodyRows=rows.map(r=>`<tr>
+    <td style="font-weight:800">#${r.classRank}</td>
+    <td>${esc(r.sectionLabel)}</td>
+    <td style="text-align:center">${r.sectionRank?"#"+r.sectionRank:"—"}</td>
+    <td style="font-weight:600">${esc(r.name)}</td>
+    <td>${esc(r.scoreText)}</td>
+    <td style="font-weight:700;color:${r.avg>=60?"var(--c-success)":r.avg>=35?"var(--c-warn)":"var(--c-danger)"}">${r.avg}%</td>
+    <td>${trendIcon(r.trend)} ${esc(srT("val_trend_"+r.trend))}</td>
+  </tr>`).join("");
+  return `<div class="card" style="margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:2px">${esc(srT("card_all_students_ranking_title"))}</div>
+    <div style="font-size:11.5px;color:var(--c-text2);margin-bottom:10px">${esc(srT("card_all_students_ranking_hint"))}</div>
+    <div class="tbl-wrap tbl-wrap-scroll"><table class="data-table"><thead><tr>
+      <th>${esc(srT("th_class_rank"))}</th><th>${esc(srT("th_section"))}</th><th>${esc(srT("th_section_rank"))}</th><th>${esc(srT("th_student"))}</th><th>${esc(srT("th_score"))}</th><th>${esc(srT("detail_overall_avg"))}</th><th>${esc(srT("kpi_trend"))}</th>
+    </tr></thead><tbody>${bodyRows}</tbody></table></div>
+  </div>`;
+}
+function renderCompareOverview(){
+  const rows=APP.sectionComparison||[];
+  const wrap=$("#bucket-answer-screen");
+  if(!rows.length){wrap.html('<div class="bucket-empty">No analysed sections yet.</div>');return;}
+  const mg=computeManagementGrid();
+  // mgHtml now only covers the banner + KPI strip + Class×Section grid
+  // table (all genuinely multi-class-only) — the weak-subjects and
+  // flagged-sections cards it used to also render are pulled out below so
+  // they always show, single-class or not. See renderManagementGrid().
+  const mgHtml=mg?renderManagementGrid(mg):"";
+  const best=rows[0],worst=rows[rows.length-1];
+  const kpis=`<div class="grid-4" style="margin-bottom:16px">
+    <div class="kpi-card"><div class="kpi-label">Sections Compared</div><div class="kpi-val">${rows.length}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Top Section</div><div class="kpi-val" style="font-size:16px">${esc(best.label)} (${best.avg}%)</div></div>
+    <div class="kpi-card"><div class="kpi-label">Needs Attention</div><div class="kpi-val" style="font-size:16px">${esc(worst.label)} (${worst.avg}%)</div></div>
+    <div class="kpi-card"><div class="kpi-label">${esc(srT("kpi_total_students"))}</div><div class="kpi-val">${rows.reduce((a,r)=>a+r.n,0)}</div></div>
+  </div>`;
+  const tableRows=rows.map(r=>`<tr style="cursor:pointer" data-action="selectCompareSection" data-arg="${r.id}" title="${esc(srT("title_click_to_open",{label:r.label}))}">
+    <td style="font-weight:700">#${r.rank}</td>
+    <td style="font-weight:600">${esc(r.label)} <span style="color:var(--c-primary);font-size:11px">↗</span></td>
+    <td>${r.n}</td>
+    <td style="font-weight:700;color:${r.avg>=60?"var(--c-success)":r.avg>=35?"var(--c-warn)":"var(--c-danger)"}">${r.avg}%</td>
+    <td>${r.passRate}%</td>
+    <td style="color:${r.atRisk>0?"var(--c-danger)":"var(--c-text2)"}">${r.atRisk}</td>
+    <td>${esc(r.topperName)} (${r.topperAvg}%)</td>
+  </tr>`).join("");
+  const table=`<div class="card" style="margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:2px">Section Ranking</div>
+    <div style="font-size:11px;color:var(--c-text2);margin-bottom:10px">Click any row to open that section's full dashboard.</div>
+    <div class="tbl-wrap"><table class="data-table"><thead><tr><th>Rank</th><th>Section</th><th>Students</th><th>Avg %</th><th>Pass Rate</th><th>At-Risk</th><th>Topper</th></tr></thead><tbody>${tableRows}</tbody></table></div>
+  </div>`;
+  const weakCard=renderWeakSubjectsCard(computeWeakSubjects(rows));
+  const flagCard=renderFlaggedSectionsCard(computeFlaggedSections(rows));
+  const activeGroup=(APP.compareGroups||[]).find(g=>g.id===APP._activeCompareGroupId);
+  const allStudentsHtml=activeGroup?renderAllStudentsRankingTable(computeAllStudentsRanking(activeGroup)):"";
+  const subjects=APP.setup.subjects||[];
+  const subjectCards=subjects.map(sub=>{
+    const bars=rows.map(r=>{
+      const v=r.subjectAvgs[sub]||0;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="width:120px;font-size:11px;color:var(--c-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(r.label)}">${esc(r.label)}</div>
+        <div style="flex:1;background:var(--c-surface2);border-radius:4px;height:14px;overflow:hidden"><div style="width:${v}%;background:var(--c-primary);height:100%"></div></div>
+        <div style="width:38px;font-size:11px;font-weight:700;text-align:right">${v}%</div>
+      </div>`;
+    }).join("");
+    return `<div class="card" style="margin-bottom:12px"><div class="card-title" style="margin-bottom:10px">${esc(sub)}</div>${bars}</div>`;
+  }).join("");
+  wrap.html(`<div class="bucket-answer-title">${esc(srT("bucket_compare_sections_title"))}</div>`+mgHtml+kpis+table+allStudentsHtml+flagCard+weakCard+`<div class="card-title" style="margin:4px 0 10px">${esc(srT("card_subject_wise_comparison"))}</div>`+subjectCards);
+}
+
+/* ── Compare Export: comparison PDF + per-section report bundles ── */
+function populateExportSectionPicker(){
+  const secs=APP.sections.filter(s=>s.valid&&s.students);
+  $("#export-section-select").html(secs.map(s=>`<option value="${s.id}">${esc(s.label)}</option>`).join(""));
+  // Issue 4 fix: also (re-)gate the comparison-export button here — this
+  // runs every time the Export step is reached in Compare mode (both
+  // goStep('export') in state-nav.js and openBucket('export') in
+  // render-buckets.js call it), so the button's enabled/disabled state
+  // never goes stale after a section is added/removed/re-analysed.
+  const $btn=$('#compare-export-card [data-action="exportComparisonReportPDF"]');
+  const $note=$("#compare-export-issues-note");
+  const issues=sectionsWithDataIssues(APP.sectionComparison||[]);
+  if(issues.length){
+    $btn.prop("disabled",true).css({opacity:.5,cursor:"not-allowed"});
+    const labels=issues.map(s=>esc(s.label)).join(", ");
+    if($note.length){
+      $note.show().html(`⚠ Fix the data quality issue(s) in <b>${labels}</b> before exporting the comparison report — open the affected section's Dashboard to correct them.`);
+    } else {
+      $('<div id="compare-export-issues-note" style="font-size:12px;color:var(--c-danger);margin-top:8px"></div>')
+        .html(`⚠ Fix the data quality issue(s) in <b>${labels}</b> before exporting the comparison report — open the affected section's Dashboard to correct them.`)
+        .insertAfter($btn);
+    }
+  } else {
+    $btn.prop("disabled",false).css({opacity:1,cursor:"pointer"});
+    $note.hide().empty();
+  }
+}
+// Reuses the EXISTING generateAllPDFs()/buildStudentPDF()/buildTeacherPDF()/
+// buildMgmtPDF() untouched — temporarily points the same global state a
+// single section's snapshot uses for the dashboard drill-down, generates,
+// then restores. No PDF logic is duplicated.
+async function exportSectionPDFs(sectionId){
+  const sec=APP.sections.find(s=>s.id===sectionId);
+  if(!sec||!sec.students){toast(srT("toast_compare_pick_section_export"),"warn");return;}
+  // Issue 5 fix: save/restore and apply the FULL header metadata set
+  // (institution name/type/year/teacher/pass threshold), not just
+  // className/section — previously exportSectionPDFs() used the
+  // section's own label as a className stand-in and left every other
+  // header field pointing at whatever APP.setup happened to hold,
+  // mislabeling the exported PDF's institution/year/teacher.
+  const saved={students:APP.students,classStats:APP.classStats,genderAnalysis:APP.genderAnalysis,dataIssues:APP.dataIssues,
+    instName:APP.setup.instName,instType:APP.setup.instType,className:APP.setup.className,section:APP.setup.section,
+    year:APP.setup.year,teacher:APP.setup.teacher,passThreshold:APP.setup.passThreshold};
+  APP.students=sec.students;APP.classStats=sec.classStats;APP.genderAnalysis=sec.genderAnalysis;APP.dataIssues=sec.dataIssues||[];
+  if(sec.schema){
+    APP.setup.instName=sec.schema.instName||"";
+    APP.setup.instType=sec.schema.instType||"";
+    APP.setup.className=sec.schema.className||sec.label;
+    APP.setup.section=sec.schema.section||"";
+    APP.setup.year=sec.schema.year||"";
+    APP.setup.teacher=sec.schema.teacher||"";
+    if(sec.schema.passThreshold!=null)APP.setup.passThreshold=sec.schema.passThreshold;
+  } else {
+    APP.setup.className=sec.label;APP.setup.section="";
+  }
+  try{
+    const { generateAllPDFs } = await import('../export/export-pdf.js');
+    await generateAllPDFs();
+  }
+  finally{
+    APP.students=saved.students;APP.classStats=saved.classStats;APP.genderAnalysis=saved.genderAnalysis;APP.dataIssues=saved.dataIssues;
+    APP.setup.instName=saved.instName;APP.setup.instType=saved.instType;
+    APP.setup.className=saved.className;APP.setup.section=saved.section;
+    APP.setup.year=saved.year;APP.setup.teacher=saved.teacher;APP.setup.passThreshold=saved.passThreshold;
+  }
+}
+async function exportAllSectionsPDFs(){
+  const secs=APP.sections.filter(s=>s.valid&&s.students);
+  if(!secs.length){toast(srT("toast_compare_no_sections_to_export"),"warn");return;}
+  for(const sec of secs){await exportSectionPDFs(sec.id);await sleep(400);}
+}
+async function exportComparisonReportPDF(){
+  const { PDF_THEME, pdfT, pdfRule, fitText, stampFooterAllPages } = await import('../export/export-pdf.js');
+  const rows=APP.sectionComparison||[];
+  if(!rows.length){toast(srT("val_run_comparison_first"),"warn");return;}
+  // Issue 4 fix: block export if ANY section represented in the current
+  // comparison has data-quality issues — previously this only checked
+  // APP.dataIssues, which just reflects whichever single section was
+  // analysed/opened last, so a dirty section elsewhere in the comparison
+  // could silently slip into the aggregate report.
+  const issues=sectionsWithDataIssues(rows);
+  if(issues.length){
+    const labels=issues.map(s=>s.label).join(", ");
+    toast(srT("toast_compare_fix_data_issues",{labels}),"warn");
+    const firstIssueId=issues[0].id;
+    if(APP.sections.some(s=>s.id===firstIssueId)) selectCompareSection(firstIssueId);
+    return;
+  }
+  // Issue 5 fix — aggregate metadata policy: an aggregate comparison
+  // report isn't any ONE section, so it must never silently attribute
+  // itself to whichever section happens to be active in APP.setup at
+  // export time (that's the exact §5 bug). Deterministic rule: show the
+  // shared institution/year ONLY if every represented section agrees on
+  // both; otherwise fall back to a neutral "Multiple classes/sections"
+  // label rather than picking one section's identity for all of them.
+  const representedSections=rows.map(r=>APP.sections.find(s=>s.id===r.id)).filter(Boolean);
+  const schemaInstNames=[...new Set(representedSections.map(s=>(s.schema&&s.schema.instName)||""))].filter(Boolean);
+  const schemaYears=[...new Set(representedSections.map(s=>(s.schema&&s.schema.year)||""))].filter(Boolean);
+  const headerSubtitle=(schemaInstNames.length===1&&schemaYears.length===1)
+    ?[schemaInstNames[0],schemaYears[0]].filter(Boolean).join(" · ")
+    :(schemaInstNames.length===1?schemaInstNames[0]+" · Multiple classes/sections":"Multiple classes/sections");
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF("p","mm","a4");
+  const W=210,T=PDF_THEME;
+  doc.setTextColor(...T.ACCENT);doc.setFont("helvetica","bold");doc.setFontSize(13);
+  doc.text(pdfT("pdf_section_comparison_header","Student Insight  |  Section Comparison Report"),10,10);
+  doc.setFontSize(8);doc.setFont("helvetica","normal");doc.setTextColor(...T.INK_SOFT);
+  doc.text(headerSubtitle,10,17);
+  doc.text("Generated: "+new Date().toLocaleDateString(bcp47TagFor(window.SR_LANG)),W-10,17,{align:"right"});
+  pdfRule(doc,8,20,W-8,1.6,T.INK);
+  doc.setTextColor(...T.INK);
+  let y=32;
+  const mg=computeManagementGrid();
+  // Executive summary now always renders (previously gated entirely behind
+  // multi-class detection) — weakest-subjects and flagged-sections are
+  // useful for a single-class, multi-section comparison too, which is the
+  // MORE common case in practice. Only the Class×Section grid table itself
+  // stays multi-class-only, since it genuinely doesn't make sense with one.
+  {
+    doc.setFont("helvetica","bold");doc.setFontSize(13);
+    doc.text(mg?pdfT("pdf_exec_summary_all","Executive Summary — All Classes & Sections"):pdfT("pdf_exec_summary","Executive Summary"),10,y);y+=9;
+    doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...T.INK_SOFT);
+    doc.text(mg?(mg.classes.length+" classes × "+mg.sectionKeys.length+" sections · "+mg.totalStudents+" students total"):(rows.length+" section"+(rows.length===1?"":"s")+" compared · "+rows.reduce((a,r)=>a+r.n,0)+" students total"),10,y);y+=8;
+    // KPI strip — outline boxes, no fill (fill would be pure decoration here)
+    const kpiBoxes=mg?[[pdfT("pdf_school_avg","School Avg"),mg.schoolAvg+"%"],[pdfT("pdf_pass_rate","Pass Rate"),mg.schoolPassRate+"%"],[pdfT("pdf_total_at_risk","Total At-Risk"),String(mg.totalAtRisk)],[pdfT("pdf_best_class","Best Class"),mg.classes[0].cls]]
+      :[[pdfT("pdf_sections","Sections"),String(rows.length)],[pdfT("pdf_top_section","Top Section"),rows[0].label],[pdfT("pdf_needs_attention","Needs Attention"),rows[rows.length-1].label],[pdfT("pdf_total_at_risk","Total At-Risk"),String(rows.reduce((a,r)=>a+r.atRisk,0))]];
+    const bw=(W-20-3*4)/4;
+    kpiBoxes.forEach((kb,i)=>{
+      const bx=10+i*(bw+4);
+      doc.setDrawColor(...T.LINE_STRONG);doc.setLineWidth(0.35);doc.roundedRect(bx,y,bw,16,2,2,"S");
+      doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...T.INK_SOFT);doc.text(kb[0],bx+3,y+6);
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...T.INK);doc.text(fitText(doc,kb[1],bw-6),bx+3,y+12.5);
+    });
+    y+=24;
+    // Class x Section grid — multi-class only
+    if(mg){
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...T.INK);doc.text("Class × Section Grid (avg %)",10,y);y+=6;
+      const gCols=mg.sectionKeys.length,firstW=32,cellW=(W-20-firstW)/Math.max(1,gCols);
+      pdfRule(doc,10,y,W-10,1.6,T.INK);
+      doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...T.INK);
+      doc.text("Class",12,y+4.2);
+      mg.sectionKeys.forEach((sk,i)=>doc.text(sk,10+firstW+i*cellW+cellW/2,y+4.2,{align:"center"}));
+      y+=6;
+      pdfRule(doc,10,y,W-10,1,T.LINE);
+      mg.classes.forEach((c,ci)=>{
+        if(y>270){doc.addPage();y=20;}
+        doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...T.INK);
+        doc.text(fitText(doc,c.cls,firstW-4),12,y+4.2);
+        mg.sectionKeys.forEach((sk,i)=>{
+          const row=c.secs.find(r=>r.sec===sk);
+          const cx=10+firstW+i*cellW;
+          if(!row){doc.setTextColor(...T.LINE);doc.text("—",cx+cellW/2,y+4.2,{align:"center"});return;}
+          const cc=row.avg>=80?T.GOOD:row.avg>=60?T.ACCENT:row.avg>=35?T.WARN:T.DANGER;
+          doc.setTextColor(...cc);doc.text(row.avg+"%",cx+cellW/2,y+4.2,{align:"center"});
+        });
+        y+=6;
+        pdfRule(doc,10,y,W-10,0.6,T.LINE);
+      });
+      y+=6;
+    }
+    // Weakest subjects — always (bar fill IS the data, stays filled)
+    const weakSubj=computeWeakSubjects(rows).slice(0,5);
+    if(weakSubj.length){
+      if(y>250){doc.addPage();y=20;}
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...T.INK);doc.text(mg?pdfT("pdf_school_wide_weakest","School-wide Weakest Subjects"):pdfT("card_weakest_subjects_compared","Weakest Subjects (across compared sections)"),10,y);y+=6;
+      doc.setFont("helvetica","normal");doc.setFontSize(8.5);
+      weakSubj.forEach(w=>{
+        if(y>278){doc.addPage();y=20;}
+        doc.setTextColor(...T.INK);doc.text(fitText(doc,w.subject,55),10,y-1.5);
+        doc.setDrawColor(...T.LINE);doc.setLineWidth(0.3);doc.rect(70,y-3.5,100,3.5,"S");
+        doc.setFillColor(...(w.avg<35?T.DANGER:T.ACCENT));doc.rect(70,y-3.5,w.avg,3.5,"F");
+        doc.text(w.avg+"%",174,y-1.5);
+        y+=6;
+      });
+      y+=4;
+    }
+    // Flagged sections — always
+    const flagged=computeFlaggedSections(rows);
+    if(flagged.length){
+      if(y>250){doc.addPage();y=20;}
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...T.DANGER);doc.text("Sections Needing Attention",10,y);y+=6;
+      doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...T.INK);
+      flagged.forEach(r=>{
+        if(y>278){doc.addPage();y=20;}
+        doc.text("• "+fitText(doc,r.label+" — "+r.avg+"% avg, "+r.atRisk+" at-risk of "+r.n,180),12,y);
+        y+=5.5;
+      });
+      y+=4;
+    }
+    doc.addPage();y=20;
+  }
+  doc.setFont("helvetica","bold");doc.setFontSize(12);doc.setTextColor(...T.INK);doc.text("Section Ranking",10,y);y+=8;
+  doc.setFontSize(9);doc.setFont("helvetica","bold");
+  const cols=[["Rank",10],["Section",26],["Students",84],["Avg %",106],["Pass %",128],["At-Risk",150],["Topper",170]];
+  cols.forEach(([label,x])=>doc.text(label,x,y));
+  y+=5;pdfRule(doc,10,y-3,200,1.6,T.INK);
+  doc.setFont("helvetica","normal");doc.setTextColor(...T.INK);
+  rows.forEach(r=>{
+    if(y>272){doc.addPage();y=20;}
+    doc.text(String(r.rank),10,y);
+    doc.text(fitText(doc,r.label,54),26,y);
+    doc.text(String(r.n),84,y);
+    doc.text(r.avg+"%",106,y);
+    doc.text(r.passRate+"%",128,y);
+    doc.text(String(r.atRisk),150,y);
+    doc.text(fitText(doc,r.topperName,36),170,y);
+    y+=6;
+  });
+  y+=8;
+  (APP.setup.subjects||[]).forEach(sub=>{
+    if(y>255){doc.addPage();y=20;}
+    doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...T.INK);doc.text(sub+" — Section Averages",10,y);y+=7;
+    doc.setFont("helvetica","normal");doc.setFontSize(9);
+    rows.forEach(r=>{
+      if(y>278){doc.addPage();y=20;}
+      const v=r.subjectAvgs[sub]||0;
+      doc.setTextColor(...T.INK);doc.text(fitText(doc,r.label,55),10,y-2.5);
+      doc.setDrawColor(...T.LINE);doc.setLineWidth(0.3);doc.rect(70,y-4,100,3.5,"S");
+      doc.setFillColor(...T.ACCENT);doc.rect(70,y-4,v,3.5,"F");
+      doc.text(v+"%",174,y-2.5);
+      y+=6;
+    });
+    y+=4;
+  });
+  stampFooterAllPages(doc,"MANAGEMENT CONFIDENTIAL");
+  const fname=safeFileName((APP.setup.instName||"StudentInsight")+"_Section_Comparison")+".pdf";
+  doc.save(fname);
+  toast(srT("toast_comparison_report_downloaded",{fname:fname}),"success");
+}
+
+// Only returns a Strengths note when a genuine strength exists (a subject
+// at/above 70%). Previously this fell back to "is working hard to build
+// strengths" even when nothing was — that reads as filler to a parent, not
+// as a strength, and actually undermines trust in a report that's honest
+// everywhere else. Returning null lets the caller omit the section.
+function generateStrengthsLetter(st){
+  const a=st.analysis,name=st.name.split(" ")[0];
+  const topSubjs=Object.entries(a.subjectAvgs||{}).filter(([,v])=>v>=70).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([s])=>s);
+  if(!topSubjs.length)return null;
+  return `${name} shows genuine strength in ${topSubjs.join(" and ")}${a.overallAvg>=80?" — performing at an excellent level and ready for greater challenges":a.trend==="improving"?" — and the trajectory is very encouraging":""}.${a.resilient?" "+name+" has also shown great resilience, bouncing back after difficult periods.":""}`;
+}
+// Midrank percentile policy: students sharing an overallAvg score share
+// the same percentile, computed from the midpoint of the 0-based rank
+// positions their tied group occupies in the ascending sort. This keeps
+// equal scores mapped to equal percentiles (unlike plain array-index
+// percentiles) while a single-score/single-student class still resolves
+// to 100. See EXCEL_DATA_MATH_AUDIT_PROMPT.md item 1.
+function computePercentiles(){
+  const n=APP.students.length;
+  if(!n)return;
+  const sorted=[...APP.students].sort((a,b)=>a.analysis.overallAvg-b.analysis.overallAvg);
+  let i=0;
+  while(i<n){
+    let j=i;
+    while(j+1<n && sorted[j+1].analysis.overallAvg===sorted[i].analysis.overallAvg)j++;
+    // i..j (inclusive, 0-based) are tied; use the midpoint rank position.
+    const mid=(i+j)/2;
+    const pct=n>1?Math.round((mid/(n-1))*100):100;
+    for(let k=i;k<=j;k++)sorted[k].analysis.percentile=pct;
+    i=j+1;
+  }
+}
+
+/* ════ CONTINUITY (2-PERIOD SCHEMA FOUNDATION — prompt-01-schema-foundation-2period.md) ════
+   Pure functions only, per that prompt's scope — no UI wiring, no reads
+   of APP.* here on purpose, so these stay testable in isolation and safe
+   to land ahead of the actual multi-period SETUP/STUDENTS/MARKS tab
+   parsing work (a much bigger, separately-scoped change — see chat notes
+   for why that part isn't in this same pass). No new stored state; both
+   are computed fresh from whatever the caller passes in. */
+
+// deriveRosterStatus(studentId, periodIdx, periodsPresence)
+//   periodsPresence: array indexed by period (0-based), each element a
+//     Set<string> of student IDs that have at least one marks row in
+//     that period's <PeriodLabel>-Test<N> tabs (the roster-diff signal
+//     IS presence/absence of rows — no separate diff table, per spec).
+//   Returns one of: "continuing" | "joined" | "left" | "not_present".
+//   "not_present" covers the "student doesn't exist in this slice yet"
+//   case (e.g. a student who only appears starting in a later period
+//   this slice doesn't include, or someone who genuinely never appears
+//   anywhere in the periods given) — a caller should render this as "no
+//   status to show yet," never as a crash or a false joined/left guess.
+//   The caller supplies periodsPresence by scanning which
+//   <PeriodLabel>-Test<N> tabs contain a row for each student ID; that
+//   scan itself lives with the SETUP/STUDENTS/MARKS parsing change,
+//   intentionally NOT built in this pass.
+
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { _compareSectionSeq, addCompareSection, computeCompareGroups, computeFlaggedSections, computeManagementGrid, computePercentiles, computeSectionComparisonFor, computeWeakSubjects, exportAllSectionsPDFs, exportComparisonReportPDF, exportSectionPDFs, fingerprintRawData, generateStrengthsLetter, invalidateStaleComparison, parseClassSection, peekSectionSetup, populateExportSectionPicker, processCompareFile, removeHomeCompareFile, renameHomeCompareFile, renderCompareOverview, renderCrossSectionCompareResult, renderCrossSectionComparePicker, renderFlaggedSectionsCard, renderHomeFileList, renderManagementGrid, renderWeakSubjectsCard, resolveMarksRows, runCompareAnalysisCore, safeFileName, schemaSignature, sectionsWithDataIssues, selectCompareGroup, selectCompareSection, validateTemplateStructure };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window._compareSectionSeq=_compareSectionSeq;window.addCompareSection=addCompareSection;window.computeCompareGroups=computeCompareGroups;window.computeFlaggedSections=computeFlaggedSections;window.computeManagementGrid=computeManagementGrid;window.computePercentiles=computePercentiles;window.computeSectionComparisonFor=computeSectionComparisonFor;window.computeWeakSubjects=computeWeakSubjects;window.exportAllSectionsPDFs=exportAllSectionsPDFs;window.exportComparisonReportPDF=exportComparisonReportPDF;window.exportSectionPDFs=exportSectionPDFs;window.fingerprintRawData=fingerprintRawData;window.generateStrengthsLetter=generateStrengthsLetter;window.invalidateStaleComparison=invalidateStaleComparison;window.parseClassSection=parseClassSection;window.peekSectionSetup=peekSectionSetup;window.populateExportSectionPicker=populateExportSectionPicker;window.processCompareFile=processCompareFile;window.removeHomeCompareFile=removeHomeCompareFile;window.renameHomeCompareFile=renameHomeCompareFile;window.renderCompareOverview=renderCompareOverview;window.renderCrossSectionCompareResult=renderCrossSectionCompareResult;window.renderCrossSectionComparePicker=renderCrossSectionComparePicker;window.renderFlaggedSectionsCard=renderFlaggedSectionsCard;window.renderHomeFileList=renderHomeFileList;window.renderManagementGrid=renderManagementGrid;window.renderWeakSubjectsCard=renderWeakSubjectsCard;window.resolveMarksRows=resolveMarksRows;window.runCompareAnalysisCore=runCompareAnalysisCore;window.safeFileName=safeFileName;window.schemaSignature=schemaSignature;window.sectionsWithDataIssues=sectionsWithDataIssues;window.selectCompareGroup=selectCompareGroup;window.selectCompareSection=selectCompareSection;window.validateTemplateStructure=validateTemplateStructure;}
