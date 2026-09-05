@@ -1,0 +1,417 @@
+import { applyCompareModeUI, esc, toast, validateSetup } from '../core/app-utils-init.js';
+import { computeAnalysis } from '../bal/common/compute-stats.js';
+import { parseStrictMaxMark } from '../bal/common/mark-parse.js';
+import { i18nLabel, srT } from '../core/render-i18n.js';
+import { APP, goStep } from '../core/state-nav.js';
+import { handleHomeImportFiles, toggleScholarshipUI } from './template-upload.js';
+
+// FIX (module-system conversion, HANDOVER #4): moved here from state-nav.js
+// (never used there) — this file is the real owner, reading/reassigning
+// all three throughout setup form handling. See the matching note in
+// state-nav.js.
+let subjectCount = 0, testCount = 0, _unsaved = false;
+
+/* ════ PROJECT LIFECYCLE — stateless, no persistence ════ */
+function startNewSession(){
+  /* "New Project" — reset everything, go to Setup form.
+     v1.4: preserve whichever mode (Institution/Individual) was last active
+     — via the first-load prompt (PIB §17) or a manual Setup toggle —
+     instead of silently forcing Institution. A brand-new page load with no
+     prior mode set still defaults to "institution" (APP.setup.mode's
+     initial value), so this is a strict superset of the old behaviour. */
+  const carryMode=APP.setup.mode==="individual"?"individual":"institution";
+  APP.setup={mode:carryMode,modeLocked:false,instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},scholarship:{enabled:false,schemeName:"",eligibilityType:"",minAcademicAvg:null,maxFamilyIncome:null,noFailRule:false,attendanceFloor:null,categoryQuota:null,weightAcademic:60,weightConsistency:20,weightGrowth:20},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]};
+  APP.students=[];APP.rawData=null;APP.classStats=null;APP.genderAnalysis=null;subjectCount=0;testCount=0;
+  APP.mergeMode=false;APP.mergeSource=null;$("#merge-banner").hide();
+  APP.compareMode=false;APP.sections=[];APP.sectionComparison=[];
+  // Issue 3 fix: clear multi-period continuity state on every reset
+  // boundary — otherwise a later unrelated project can inherit a prior
+  // project's longitudinal trends/labels/PDF content if student IDs
+  // happen to overlap.
+  APP.continuity=null;APP._continuityActivePeriodIdx=0;APP._continuitySelectedId=null;
+  APP.setupWizardStep=1;APP.setupCard1Choice="new";
+  $("#btn-download-template").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-22'/></svg> "+i18nLabel("setup_btn_download_template","Download Template"));$("#btn-load-existing").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-08'/></svg> "+i18nLabel("setup_btn_load_existing","Load Existing Filled Sheet"));
+  $("#subjects-list").empty();$("#tests-list").empty();
+  $("#session-name-badge").hide().text("");
+  setUsageMode(carryMode,true);
+  applyCompareModeUI();
+  fillSetupForm(APP.setup); // keep the visible form in sync with the reset state
+  unlockStep("setup");goStep("setup");
+}
+// Entered automatically when 2+ files are dropped on Home's single upload
+// zone (v3.1 — no dedicated "Compare Sections / Batches" card/button
+// anymore). Institution-only by definition, so
+// the mode is set AND locked immediately (no mode-select card shown at all
+// — see applyCompareModeUI()/the Setup panel's #compare-setup-banner).
+// v1.5 (bug fix — see PIB §18): this used to always land on Setup, forcing
+// the teacher to re-type Subjects/Tests/Max Marks by hand even when every
+// section already had a filled sheet. It now goes straight to Step 2's
+// uploader — Setup stays reachable (unlockStep below) purely as an
+// OPTIONAL path for generating a blank shared template, not a forced stop.
+function startCompareMode(){
+  APP.setup={mode:"institution",modeLocked:true,instName:"",instType:"",location:"",contact:"",className:"",section:"",year:"",teacher:"",scoring:{marks:true,pct:true,grade:false,pf:false},scholarship:{enabled:false,schemeName:"",eligibilityType:"",minAcademicAvg:null,maxFamilyIncome:null,noFailRule:false,attendanceFloor:null,categoryQuota:null,weightAcademic:60,weightConsistency:20,weightGrowth:20},passThreshold:35,absentAlert:3,dropAlert:20,subjects:[],tests:[]};
+  APP.students=[];APP.rawData=null;APP.classStats=null;APP.genderAnalysis=null;subjectCount=0;testCount=0;
+  APP.mergeMode=false;APP.mergeSource=null;$("#merge-banner").hide();
+  APP.compareMode=true;APP.sections=[];APP.sectionComparison=[];APP._compareAutoRan=false;APP.homeSingleFile=null;
+  // Issue 3 fix — see the matching comment in startNewSession().
+  APP.continuity=null;APP._continuityActivePeriodIdx=0;APP._continuitySelectedId=null;
+  APP.setupWizardStep=1;APP.setupCard1Choice="new";
+  $("#home-file-list").hide().empty();
+  $("#btn-download-template").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-22'/></svg> "+i18nLabel("setup_btn_download_template","Download Template"));$("#btn-load-existing").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-08'/></svg> "+i18nLabel("setup_btn_load_existing","Load Existing Filled Sheet"));
+  $("#subjects-list").empty();$("#tests-list").empty();
+  $("#session-name-badge").hide().text("");
+  setUsageMode("institution",true);
+  applyCompareModeUI();
+  unlockStep("setup");
+  // v3.0 rev2: no navigation here anymore — this now runs in the background
+  // while the person is already on Home mid multi-file-drop (see
+  // handleHomeImportFiles). Home's own #home-import-status area gives the
+  // per-file feedback; the old "Upload Data" step this used to jump to no
+  // longer exists (§10.1/10.3).
+}
+// deleteSession() / loadSessionFile() removed (v1.9 cleanup) — both were
+// inert leftovers from the already-removed session-persistence feature,
+// confirmed to have zero call sites anywhere in the file before deletion.
+function markDirty(){_unsaved=true;$("#unsaved-dot").addClass("visible");}
+function markClean(){_unsaved=false;$("#unsaved-dot").removeClass("visible");}
+function unlockStep(s){$("[data-step='"+s+"']").removeClass("locked").removeAttr("title").removeAttr("data-i18n-title");}
+function lockStep(s){$("[data-step='"+s+"']").addClass("locked");}
+
+/* ════ FAQ SEARCH ════ */
+function filterFAQ(q){
+  q=q.trim().toLowerCase();
+  let anyVisible=false;
+  document.querySelectorAll("#faq-root .faq-section").forEach(function(section){
+    let groupHasMatch=false;
+    section.querySelectorAll(".faq-item").forEach(function(item){
+      const txt=item.textContent.toLowerCase();
+      const match=!q||txt.indexOf(q)!==-1;
+      item.style.display=match?"":"none";
+      if(match){groupHasMatch=true;anyVisible=true;if(q)item.open=true;else item.open=false;}
+    });
+    section.style.display=groupHasMatch?"":"none";
+    if(q&&groupHasMatch)section.open=true;
+  });
+  document.getElementById("faq-empty").style.display=anyVisible?"none":"block";
+}
+function initFAQAccordion(){
+  // Item-level accordion: only one question open at a time within the whole FAQ.
+  const items=document.querySelectorAll("#faq-root .faq-item");
+  items.forEach(function(item){
+    item.addEventListener("toggle",function(){
+      if(item.open){
+        items.forEach(function(other){
+          if(other!==item)other.open=false;
+        });
+        item.scrollIntoView({behavior:"smooth",block:"nearest"});
+      }
+    });
+  });
+  // Section-level accordion: only one topic section open at a time.
+  const sections=document.querySelectorAll("#faq-root .faq-section");
+  sections.forEach(function(section){
+    section.addEventListener("toggle",function(){
+      if(section.open){
+        sections.forEach(function(other){
+          if(other!==section)other.open=false;
+        });
+        section.scrollIntoView({behavior:"smooth",block:"nearest"});
+      }
+    });
+  });
+  // About page accordion: only one story card open at a time.
+  const aboutCards=document.querySelectorAll("#about-acc-root .about-acc");
+  aboutCards.forEach(function(card){
+    card.addEventListener("toggle",function(){
+      if(card.open){
+        aboutCards.forEach(function(other){
+          if(other!==card)other.open=false;
+        });
+        card.scrollIntoView({behavior:"smooth",block:"nearest"});
+      }
+    });
+  });
+}
+document.addEventListener("DOMContentLoaded",initFAQAccordion);
+initFAQAccordion();
+
+/* ════ SETUP FORM ════ */
+function addSubject(name=""){
+  subjectCount++;
+  const row=$(`<div class="subj-row" data-subj="subj-${subjectCount}"><span class="row-num">${subjectCount}</span><input type="text" value="${esc(name)}" placeholder="e.g. Mathematics" data-input-action="updateTestSubjectCols"/><button class="del-btn" data-action="deleteSubjectRow">✕</button></div>`);
+  $("#subjects-list").append(row);updateTestSubjectCols();
+}
+function addTest(name="",date=""){
+  testCount++;const id="test-"+testCount;const subjects=getSubjects();
+  const mmCols=subjects.map((s,i)=>`<div class="mm-chip"><input type="checkbox" id="mm-chk-${id}-${i}" class="mm-inc" data-subj="${i}" checked data-change-action="toggleMmSubject"/><label for="mm-chk-${id}-${i}" class="mm-name">${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="100" min="1" data-input-action="markDirty"/></div>`).join("");
+  const row=$(`<div class="test-row-wrap" data-test="${id}"><div class="test-row"><span class="row-num">${testCount}</span><input type="text" class="test-name-inp" value="${esc(name)}" placeholder="e.g. Unit Test 1" data-input-action="markDirtyValidate"/><input type="date" class="test-date-inp" value="${date}" data-input-action="markDirtyValidate"/><button class="del-btn" data-action="deleteTestRow">✕</button></div><div style="font-size:11px;color:var(--c-text3);margin:6px 0 2px 30px">${esc(srT("setup_max_marks_per_subject"))}</div><div class="mm-grid">${mmCols}</div></div>`);
+  $("#tests-list").append(row);
+}
+function getSubjects(){return $("#subjects-list .subj-row input").map(function(){return $(this).val().trim();}).get().filter(Boolean);}
+// Un-checking a subject for a test means that test didn't cover it — hide
+// (not just visually grey out) its Max Marks field so it's obvious no
+// value is being collected, and so collectSetupForm() below knows to leave
+// that subject out of both subjectsIncluded and maxMarks for this test.
+function toggleMmSubject(el){
+  const checked=$(el).is(":checked");
+  $(el).closest(".mm-chip").find(".mm-inp").toggle(checked);
+  markDirty();validateSetup();
+}
+function updateTestSubjectCols(){
+  const subjects=getSubjects();
+  $("#tests-list .test-row-wrap").each(function(){
+    const wrap=$(this);const existing=wrap.find(".mm-grid");const id=wrap.attr("data-test");
+    const mmCols=subjects.map((s,i)=>{
+      const curVal=wrap.find(".mm-inp[data-subj=\""+i+"\"]").val()||100;
+      const wasChecked=wrap.find(".mm-inc[data-subj=\""+i+"\"]").length?wrap.find(".mm-inc[data-subj=\""+i+"\"]").is(":checked"):true;
+      return `<div class="mm-chip"><input type="checkbox" id="mm-chk-${id}-${i}" class="mm-inc" data-subj="${i}" ${wasChecked?"checked":""} data-change-action="toggleMmSubject"/><label for="mm-chk-${id}-${i}" class="mm-name">${esc(s)}</label><input type="number" class="mm-inp" data-subj="${i}" value="${curVal}" min="1" data-input-action="markDirty" style="${wasChecked?"":"display:none"}"/></div>`;
+    }).join("");
+    existing.html(mmCols);
+  });
+}
+// Task 02: Scholarship Criteria — pulled out of collectSetupForm() into its
+// own function (BUG FIX, 3-scenario spec) so the Setup-first "enable
+// scholarship on an already-loaded file" path (scholarship-nav.js
+// enableScholarshipAndOpenGrid() -> setup-wizard.js swNext()) can persist
+// ONLY the scholarship sub-object once its own validation passes, without
+// re-running the rest of collectSetupForm() (which would re-collect
+// Subjects/Tests from #subjects-list/#tests-list — DOM rows that don't
+// necessarily exist yet in that flow, since the file was uploaded, not
+// built via this wizard). collectSetupForm() below now just calls this.
+function collectScholarshipForm(){
+  const FIELD_MAX=120;
+  const capField=(raw,label)=>{
+    const s=String(raw||"");
+    if(s.length<=FIELD_MAX)return s;
+    toast(srT("val_setup_fields_truncated",{fields:label,max:FIELD_MAX}),"warn");
+    return s.slice(0,FIELD_MAX);
+  };
+  const clampNum=(sel,min,max,fallback)=>{
+    const raw=parseInt($(sel).val());
+    const v=isNaN(raw)?fallback:Math.min(max,Math.max(min,raw));
+    if(v!==raw)$(sel).val(v);
+    return v;
+  };
+  return {
+    enabled:$("#scholarship-enable").is(":checked"),
+    schemeName:capField($("#scholarship-scheme-name").val().trim(),"Scheme Name"),
+    eligibilityType:$("#scholarship-eligibility-type").val(),
+    minAcademicAvg:clampNum("#scholarship-min-academic-avg",0,100,null),
+    maxFamilyIncome:clampNum("#scholarship-max-family-income",0,999999999,null),
+    noFailRule:$("#scholarship-no-fail-rule").val()===srT("scholarship_yes"),
+    attendanceFloor:clampNum("#scholarship-attendance-floor",0,365,null),
+    categoryQuota:clampNum("#scholarship-category-quota",0,100,null),
+    weightAcademic:clampNum("#scholarship-weightage-academic",0,100,60),
+    weightConsistency:clampNum("#scholarship-weightage-consistency",0,100,20),
+    weightGrowth:clampNum("#scholarship-weightage-growth",0,100,20)
+  };
+}
+
+function collectSetupForm(){
+  // Same length-cap defense as autoInferSetup() (js/template-upload.js) —
+  // a maxlength HTML attribute helps but isn't guaranteed against every
+  // paste path, and this keeps both ingestion routes consistent.
+  const FIELD_MAX=120;
+  const capField=(raw,label)=>{
+    const s=String(raw||"");
+    if(s.length<=FIELD_MAX)return s;
+    toast(srT("val_setup_fields_truncated",{fields:label,max:FIELD_MAX}),"warn");
+    return s.slice(0,FIELD_MAX);
+  };
+  APP.setup.instName=capField($("#inst-name").val().trim(),"Institution Name");APP.setup.instType=$("#inst-type").val();
+  APP.setup.location=capField($("#inst-location").val().trim(),"Location");APP.setup.contact=capField($("#inst-contact").val().trim(),"Contact");
+  APP.setup.className=capField($("#class-name").val().trim(),"Class / Batch");APP.setup.section=capField($("#class-section").val().trim(),"Section");
+  APP.setup.year=capField($("#class-year").val().trim(),"Academic Year");APP.setup.teacher=capField($("#class-teacher").val().trim(),"Class Teacher");
+  // clampNum: the HTML min/max attributes on these <input type="number">
+  // fields are visual hints only — most browsers don't strictly enforce
+  // them on typed or pasted values — so a pasted "-20" or "500" would
+  // otherwise sail straight through into a nonsensical pass threshold.
+  // Clamp here, and reflect the corrected value back into the field so
+  // what's displayed never silently diverges from what's actually used.
+  const clampNum=(sel,min,max,fallback)=>{
+    const raw=parseInt($(sel).val());
+    const v=isNaN(raw)?fallback:Math.min(max,Math.max(min,raw));
+    if(v!==raw)$(sel).val(v);
+    return v;
+  };
+  APP.setup.passThreshold=clampNum("#pass-threshold",0,100,35);
+  APP.setup.absentAlert=clampNum("#absent-alert",0,365,3);
+  APP.setup.dropAlert=clampNum("#drop-alert",0,100,20);
+  APP.setup.scoring={marks:$("#sc-marks").is(":checked"),pct:$("#sc-pct").is(":checked"),grade:$("#sc-grade").is(":checked"),pf:$("#sc-pf").is(":checked")};
+  // Task 02: Scholarship Criteria — fields only meaningful when Enable is
+  // checked (§26), but collected regardless so an accidental uncheck
+  // doesn't silently discard what was typed. Extracted into
+  // collectScholarshipForm() (above) so it can also be called on its own
+  // from the Setup-first scholarship-enable flow — see that function's
+  // header comment.
+  APP.setup.scholarship=collectScholarshipForm();
+  APP.setup.subjects=getSubjects();APP.setup.tests=[];
+  APP.setup._maxMarkErrors=[]; // reset per collection — see mark-parse.js / recordMaxMarkError() in template-upload.js
+  $("#tests-list .test-row-wrap").each(function(){
+    const name=$(this).find(".test-name-inp").val().trim();const date=$(this).find(".test-date-inp").val();
+    const maxMarks={};const subjectsIncluded=[];
+    APP.setup.subjects.forEach((s,i)=>{
+      const incEl=$(this).find(`.mm-inc[data-subj="${i}"]`);
+      // No checkbox on this chip (e.g. a legacy saved session re-rendered
+      // before fillSetupForm restores checked state) -> default included,
+      // same as the pre-picker behavior.
+      const included=incEl.length?incEl.is(":checked"):true;
+      if(!included)return; // subject not part of this test — no maxMarks entry, no marks column
+      subjectsIncluded.push(s);
+      const raw=$(this).find(`.mm-inp[data-subj="${i}"]`).val();
+      const r=parseStrictMaxMark(raw);
+      if(r.status==="valid"){
+        maxMarks[s]=r.value;
+      } else if(r.status==="blank"){
+        maxMarks[s]=100; // documented legacy fallback for a genuinely empty field
+      } else {
+        // A SUPPLIED but invalid value (0, negative, decimal, non-numeric)
+        // is never silently swapped for 100 — record it as a blocking
+        // setup error instead. The field itself is left as typed so the
+        // user can see and correct exactly what they entered.
+        APP.setup._maxMarkErrors.push({label:`Max Marks - ${s} (${name||"Test "+(i+1)})`,raw,reason:r.reason});
+        maxMarks[s]=100; // placeholder only — validateSetupData()/validateData() block analysis regardless
+      }
+    });
+    if(name)APP.setup.tests.push({name,date,maxMarks,subjectsIncluded});
+  });
+}
+function fillSetupForm(s){
+  setUsageMode(s.mode||"institution",true);
+  $("#inst-name").val(s.instName||"");$("#inst-type").val(s.instType||"");
+  $("#inst-location").val(s.location||"");$("#inst-contact").val(s.contact||"");
+  $("#class-name").val(s.className||"");$("#class-section").val(s.section||"");
+  $("#class-year").val(s.year||"");$("#class-teacher").val(s.teacher||"");
+  $("#pass-threshold").val(s.passThreshold||35);$("#absent-alert").val(s.absentAlert||3);$("#drop-alert").val(s.dropAlert||20);
+  if(s.scoring){$("#sc-marks").prop("checked",!!s.scoring.marks);$("#sc-pct").prop("checked",!!s.scoring.pct);$("#sc-grade").prop("checked",!!s.scoring.grade);$("#sc-pf").prop("checked",!!s.scoring.pf);}
+  const sch=s.scholarship||{};
+  $("#scholarship-enable").prop("checked",!!sch.enabled);
+  toggleScholarshipUI(!!sch.enabled);
+  $("#scholarship-scheme-name").val(sch.schemeName||"");
+  $("#scholarship-eligibility-type").val(sch.eligibilityType||"");
+  $("#scholarship-min-academic-avg").val(sch.minAcademicAvg==null?"":sch.minAcademicAvg);
+  $("#scholarship-max-family-income").val(sch.maxFamilyIncome==null?"":sch.maxFamilyIncome);
+  $("#scholarship-no-fail-rule").val(sch.noFailRule?srT("scholarship_yes"):srT("scholarship_no"));
+  $("#scholarship-attendance-floor").val(sch.attendanceFloor==null?"":sch.attendanceFloor);
+  $("#scholarship-category-quota").val(sch.categoryQuota==null?"":sch.categoryQuota);
+  $("#scholarship-weightage-academic").val(sch.weightAcademic==null?60:sch.weightAcademic);
+  $("#scholarship-weightage-consistency").val(sch.weightConsistency==null?20:sch.weightConsistency);
+  $("#scholarship-weightage-growth").val(sch.weightGrowth==null?20:sch.weightGrowth);
+  subjectCount=0;testCount=0;$("#subjects-list").empty();$("#tests-list").empty();
+  (s.subjects||[]).forEach(sub=>addSubject(sub));
+  (s.tests||[]).forEach((t,ti)=>{addTest(t.name,t.date);});
+  if(s.tests)s.tests.forEach((t,ti)=>{
+    const wrap=$("#tests-list .test-row-wrap").eq(ti);
+    (s.subjects||[]).forEach((sub,si)=>{
+      // subjectsIncluded absent = legacy test saved before the per-test
+      // picker existed -> every subject defaults to included, same as
+      // current behavior.
+      const included=t.subjectsIncluded?t.subjectsIncluded.includes(sub):true;
+      wrap.find(`.mm-inc[data-subj="${si}"]`).prop("checked",included);
+      wrap.find(`.mm-inp[data-subj="${si}"]`).val((t.maxMarks&&t.maxMarks[sub])||100).toggle(included);
+    });
+  });
+  // Bug fix: jQuery's .val() above does NOT fire the "input" event, so the
+  // oninput="markDirty();validateSetup()" handlers on these fields never
+  // ran — any red-border/"required" warning left over from before the
+  // fields were populated (e.g. right after importing a file) used to
+  // stay stuck showing even though the data was now actually there.
+  // Explicitly re-validate now that the form reflects the real state.
+  validateSetup();
+}
+
+/* ════ USAGE MODE (Institution vs Individual) ════
+   A single flag — APP.setup.mode — drives every institution-vs-individual
+   difference downstream: Setup form labels/required-ness, which report
+   types are offered on the Export step, and whether the Dashboard shows
+   cohort-relative widgets (rank, percentile, class topper, pass rate,
+   at-risk-vs-batch) or switches to a single-student progress view.
+   Everything else (computeAnalysis, grade bands, health score, trend)
+   is unchanged — those already work at n=1. */
+function setUsageMode(mode,skipDirty){
+  const newMode=mode==="individual"?"individual":"institution";
+  // Once a mode is locked (a template has been generated or a real file has
+  // been imported/loaded for this project), switching to the OTHER mode
+  // would silently strand/mismatch that file's data structure — refuse the
+  // switch and explain why, rather than letting the UI drift out of sync
+  // with an already-committed template/import.
+  if(APP.setup.modeLocked&&newMode!==APP.setup.mode){
+    const curLabel=APP.setup.mode==="individual"?srT("val_mode_individual"):srT("val_mode_institution");
+    toast(srT("val_mode_locked_to",{mode:curLabel}),"warn");
+    return;
+  }
+  if(newMode===APP.setup.mode)skipDirty=true; // E7: re-clicking the already-active mode card shouldn't mark dirty
+  APP.setup.mode=newMode;
+  $("#mode-card-institution").css({borderColor:APP.setup.mode==="institution"?"var(--c-primary)":"var(--c-border)"}).attr("aria-pressed",APP.setup.mode==="institution"?"true":"false");
+  $("#mode-card-individual").css({borderColor:APP.setup.mode==="individual"?"var(--c-primary)":"var(--c-border)"}).attr("aria-pressed",APP.setup.mode==="individual"?"true":"false");
+  applyModeUI();
+  if(!skipDirty)markDirty();
+}
+// v3.1: applyHomeModeGating() removed — its only job was toggling Home's
+// "Compare Sections / Batches" card (#home-card-compare) by mode, and that
+// card is gone. Compare is now reached automatically by dropping 2+ files
+// on Home's single upload zone, in either mode — no separate gated entry
+// point left to keep in sync.
+// Called once a project's mode is "committed" — i.e. a template has been
+// downloaded, or a real file (fresh import or "Update Existing Sheet") has
+// been loaded — after which switching mode would orphan that file's
+// structure. Idempotent; safe to call more than once.
+function lockUsageMode(){
+  if(APP.setup.modeLocked)return;
+  APP.setup.modeLocked=true;
+  applyModeLockUI();
+}
+function applyModeLockUI(){
+  const locked=!!APP.setup.modeLocked;
+  const activeIsInst=APP.setup.mode==="institution";
+  const $inst=$("#mode-card-institution"),$indiv=$("#mode-card-individual");
+  $inst.add($indiv).css({opacity:1,cursor:"pointer",pointerEvents:"auto"}).attr("tabindex","0").removeAttr("aria-disabled").removeAttr("title");
+  if(locked){
+    const $other=activeIsInst?$indiv:$inst;
+    $other.css({opacity:.45,cursor:"not-allowed",pointerEvents:"none"}).attr({tabindex:"-1","aria-disabled":"true",title:srT("val_locked_start_new_project")});
+  }
+  $("#mode-lock-note").toggle(locked).html(locked?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-49'/></svg> "+esc(srT("val_mode_locked_to",{mode:activeIsInst?srT("val_mode_institution"):srT("val_mode_individual")})):"");
+}
+function applyModeUI(){
+  const isIndividual=APP.setup.mode==="individual";
+  // --- Setup form: relabel / hide institution-only fields ---
+  $("#inst-card-icon").html(isIndividual?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-18'/></svg>":"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-14'/></svg>");
+  $("#inst-card-title").text(isIndividual?srT("setup_about"):srT("val_mode_institution"));
+  $("#inst-name-label").html(isIndividual?esc(srT("setup_student_name_label"))+' <span style="color:var(--c-danger)">*</span>':esc(srT("setup_institution_name_label"))+' <span style="color:var(--c-danger)">*</span>');
+  $("#inst-name").attr("placeholder",isIndividual?srT("setup_eg_student_name"):srT("setup_eg_institution_name"));
+  $("#inst-name-hint").toggle(isIndividual).text(isIndividual?srT("setup_multi_child_hint"):"");
+  $("#individual-multi-child-hint").toggle(isIndividual);
+  $("#inst-type-group,#inst-location-group,#inst-contact-group").toggle(!isIndividual);
+  $("#class-card-icon").html(isIndividual?"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-15'/></svg>":"<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-20'/></svg>");
+  $("#class-card-title").text(isIndividual?srT("setup_goal"):srT("setup_class_batch"));
+  $("#class-name-label").html(isIndividual?esc(srT("setup_target_exam_goal")):esc(srT("setup_class_batch"))+' <span style="color:var(--c-danger)">*</span>');
+  $("#class-name").attr("placeholder",isIndividual?srT("setup_eg_upsc_goal"):srT("setup_eg_class"));
+  $("#class-section-group").toggle(!isIndividual);
+  $("#class-teacher-label").text(isIndividual?srT("setup_mentor_coach"):srT("setup_teacher_name"));
+  $("#pass-threshold-label").text(isIndividual?srT("setup_target_pct"):srT("setup_pass_pct"));
+  // clear any stale required-field error styling left over from the other mode
+  validateSetup();
+
+  // --- Export step: Individual mode has no cohort to report on, so
+  // Teacher/Management reports (which are class-wide by construction)
+  // are dropped entirely rather than shown empty or misleading. ---
+  $("#exp-teacher-card,#exp-mgmt-card,#exp-teacher-option,#exp-mgmt-option").toggle(!isIndividual);
+  if(isIndividual){$("#exp-teacher").prop("checked",false);$("#exp-mgmt").prop("checked",false);}
+  else if(!$("#exp-teacher-option").is(":visible")){/* re-enabling institution mode restores defaults */}
+  $("#exp-student-card-title").html("<svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-18'/></svg> "+esc(isIndividual?srT("setup_progress_reports"):srT("setup_student_reports")));
+  $("#exp-student-card-desc").text(isIndividual?srT("setup_progress_pdf_desc"):srT("setup_student_pdf_desc"));
+  $("#exp-student-label").text(isIndividual?srT("setup_progress_pdfs"):srT("setup_student_pdfs"));
+  applyModeLockUI();
+}
+
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { _unsaved, addSubject, addTest, applyModeLockUI, applyModeUI, collectScholarshipForm, collectSetupForm, fillSetupForm, filterFAQ, getSubjects, initFAQAccordion, lockStep, lockUsageMode, markClean, markDirty, setUsageMode, startCompareMode, startNewSession, subjectCount, testCount, toggleMmSubject, unlockStep, updateTestSubjectCols };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window._unsaved=_unsaved;window.addSubject=addSubject;window.addTest=addTest;window.applyModeLockUI=applyModeLockUI;window.applyModeUI=applyModeUI;window.collectScholarshipForm=collectScholarshipForm;window.collectSetupForm=collectSetupForm;window.fillSetupForm=fillSetupForm;window.filterFAQ=filterFAQ;window.getSubjects=getSubjects;window.initFAQAccordion=initFAQAccordion;window.lockStep=lockStep;window.lockUsageMode=lockUsageMode;window.markClean=markClean;window.markDirty=markDirty;window.setUsageMode=setUsageMode;window.startCompareMode=startCompareMode;window.startNewSession=startNewSession;window.subjectCount=subjectCount;window.testCount=testCount;window.toggleMmSubject=toggleMmSubject;window.unlockStep=unlockStep;window.updateTestSubjectCols=updateTestSubjectCols;}

@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "label": "ಕನ್ನಡ (Kannada)",
+    "lang": "kn",
+    "reviewed": false
+  },
+  "studinpro.item.pro_intro": "StudInPro is an advanced ERP that solves your institution's everyday challenges.",
+  "studinpro.item.contact_query": "For StudInPro or any other query, contact: sandeep@hakki.in | sandeephakki@gmail.com",
+  "studinpro.ticker.hover_hint": "Tap to learn more",
+  "studinpro.ticker.aria_label": "StudInPro announcements, updates every few seconds",
+  "studinpro.card_title": "StudInPro",
+  "studinpro.card_subtitle": "StudIn is free, forever. Curious what's next?",
+  "studinpro.card_cta_btn": "Tell us about your school",
+  "studinpro.form_modal_title": "StudInPro — Tell us about your school",
+  "studinpro.form_modal_desc": "StudIn stays free, always. This just helps us understand who's using it, so we can build StudInPro around real needs.",
+  "studinpro.form_modal_email_note": "Prefer email? Reach us directly:",
+  "studinpro.already_submitted_msg": "Thanks — we've already received your details. We'll be in touch about StudInPro soon.",
+  "studinpro.fill_again_btn": "Fill the form again",
+  "studinpro.compare_row1_free": "Manual setup each term",
+  "studinpro.compare_row1_pro": "Remembered automatically",
+  "studinpro.compare_row2_free": "One file at a time",
+  "studinpro.compare_row2_pro": "Continuous multi-year tracking",
+  "studinpro.compare_row3_free": "Local-only storage",
+  "studinpro.compare_row3_pro": "Cloud backup, any device",
+  "studinpro.compare_row4_free": "Single class view",
+  "studinpro.compare_row4_pro": "School-wide dashboards"
+}

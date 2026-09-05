@@ -1,0 +1,2217 @@
+import { esc, toast } from './app-utils-init.js';
+import { getStudentContinuityContext } from '../bal/common/compute-continuity.js';
+import { computeAnalysis, computeExtraInsights } from '../bal/common/compute-stats.js';
+import { openBucket, openIndividualBucket } from '../ui/common/render-buckets.js';
+import { closeModal, gsapModalEntrance, renderDashboard } from '../ui/common/render-core.js';
+import { APP, COUNTRY_LANGUAGES, goStep, onLanguageChange } from './state-nav.js';
+import { AI_FEATURES, renderAICheckboxes } from './template-upload.js';
+import { renderShellLeftRail, renderShellRightRail } from './vs-shell.js';
+
+/* ════════════════════════════════════════════════════════════════════
+   RENDER-I18N — narrative text generators (trend facts, parent
+   message, home/school plan, what-changed summary), the full
+   SR_STRINGS_EN string table, language loading, i18n sweep/label
+   lookup helpers.
+   Split out of the former render-dashboard.js (review #5, 2588 lines
+   was unmaintainable as one file) — pure move, no logic changed.
+   Load order in index.html unchanged relative to before: this file
+   loads first of the four, same position the old single file held.
+   ════════════════════════════════════════════════════════════════════ */
+/* ════ NARRATIVES ════
+   Redesigned from a parent's actual reading experience, not just from what
+   was easy to compute. The old six-card layout (Report Card Comment / For
+   Parents / Strengths / Motivation / Study Plan / Intervention) repeated
+   the same "scored X%, there's been a decline" sentence three times in
+   slightly different words, used one flat encouraging tone regardless of
+   how serious the situation actually was, and gave generic advice
+   ("revise fundamentals, practice 30 min daily") that wasn't tied to which
+   subject actually needed it. Replaced with:
+     - parentMessage: ONE plain-language paragraph, tone genuinely scaled
+       to severity (a bottom-of-class declining student reads very
+       differently from a strong, improving one — no "good effort!" on a
+       report that also says "at risk").
+     - trendFacts: concrete numbers (which test, how many points, which
+       test named "declining" actually shows it) instead of a vague label.
+     - homePlan / schoolPlan: split by who actually does the action, each
+       anchored to the specific weakest subject rather than a canned list.
+   ════ */
+// prompt-05-institution-rollup-narrative.md: shared phrasing helper for
+// the optional 2nd `longitudinal` arg each of the 5 generators below now
+// accepts — {periodCount,direction,streakLength,unitLabel} from
+// getStudentContinuityContext() (compute-engine.js), or null/undefined.
+// Gated on periodCount>=2 so a single-period file (where this is always
+// null) or a first-year-in-the-data student never gets a fabricated
+// trend sentence. `kind` picks phrasing weight — "trend"/"parent" spell
+// out the streak, "home" only nudges tone, "plan" only escalates urgency
+// for a school-facing recommendation.
+function _ordinal(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+function _pluralizeUnit(unit){return /[sxz]$|[cs]h$/i.test(unit)?unit+"es":unit+"s";}
+function continuityNarrativeClause(longitudinal,kind){
+  if(!longitudinal||!(longitudinal.periodCount>=2))return "";
+  const{direction,streakLength,unitLabel}=longitudinal;
+  const unitSingular=(unitLabel||"period").toLowerCase();
+  const unit=_pluralizeUnit(unitSingular);
+  if(direction==="flat")return kind==="trend"?` Looking back across ${longitudinal.periodCount} ${unit}, this has held roughly steady.`:"";
+  if(direction==="declining"){
+    if(kind==="trend")return ` This is the ${_ordinal(streakLength)} ${unitSingular} in a row of decline.`;
+    if(kind==="parent")return ` This isn't a one-off — it's been slipping for ${streakLength} ${unit} running.`;
+    if(kind==="plan")return ` Worth flagging: this is a multi-${unitSingular} decline, not an isolated bad test.`;
+  }
+  if(direction==="improving"){
+    if(kind==="trend")return ` This continues a ${streakLength}-${unitSingular} improvement streak.`;
+    if(kind==="parent")return ` — and this is sustained, not a one-test blip: ${streakLength} ${unit} of improvement in a row.`;
+    if(kind==="home")return ` Worth noting this is a sustained multi-${unitSingular} improvement — whatever's been happening at home is working.`;
+  }
+  return "";
+}
+// Concrete, checkable trend facts instead of a vague "there has been a
+// decline" — names the actual tests and the actual point swing, and is
+// honest about a tie for weakest subject instead of arbitrarily picking one
+// (the marks table right above this can show two subjects tied at the same
+// %, so silently naming only one of them would look inconsistent).
+// Shared by generateTrendFacts() and generateHomePlan(). Naming "the
+// weakest subjects" only makes sense when it's a genuine minority of the
+// subject list — if a student is struggling roughly evenly everywhere,
+// the tie-for-lowest can end up covering every subject, and then telling
+// a parent to focus "specifically" on all of them isn't specific at all.
+// broad=true flags that degenerate case so callers can say something
+// honest instead ("no single weak spot") rather than naming everything.
+function weakestSubjectsInfo(st){
+  const entries=Object.entries(st.analysis.subjectAvgs||{});
+  if(!entries.length)return{entries,minVal:null,weakest:[],broad:false};
+  const minVal=Math.min(...entries.map(([,v])=>v));
+  const weakest=entries.filter(([,v])=>v===minVal).map(([s])=>s);
+  const broad=entries.length>2&&weakest.length>=Math.ceil(entries.length*0.6);
+  return{entries,minVal,weakest,broad};
+}
+function generateTrendFacts(st,longitudinal){
+  const a=st.analysis,name=st.name.split(" ")[0];
+  const points=(APP.setup.tests||[]).map((t,i)=>({name:t.name,val:a.testAvgs[i]})).filter(p=>p.val!==null&&p.val!==undefined);
+  const{minVal,weakest,broad}=weakestSubjectsInfo(st);
+  const weakBit=broad?` Struggling fairly evenly across every subject (~${minVal}%) — no single weak spot to point to.`
+    :weakest.length?` Needs the most attention right now: ${weakest.join(" and ")} (${minVal}%).`:"";
+  const longBit=continuityNarrativeClause(longitudinal,"trend");
+  if(points.length<2)return(points.length===1?`Only one test on record so far (${points[0].name}: ${points[0].val}%) — not enough data yet for a trend.`:"No scored tests on record yet.")+weakBit+longBit;
+  const first=points[0],last=points[points.length-1],delta=last.val-first.val;
+  const dirWord=delta>3?"risen":delta<-3?"fallen":"stayed roughly steady";
+  const deltaBit=Math.abs(delta)>3?` — a ${Math.abs(delta)}-point ${delta>0?"rise":"fall"} over ${points.length} tests`:"";
+  return `${name} has ${dirWord} from ${first.val}% (${first.name}) to ${last.val}% (${last.name})${deltaBit}.${weakBit}${longBit}`;
+}
+function generateParentMessage(st,longitudinal){
+  const a=st.analysis,name=st.name.split(" ")[0];
+  const atRisk=(st.flags||[]).some(f=>f.type==="at-risk");
+  const longBit=continuityNarrativeClause(longitudinal,"parent");
+  // Tone genuinely changes by severity instead of a flat "good effort!"
+  // regardless of how serious the flags on the same report say it is.
+  if(atRisk&&a.trend==="declining")return `${name} is currently in the bottom band of the class at ${a.overallAvg}%, and scores have been falling test over test.${longBit} This needs real attention now, not just more of the same studying. We'd like to sit down together — parents and teacher — this week to agree on a plan.`;
+  if(a.trend==="declining")return `${name} scored ${a.overallAvg}% this term, and there's a downward trend worth catching early.${longBit} Nothing alarming yet, but it's the right time for some extra support at home before it compounds.`;
+  if(a.overallAvg>=80)return `${name} is performing strongly at ${a.overallAvg}%${a.trend==="improving"?", and still improving":""}.${longBit} Keep doing what's working — this is a good stage to add some stretch rather than more repetition.`;
+  if(a.trend==="improving")return `${name} is at ${a.overallAvg}% and moving in the right direction.${longBit} Keep the current routine going — consistency is what's paying off here.`;
+  return `${name} is holding steady at ${a.overallAvg}%. No red flags, but there's room to push further with focused practice.`;
+}
+// Split by who actually does the action — a parent reading "practice 30 min
+// daily" has no idea if that's meant for home or school. homePlan is what
+// the family can do; schoolPlan (Institution mode only) is what the
+// teacher/school is doing or recommending, merged from the old separate
+// Study Plan + Intervention Note (which frequently repeated each other).
+function generateHomePlan(st,longitudinal){
+  const name=st.name.split(" ")[0];
+  const{minVal,weakest,broad}=weakestSubjectsInfo(st);
+  const longBit=continuityNarrativeClause(longitudinal,"home");
+  if(!weakest.length||minVal>=70)return `Keep up the current routine — nothing specific needs fixing at home right now.${longBit}`;
+  if(broad)return `This week: struggling roughly evenly across every subject means there's no single fix — rotate, one subject per day (20–30 min), and spend that time on fundamentals rather than more practice volume. Trying to cover everything at once usually fixes nothing.`;
+  return `This week: 20–30 min/day on ${weakest.join(" and ")} specifically, not general revision. Have ${name} explain one solved problem out loud each day — that surfaces real gaps faster than more worksheets.`;
+}
+// TASK (Project Bible v2 §5, "What changed since last test" one-liner):
+// the doc suggested reusing subjectDeltas — checked it first and that
+// field is actually "this student's subject average vs the CLASS
+// average," computed in computeExtraInsights() in compute-engine.js. In
+// Individual mode there's no class to compare against, so that value is
+// always exactly 0 there — not usable for a last-test comparison, and
+// misleading even in institution mode (a 0 there means "average for the
+// class," not "no change since last test"). Computing the real
+// last-vs-previous-test delta fresh instead, straight from raw per-test
+// marks — same Math.min(mv,mx) clamping and maxMarks fallback
+// computeAnalysis() already uses per test, so the numbers agree.
+// TASK (Project Bible v2 §5, "Shareable single-insight image"): "Render
+// one insight card (e.g. the parent message + trend chart) to a
+// downloadable PNG via canvas, for sharing outside the app. Read-only
+// rendering of existing fields." No new computation — generateParentMessage,
+// generateWhatChangedSummary, and the already-rendered Chart.js trend
+// canvas are all reused as-is. Colors below are the hex values behind
+// this app's own --c-primary/--c-text/etc CSS variables (Canvas 2D can't
+// read CSS custom properties directly), kept in sync by hand — if the
+// palette in css/core.css's :root block ever changes, update here too.
+function wrapCanvasText(ctx,text,maxWidth){
+  const words=text.split(" ");
+  const lines=[];let line="";
+  words.forEach(w=>{
+    const test=line?line+" "+w:w;
+    if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=w;}
+    else line=test;
+  });
+  if(line)lines.push(line);
+  return lines;
+}
+function shareInsightAsImage(studentId){
+  const st=APP.students.find(s=>s.id===studentId);if(!st)return;
+  const a=st.analysis||{};
+  const srcChart=document.getElementById("bucket-chart-student-trend");
+  const W=800,PAD=40;
+  const measureCanvas=document.createElement("canvas");
+  const mctx=measureCanvas.getContext("2d");
+  const parentMsg=generateParentMessage(st,getStudentContinuityContext(st.id));
+  const whatChanged=generateWhatChangedSummary(st,getStudentContinuityContext(st.id));
+  mctx.font="15px Inter, sans-serif";
+  const msgLines=wrapCanvasText(mctx,parentMsg,W-PAD*2);
+  mctx.font="italic 13px Inter, sans-serif";
+  const changedLines=wrapCanvasText(mctx,whatChanged,W-PAD*2);
+  const headerH=90,nameH=66,msgH=msgLines.length*22+8,changedH=changedLines.length*19+24;
+  const chartAspect=(srcChart&&srcChart.width)?srcChart.height/srcChart.width:0.5;
+  const chartDrawH=srcChart?(W-PAD*2)*chartAspect:0;
+  const footerH=46;
+  const H=headerH+nameH+msgH+changedH+chartDrawH+footerH+PAD;
+  const canvas=document.createElement("canvas");
+  canvas.width=W;canvas.height=H;
+  const ctx=canvas.getContext("2d");
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,W,H);
+  ctx.fillStyle="#2b3a67";ctx.fillRect(0,0,W,headerH);
+  ctx.fillStyle="#ffffff";ctx.font="700 20px 'Source Serif 4', serif";ctx.textBaseline="alphabetic";
+  ctx.fillText("Student Insight — Progress Report",PAD,headerH/2-4);
+  ctx.font="12px Inter, sans-serif";ctx.fillStyle="rgba(255,255,255,.85)";
+  ctx.fillText(new Date().toLocaleDateString(bcp47TagFor(window.SR_LANG)),PAD,headerH/2+18);
+  let y=headerH+40;
+  ctx.fillStyle="#1a1d2e";ctx.font="700 24px 'Source Serif 4', serif";
+  ctx.fillText(st.name,PAD,y);
+  y+=28;
+  ctx.font="600 15px Inter, sans-serif";ctx.fillStyle="#5a607a";
+  ctx.fillText(`Overall: ${a.overallAvg}%  ·  Grade ${a.grade||"-"}  ·  Trend: ${a.trend||"-"}`,PAD,y);
+  y+=32;
+  ctx.font="15px Inter, sans-serif";ctx.fillStyle="#1a1d2e";
+  msgLines.forEach(l=>{ctx.fillText(l,PAD,y);y+=22;});
+  y+=10;
+  ctx.font="italic 13px Inter, sans-serif";ctx.fillStyle="#5a607a";
+  changedLines.forEach(l=>{ctx.fillText(l,PAD,y);y+=19;});
+  y+=18;
+  if(srcChart){
+    ctx.drawImage(srcChart,PAD,y,W-PAD*2,chartDrawH);
+    y+=chartDrawH+20;
+  }
+  ctx.strokeStyle="#e2e5f1";ctx.beginPath();ctx.moveTo(PAD,y);ctx.lineTo(W-PAD,y);ctx.stroke();
+  y+=22;
+  ctx.font="11px Inter, sans-serif";ctx.fillStyle="#9ba4c0";
+  ctx.fillText("Privacy-first, offline analysis — nothing in this report was ever uploaded anywhere.",PAD,y);
+  canvas.toBlob(function(blob){
+    if(!blob){toast(srT("toast_image_generate_failed"),"warn");return;}
+    const url=URL.createObjectURL(blob);
+    const dl=document.createElement("a");
+    dl.href=url;
+    dl.download=(st.name||"student").replace(/[^\w\s-]/g,"").replace(/\s+/g,"_")+"_progress_report.png";
+    document.body.appendChild(dl);dl.click();document.body.removeChild(dl);
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+    toast(srT("toast_image_downloaded_share"),"success");
+  },"image/png");
+}
+function generateWhatChangedSummary(st,longitudinal){
+  const a=st.analysis,name=st.name.split(" ")[0];
+  const tests=APP.setup.tests||[],subjects=APP.setup.subjects||[];
+  const validIdx=[];
+  (a.testAvgs||[]).forEach((v,i)=>{if(v!==null&&v!==undefined)validIdx.push(i);});
+  if(validIdx.length<2)return `Not enough test history yet to compare — need at least 2 scored tests (currently ${validIdx.length}).`;
+  const prevI=validIdx[validIdx.length-2],lastI=validIdx[validIdx.length-1];
+  const prevTest=tests[prevI],lastTest=tests[lastI];
+  const overallDelta=a.testAvgs[lastI]-a.testAvgs[prevI];
+  function subjPct(testIdx,subject){
+    const t=tests[testIdx],td=st.testData[t.name]||{marks:{}};
+    const m=td.marks[subject];if(m===null||m===undefined||m==="")return null;
+    const mx=(t.maxMarks&&t.maxMarks[subject])||100;
+    return Math.round((Math.min(parseFloat(m)||0,mx)/mx)*100);
+  }
+  let biggest=null;
+  subjects.forEach(s=>{
+    const p1=subjPct(prevI,s),p2=subjPct(lastI,s);
+    if(p1===null||p2===null)return;
+    const d=p2-p1;
+    if(!biggest||Math.abs(d)>Math.abs(biggest.d))biggest={subject:s,d};
+  });
+  const overallDir=overallDelta>0?"up":overallDelta<0?"down":"unchanged";
+  const overallBit=overallDelta===0?`stayed at ${a.testAvgs[lastI]}% overall`:`went ${overallDir} ${Math.abs(overallDelta)} point${Math.abs(overallDelta)===1?"":"s"} overall (${a.testAvgs[prevI]}% → ${a.testAvgs[lastI]}%)`;
+  const subjBit=(biggest&&biggest.d!==0)?`, mainly driven by ${biggest.subject} (${biggest.d>0?"+":""}${biggest.d})`:"";
+  const longBit=continuityNarrativeClause(longitudinal,"trend");
+  return `Since ${prevTest.name}, ${name} has ${overallBit}${subjBit}.${longBit}`;
+}
+function generateSchoolPlan(st,longitudinal){
+  const a=st.analysis;
+  const RISK_TYPES=["data-error","at-risk","first-below-pass","declining","sharp-drop","absent","volatile","burnout","data-gap"];
+  const riskFlags=(st.flags||[]).filter(f=>RISK_TYPES.includes(f.type));
+  if(!riskFlags.length)return null; // nothing to report — omit instead of padding with "no intervention needed"
+  const flags=riskFlags.map(f=>f.label).join(", ");
+  const longBit=continuityNarrativeClause(longitudinal,"plan");
+  return `Flags: ${flags}. `+(a.stressScore>=60?"High stress indicators — recommend a one-on-one check-in. ":"")+"Suggested: parent-teacher meeting, targeted practice material, close monitoring on the next test."+longBit;
+}
+
+/* ════ DASHBOARD ════ */
+function renderDataIssueBanner(){
+  const issues=APP.dataIssues||[];
+  const el=document.getElementById("data-issue-banner");
+  if(!el)return;
+  if(!issues.length){el.style.display="none";return;}
+  const rows=issues.map(i=>i.scaleMismatch?`<b>Possible scale mismatch:</b> ${esc(i.message)}`:`${esc(i.studentName)} — ${esc(i.subject)} (${esc(i.test)}): ${esc(i.message)}`).join("<br>");
+  el.innerHTML=`<b>⚠ Data quality issue${issues.length>1?"s":""} found (${issues.length}):</b> some mark cells couldn't be trusted as-is — see below. Please correct the source sheet and re-import. Export is disabled until these are fixed.<div style="max-height:220px;overflow-y:auto;margin-top:8px;padding-right:6px;border-top:1px solid #f5c6c1">${rows}</div>`;
+  el.style.display="block";
+}
+/* ════ SMART REVEAL — buckets(A) / filtered list(B) / full answer(C) ════
+   BUCKETS_SCOPE: Institution mode, non-Compare only. Compare Mode and
+   Individual mode fall straight through to the pre-existing full
+   renderDashboard() body (#legacy-dashboard-body) — the bucket model
+   ("My Whole Class" / "Who Needs Help" etc.) presumes a multi-student
+   class cohort, which doesn't apply to either of those modes. Revisit
+   if/when a Compare- or Individual-specific bucket set is designed.
+   Presentation-layer only — no new analytics; reuses st.analysis /
+   st.analysis.explainedWarnings / APP.classStats exactly as computed by
+   the existing engine. See BUILD spec student-insight-smart-reveal for
+   the full design decisions this implements. */
+
+// i18n discipline (PIB spec §4): every user-facing string here is a
+// tag-key lookup through srT(), never concatenated, even though only an
+// English table is populated now — this is Phase 5 scaffolding done
+// up-front rather than retrofitted later.
+// AUTO-SYNCED from i18n/en.json (root-cause fix for the raw-key-name bug —
+// see loadLanguage() below: this inline copy is what actually renders on
+// the very first synchronous paint, AND is the only thing that renders at
+// all when fetch(i18n/en.json) fails outright (e.g. opened as a local
+// file:// page — a first-class supported use case, see About §2 'A local
+// HTML file' — file:// blocks fetch() of sibling files in most browsers).
+// A hand-curated *subset* here silently drifts from en.json and reappears
+// as raw key names on screen the moment the fetch can't complete. Keep
+// this block and i18n/en.json in sync on every string change — regenerate
+// with: python3 scripts/sync-sr-strings-en.py (see that file).
+const SR_STRINGS_EN={
+  back:"← Back",
+  insights_nav_label:"Insights",
+  export_section_title:"Generate &amp; Export Reports",
+  bucket_all_good:"All good — no concerns here right now.",
+  bucket_back_to_dashboard:"← Insights",
+  bucket_class_desc:"Overall average, trend, and class-wide patterns",
+  bucket_class_label:"My Whole Class",
+  bucket_clusters_desc:"Cohort patterns found across average, consistency, trend and attendance",
+  bucket_clusters_label:"Performance Groups",
+  bucket_compare_report_desc:"One management-level PDF ranking every section side by side",
+  bucket_compare_report_label:"Section Comparison Report",
+  bucket_count_badge_one:"({{count}} found)",
+  bucket_count_badge_other:"({{count}} found)",
+  bucket_export_desc:"One click — everything, no choices to make",
+  bucket_export_label:"Export Reports",
+  bucket_help_desc:"Students who may need extra support",
+  bucket_help_label:"Who Needs Help",
+  bucket_persection_desc:"Student/Teacher/Management PDFs for one section at a time",
+  bucket_persection_label:"Per-Section Reports",
+  bucket_scholarship_desc:"Eligibility, awards, and scholarship reports",
+  bucket_scholarship_label:"Scholarship",
+  bucket_smart_desc:"Ask anything about this class in plain language",
+  bucket_smart_label:"Smart Search ✨",
+  bucket_student_desc:"Look up any student by name",
+  bucket_student_label:"One Student",
+  bucket_subject_desc:"See how the whole class did in one subject",
+  bucket_subject_label:"One Subject",
+  bucket_top_desc:"Highest scorers and most improved",
+  bucket_top_label:"Top Performers",
+  finding_top_rank:"{{student}} is ranked #{{rank}} in the class.",
+  home_hero_descriptor:"Turn your students' marks into actionable insight",
+  home_hero_sub:"Upload an Excel sheet. Get learning gaps, at-risk flags, and ready-to-share reports — instantly, privately, offline-capable.",
+  home_hero_title:"Every test cycle, the same rankings, the same remarks — starting from zero again.",
+  home_upload_sub:"Drop your class's filled Excel file below. Managing more than one section or batch? Drop 2 or more files at once — matching ones are compared automatically, and any that don't match still get their own individual analysis.",
+  home_upload_title:"Upload Your Filled Sheet",
+  individual_bucket_plan_desc:"What to focus on at home this week",
+  individual_bucket_plan_label:"Recommendations",
+  individual_bucket_report_desc:"Overall summary, trend and where things stand",
+  individual_bucket_report_label:"Progress Report",
+  individual_bucket_subjects_desc:"Test-by-test marks and subject breakdown",
+  individual_bucket_subjects_label:"Subjects & Marks",
+  individual_bucket_wellbeing_desc:"Stress and engagement signals",
+  individual_bucket_wellbeing_label:"Wellbeing",
+  scholarship_setup_title:"Scholarship Criteria",
+  scholarship_enable_label:"Enable Scholarship Module",
+  scholarship_scheme_name_label:"Scheme Name",
+  scholarship_scheme_name_placeholder:"e.g. Merit-cum-Need Scholarship 2025-26",
+  scholarship_scheme_name_invalid_chars:"Scheme Name contains characters that aren't allowed (< > { } `).",
+  scholarship_scheme_name_too_long:"Scheme Name must be {{max}} characters or fewer.",
+  scholarship_eligibility_type_label:"Eligibility Type",
+  scholarship_eligibility_type_select:"Select...",
+  scholarship_eligibility_merit_only:"Merit-only",
+  scholarship_eligibility_need_only:"Need-only",
+  scholarship_eligibility_merit_cum_need:"Merit-cum-Need",
+  scholarship_eligibility_category_based:"Category-based",
+  scholarship_eligibility_custom:"Custom",
+  scholarship_min_academic_avg_label:"Min Academic Avg %",
+  scholarship_max_family_income_label:"Max Family Income (INR)",
+  scholarship_no_fail_rule_label:"No-Fail Rule",
+  scholarship_yes:"Yes",
+  scholarship_no:"No",
+  scholarship_attendance_floor_label:"Attendance Floor - Max Absent Days (total across tests)",
+  scholarship_category_quota_label:"Category Quota %",
+  scholarship_category_quota_note:"Reference only — not auto-applied to ranking.",
+  scholarship_weightage_academic_label:"Weightage - Academic",
+  scholarship_weightage_consistency_label:"Weightage - Consistency",
+  scholarship_weightage_growth_label:"Weightage - Growth",
+  scholarship_weightage_sum_error:"Weightage - Academic, Consistency and Growth must add up to 100 (currently {{sum}}).",
+  scholarship_field_out_of_range:"Enter a value between {{min}} and {{max}}.",
+  scholarship_setup_fix_errors:"Fix the Scholarship Criteria errors above before continuing.",
+  scholarship_setup_saved_modal_title:"Scholarship module enabled",
+  scholarship_setup_saved_modal_desc:"Your scholarship criteria are saved — <strong>{{fname}}</strong> downloaded with a backup of the original. Fill in the sheet offline and re-upload it, or add student data directly from the Scholarship tab.",
+  scholarship_setup_saved_modal_close_btn:"Close",
+  scholarship_setup_update_download_btn:"Update and Download",
+  scholarship_required_error:"Scholarship Module is enabled — {{field}} is required.",
+  scholarship_dashboard_download_btn:"Download Report",
+  "scholarship.error_grid.missing_test_data":"Test scores are missing",
+  "scholarship.error_grid.missing_annual_family_income":"Annual family income is missing",
+  "scholarship.error_grid.missing_category":"Category is missing",
+  scholarship_edit_no_source_file:"Can't find the original workbook in memory for this session — please re-import the file, then try again.",
+  scholarship_edit_clone_failed:"Couldn't safely copy the original workbook in this browser — try a different browser or device.",
+  scholarship_log_data_error_toast:"Data issue: {{message}}",
+  scholarship_log_code_error_toast:"An issue was logged — download the debug log from the right panel to report it.",
+  scholarship_log_download_link:"Download debug log",
+  smart_v2_compare_link:"Compare two students",
+  smart_v2_chat_empty_hint:"Ask anything about this class or a student — e.g. \"which subject is weakest\" or \"who needs help\".",
+  smart_v2_send:"Ask",
+  smart_v2_deflection_hint:"Try one of the suggestions below",
+  smart_v2_input_placeholder:"Ask about this class or a student…",
+  smart_v2_legacy_link:"Prefer tap-to-ask? Open Classic Smart Search",
+  smart_v2_prefix_tip:"Tip: start with class- or student- (e.g. \"student- is Priya improving\") for a faster, more precise answer.",
+  student_picker_prompt:"Type a student's name to see their full report.",
+  subject_picker_prompt:"Pick a subject to see how the class did.",
+  home_dropzone_label:"Click to browse or drag & drop your filled Excel file(s)",
+  home_dropzone_hint:".xlsx / .xls · drop 2+ to compare sections (max 5) · never leaves your browser",
+  home_btn_run_analysis:"Run Analysis",
+  home_btn_try_sample:"Try Sample Data — No Download Needed",
+  home_btn_build_template:"Build Your Own Template",
+  dashboard_label_viewing:"Viewing:",
+  dashboard_individual_mode_note:"Each child/aspirant is tracked independently — this doesn't compare them to each other.",
+  dashboard_section_picker_note:"Pick a section for its full normal dashboard, or stay on \"Compare All\" for the cross-section view.",
+  dashboard_filter_all:"All",
+  dashboard_filter_atrisk:"At-Risk",
+  dashboard_filter_improving:"Improving",
+  dashboard_filter_declining:"Declining",
+  dashboard_filter_flagged:"Flagged",
+  dashboard_sort_rank:"Rank",
+  dashboard_sort_name:"Name",
+  dashboard_sort_risk:"Risk",
+  dashboard_tab_students:"Students",
+  dashboard_tab_analytics:"Analytics",
+  dashboard_tab_heatmap:"Heatmap",
+  dashboard_tab_alerts:"Alerts",
+  dashboard_tab_wellbeing:"Wellbeing",
+  dashboard_tab_insights:"Insights",
+  dashboard_chart_subject_avg:"Subject Averages",
+  dashboard_chart_class_trend:"Class Trend",
+  dashboard_chart_marks_vs_attendance:"Marks vs Attendance",
+  dashboard_individual_mode_charts_note:"Cross-student comparison charts (Marks vs Attendance, Top Performers) aren't shown in Individual mode — each child/aspirant is tracked on their own, not against others.",
+  dashboard_heatmap_title:"Performance Heatmap — Student × Subject",
+  dashboard_heatmap_legend_excellent:"Excellent ≥85%",
+  dashboard_heatmap_legend_good:"Good 70–84%",
+  dashboard_heatmap_legend_satisfactory:"Satisfactory 50–69%",
+  dashboard_heatmap_legend_needssupport:"Needs Support",
+  dashboard_alerts_title:"Early Warning Flags",
+  dashboard_wellbeing_title:"Class Wellbeing & Stress Indicators",
+  dashboard_insights_attendance_vs_perf:"Attendance vs. Performance",
+  dashboard_insights_subject_weakness:"Subject Weakness (Class-Wide)",
+  dashboard_insights_subject_correlation:"Subject Correlation",
+  export_whatgen_title:"What Gets Generated",
+  export_card_student_title:"Student Reports",
+  export_card_student_desc:"Individual academic summaries highlighting strengths, learning gaps and suggested improvement areas.",
+  export_card_teacher_title:"Teacher Report",
+  export_card_teacher_desc:"Comprehensive overview of class performance, trends, subject analysis and recommendations.",
+  export_card_mgmt_title:"Management Report",
+  export_card_mgmt_desc:"Executive summary of key academic indicators and performance highlights.",
+  export_card_zip_title:"ZIP Bundle",
+  export_card_zip_desc:"All reports in a single download — ready to save or share with authorised stakeholders.",
+  export_options_title:"Export Options",
+  export_label_student_pdfs:"Student PDFs",
+  export_section_comparison_title:"Section Comparison Report",
+  export_section_comparison_desc:"One management-level PDF ranking every section side by side, with subject-wise averages — separate from each section's own reports below. If your section labels span multiple classes (e.g. \"Class 7 - C\", \"Class 8 - A\"), an executive summary with a Class × Section grid, school-wide weak subjects and flagged sections is automatically added at the front.",
+  export_btn_download_comparison:"Download Comparison Report (PDF)",
+  export_per_section_title:"Per-Section Reports",
+  export_per_section_desc:"Generates the normal Student/Teacher/Management PDFs (per the options above) for one section at a time — each downloads as its own ZIP.",
+  export_btn_selected_section:"Export Selected Section",
+  export_btn_all_sections:"Export All Sections (one ZIP each)",
+  export_generating_pdfs:"Generating PDFs…",
+  footer_license_mit:"MIT",
+  footer_powered_by:"Powered by",
+  footer_tagline:"— Open Source · Contact: ",
+  doc_title:"Student Insight — Privacy-first Student Analytics",
+  dashboard_search_student_placeholder:"Search student…",
+  dashboard_aria_sections:"Dashboard sections",
+  home_hero_position:"Not a school management system or an app to sign up for — no accounts, no data upload, works the moment you open it.",
+  home_trust_badge:"Privacy First • Browser Based • No Student Data Uploaded ▾",
+  home_trust_detail:"Nothing to comply with, because nothing is transmitted — all computation happens on the device, marks and names never leave the browser, there's no server to breach.",
+  lang_ai_disclosure_notice:"These language translations were done using AI. If any words or sentences seem meaningless or incorrectly translated, please reach out to sandeep@hakki.in with details of the change needed, and we will get it corrected.",
+  country_sample_names_notice_title:"About the sample names",
+  country_sample_names_notice:"The student names in the sample files are Indian names, used only to demonstrate how the app works. They're not meant to represent students in your country — once you upload your own file, your own students' names are used everywhere instead.",
+  locked_compare_title:"Compare is a Pro feature",
+  locked_compare_desc:"Compare puts two or more sections side by side — rankings, subject averages, and the gap between them in one view. It helps you spot which section or teacher needs support, and compare performance fairly across the school.",
+  locked_scholarship_title:"Scholarship is a Pro feature",
+  locked_scholarship_desc:"Scholarship automatically checks every student's marks and attendance against your award criteria and builds a shortlist. It saves hours of manual work each scholarship season and keeps the process consistent and defensible.",
+  locked_smartsearch_title:"Smart Search is a Pro feature",
+  locked_smartsearch_desc:"Smart Search answers plain questions about your class or any student — like \"who needs help\" or \"which subject is weakest\" — instantly, backed by your real data. It helps you spot issues and prep for parent meetings in seconds.",
+  locked_reports_title:"Reports is a Pro feature",
+  locked_reports_desc:"Reports generates polished, ready-to-share PDF report cards for students, teachers, and management in one click. It saves the time of building report cards by hand and gives every student a consistent, professional document.",
+  locked_modal_contact_intro:"Want this unlocked for your institution? Reach out directly:",
+  flag_label_missing:"⚠ Missing: {{subjects}}",
+  finding_rank_moved_up:"{{name}} has moved up in class rank since the last test.",
+  finding_competitive_readiness:"{{name}} is showing high competitive readiness at {{pct}}%.",
+  finding_wellbeing_checkin:"{{name}}'s stress/wellbeing indicators are {{level}} right now — worth a check-in.",
+  flag_reason_absent:"Total absences of {{days}} days across test periods exceeds the alert threshold. Missed lessons may be impacting performance significantly.",
+  flag_chapter_suffix:" · Chapter: {{chapter}}",
+  finding_competitive_high:"Competitive readiness: High.",
+  lang_locked_during_analysis:"Language is locked on this screen to avoid re-rendering it mid-task — switch from Home instead.",
+  flag_reason_declining:"Trend is declining across {{count}} tests ({{start}}% → {{end}}%). Investigate root causes and increase personalised support.",
+  flag_reason_sharp_drop:"A sharp performance drop was detected between tests. Check for health issues, external factors, or learning gaps in specific subjects.",
+  flag_reason_at_risk:"{{name}} scored {{pct}}%, below the pass threshold of {{threshold}}%. Immediate academic support is recommended.",
+  flag_reason_resilient:"{{name}} recovered well after a performance dip — a strong resilience indicator.",
+  flag_reason_volatile:"High score variance detected. {{name}} performs inconsistently — may indicate test anxiety, inconsistent preparation, or external disruptions.",
+  finding_summary_line:"Overall: {{avg}}% · Rank #{{rank}} · Trend: {{trend}}",
+  flag_reason_plateau:"Scores remain flat (within {{range}}%) across {{count}} tests. Stagnation suggests the current teaching approach may need variation.",
+  finding_ranked_num:"Ranked #{{rank}} in the class.",
+  finding_progress_trend_title:"Progress Trend",
+  finding_rank_slipped:"{{name}} has slipped in class rank since the last test.",
+  flag_reason_burnout:"{{name}} started strong ({{start}}%) but has declined by {{drop}}%. This pattern suggests burnout — consider reducing pressure and restoring motivation.",
+  flag_reason_data_gap:"No marks were found for {{subjects}} across any test. Confirm whether {{name}} genuinely didn't sit these, or whether the source sheet is missing entries.",
+  flag_reason_first_below_pass:"{{name}} passed every prior test but fell below the {{threshold}}% pass threshold on the most recent one ({{pct}}%). Worth checking in now, before it becomes a pattern.",
+  finding_wellbeing_check:"Wellbeing check: {{level}} stress indicators.",
+  flag_badge_data_error:"⚠ Data Error",
+  flag_badge_at_risk:"At Risk",
+  flag_badge_outlier_high:"Outlier (High)",
+  flag_badge_outlier_low:"Outlier (Low)",
+  flag_badge_first_below_pass:"First Time Below Pass",
+  flag_badge_declining:"Declining",
+  flag_badge_improving:"Improving",
+  flag_badge_sharp_drop:"Sharp Drop",
+  flag_badge_high_absence:"High Absence",
+  flag_badge_volatile:"Volatile",
+  flag_badge_burnout_risk:"Burnout Risk",
+  flag_badge_resilient:"Resilient",
+  flag_badge_plateau:"Plateau",
+  readme_title:"Student Insight — How this workbook is organised",
+  readme_setup_tab:"SETUP — institution, class, subjects, tests, and scoring settings. Edit here if anything needs to change.",
+  readme_students_tab:"STUDENTS — your class roster. Student ID is required; Full Name is optional (the ID is shown instead if left blank); Gender is required (M or F).",
+  readme_test_tabs:"One tab per test — each test/exam gets its own tab, named after the test. Fill marks, absences, chapter (optional), and remarks there.",
+  readme_add_test:"Adding a new test later: go to Setup -> Update Existing Template -> upload this file -> add the new test -> re-download.",
+  readme_add_test_note:"A new tab is added for the new test; every existing tab and its marks are kept exactly as they are. Student ID is now pre-filled automatically in the new tab, pulled live from the STUDENTS tab — don't type over column A.",
+  toast_existing_sheet_loaded:"Existing sheet loaded — add your new test, then click Update & Download.",
+  toast_merge_cancelled:"Merge cancelled — back to a fresh template.",
+  merge_fork_title:"Adding another test, or a new class/semester?",
+  merge_fork_desc:"You're updating <b>{{fileName}}</b>. Pick one — this only asks once, right now.",
+  merge_fork_add_test_label:"Add a test",
+  merge_fork_add_test_desc:"Same class/semester as this file — you're just adding another test tab (Unit Test 2, Mid-Term, etc).",
+  merge_fork_new_period_label:"Start a new class/semester",
+  merge_fork_new_period_desc:"Students moving on (e.g. Class 5 -> Class 6, Semester 1 -> Semester 2). Keeps every prior period's marks untouched and adds this as a new one alongside them.",
+  merge_fork_new_period_banner:"Loaded <b>{{fileName}}</b> — <b>{{count}}</b> student(s) on the prior roster. Update the Class/Batch (and Subjects/Tests if they've changed) below for the NEW class/semester, then use <b>Update & Download</b>.",
+  merge_fork_confirm_title:"Review before downloading",
+  merge_fork_confirm_desc:"Nothing has been saved yet. Every prior period's tabs are copied through unchanged — only the new period's blank test tab(s) are added.",
+  merge_fork_period_count:"Periods (total)",
+  merge_fork_new_period_is:"New period:",
+  merge_fork_new_joiners_note:"New students joining this period aren't added here — add their rows directly to the STUDENTS tab in the downloaded file.",
+  merge_review_title:"Review before downloading",
+  merge_review_desc:"Nothing has been saved yet. Every existing tab is copied through unchanged — only new blank test tab(s) are added. Check this matches what you expected, then confirm.",
+  merge_students_on_roster:"Students on roster",
+  merge_tabs_label:"Tabs",
+  merge_new_test_tabs_being_added:"New test tab(s) being added:",
+  merge_kept_unchanged:"Kept unchanged:",
+  merge_no_prior_test_tabs:"(no prior test tabs)",
+  merge_added_new:"Added new:",
+  merge_will_save_as:"Will save as:",
+  merge_will_save_as_with_backup:"Two files will download: a backup of the file as it was before this update, then the updated file itself (same name as your original, so it's a clean drop-in replacement):",
+  merge_will_save_as_zip_with_backup:"Will save one ZIP containing your backup and the updated file:",
+  btn_cancel:"Cancel",
+  btn_continue_anyway:"Continue Anyway", // added (P3 #19, English-only this pass — not yet in other 12 locale JSON files)
+  btn_confirm_download:"Confirm & Download",
+  toast_updated_file_downloaded:"Updated file downloaded: {{fname}} — {{count}} student(s) kept as-is, added {{newCount}} new test tab(s).",
+  toast_template_downloaded:"Template downloaded: {{fname}}",
+  post_download_title:"Download complete",
+  post_download_desc:"Would you like to go to Home now (this clears the form), or stay here in case you need to revisit and correct anything before generating the file again?",
+  btn_go_home:"Go to Home",
+  btn_stay_here:"Stay Here",
+  merge_banner_loaded:"Loaded <b>{{fileName}}</b> — <b>{{count}}</b> student(s) on the roster, existing test tab(s): <b>{{tests}}</b>. Now click <b>✚ Add Test</b> below for the new test, then use",
+  merge_update_download:"Update & Download",
+  merge_banner_tail:"above. Every existing tab is kept exactly as-is — you'll get a summary to review before anything downloads.",
+  toast_import_cancelled:"Import cancelled — session mode unchanged.",
+  db_progress_dashboard:"Progress Dashboard",
+  db_class_dashboard:"Class Dashboard",
+  db_academic_year_suffix:"{{year}} Academic Year",
+  db_mentor_prefix:"Mentor: {{name}}",
+  db_teacher_prefix:"Teacher: {{name}}",
+  kpi_average:"Average",
+  kpi_grade:"Grade",
+  kpi_trend:"Trend",
+  kpi_met_target:"Met Target",
+  kpi_target_suffix:"Target {{pct}}%",
+  kpi_health_score:"Health Score",
+  kpi_total_students:"Total Students",
+  kpi_class_avg:"Class Avg",
+  kpi_pass_rate:"Pass Rate",
+  kpi_x_of_y:"{{x}} of {{y}}",
+  kpi_class_topper:"Class Topper",
+  card_subject_performance:"Subject Performance",
+  card_performance_heatmap:"Performance Heatmap — Student × Subject",
+  card_subject_averages:"Subject Averages",
+  card_class_trend:"Class Trend",
+  card_class_avg_pct:"Class Avg %",
+  card_total_absences:"Total Absences",
+  card_average_pct:"Average %",
+  sample_1_desc:"Coaching centre example — multiple tests for a competitive-exam batch.",
+  sample_2_desc:"College example — subject-wise marks for a lecturer's class.",
+  sample_3_desc:"Higher-ed example — multi-subject, multi-test data for a masters cohort.",
+  sample_4_desc:"School example — a full class's marks as filled by a class teacher.",
+  sample_5_desc:"Individual mode example — one Class 6 child in one workbook, the one-workbook-per-child pattern.",
+  sample_6_desc:"Individual mode example — one aspirant's own UPSC CSE prep, marks on a 200-point scale.",
+  sample_7_desc:"Compare Sections example (1 of 3) — or use \"Try All 3 Together\" below to see a management-style side-by-side comparison across sections instantly.",
+  sample_8_desc:"Compare Sections example (2 of 3) — same Class 7, same Subjects/Tests/Max Marks as Sample 3 & 5, different section.",
+  sample_9_desc:"Compare Sections example (3 of 3) — same Class 7, same Subjects/Tests/Max Marks as Sample 3 & 4, different section.",
+  sample_10_desc:"See how Student Insight holds up at real institutional scale — a full academic year (10 monthly exams) for a 100-student class, not a small demo class.",
+  sample_11_desc:"Pre-primary example — developmental-area assessments (Language, Numeracy, Motor Skills...) instead of academic subjects.",
+  sample_12_desc:"Board-exam-year example — Class 10 with Unit Tests, Mid-Term and a Pre-Board.",
+  sample_13_desc:"11th-12th (PUC) example — Science PCMB stream with board-style Preparatory Exams.",
+  sample_14_desc:"Plain undergraduate example — Internal Assessments plus a Semester End Exam.",
+  sample_15_desc:"Multi-period example — one CSE cohort tracked across 5 semesters, roster joiners/leavers, opens the Continuity tab.",
+  sample_16_desc:"School example with the Scholarship module enabled — family income, category, guardian occupation and prior scholarship status feed the Merit-cum-Need eligibility engine.",
+  badge_compare_set:"Compare Set",
+  btn_try_now:"Try Now",
+  title_download_to_device:"Download to your device instead",
+  compare_demo_want_full:"Want the full Compare demo?",
+  compare_demo_run_together:"Run Samples 1, 2 & 3 together as one side-by-side section comparison.",
+  btn_try_all_3:"Try All 3 Together",
+  modal_sample_files_title:"Sample Files",
+  modal_sample_files_desc:"Try Now runs a sample straight through analysis — nothing downloads to your device. Prefer a local copy to inspect the formatting? Use the download icon instead.",
+  wb_stress_level:"Stress Level",
+  wb_disclaimer:"Built from absence frequency and performance trend only — not a certified wellbeing assessment",
+  wb_stress_score:"Stress Score",
+  wb_absences:"Absences",
+  wb_high_stress:"High Stress",
+  wb_low_stress:"Low Stress",
+  wb_avg_stress_score:"Avg Stress Score",
+  th_subject:"Subject",
+  th_class_average:"Class Average",
+  th_pct_below_pass:"% Below Pass Threshold",
+  card_class_avg:"Class Avg",
+  detail_rank_percentile:" · Rank #{{rank}} of {{total}} · {{pct}}th percentile (better than {{pct}}% of classmates — not a % score)",
+  detail_rank_only:" · Rank #{{rank}} of {{total}}",
+  rank_hash_only:"Rank #{{rank}}",
+  rank_movement_up_tip:"Moved up {{n}} place(s) since the previous test",
+  rank_movement_down_tip:"Moved down {{n}} place(s) since the previous test",
+  rank_movement_none_tip:"No change in rank since the previous test",
+  detail_rank_points_diff:" · {{points}} points {{dir}} the class average of {{avg}}%",
+  detail_id_grade:"ID: {{id}} · Grade: {{grade}}",
+  detail_id_standing_grade:"ID: {{id}}{{standing}} · Grade: {{grade}}",
+  detail_overall_avg:"Overall Avg",
+  detail_stress_tip:"Estimated from absences + score trend only — not a certified wellbeing or psychological assessment",
+  detail_stress_label:"Stress ⓘ",
+  th_test:"Test",
+  th_total:"Total",
+  th_avg:"Avg",
+  th_absent:"Absent",
+  th_remark:"Remark",
+  detail_total_formula_note:"Total = scored/max marks across subjects opted for that test.",
+  detail_health_score_tip:"App-defined 0–100 blend: 40% Academic + 20% Consistency + 20% Trend + 20% Engagement — not a published or clinical formula",
+  detail_health_score_breakdown:"Academics 40% · Consistency 20% · Trend 20% · Engagement 20%",
+  detail_alerts_explanations:"Alerts & Explanations",
+  detail_flags_label:"Flags",
+  detail_consistency:"Consistency",
+  detail_growth_rate:"Growth Rate",
+  detail_engagement_tip:"Estimated from attendance + score trend only — the app cannot directly measure classroom participation",
+  detail_engagement_label:"Engagement ⓘ",
+  detail_ew_score:"EW Score",
+  detail_competitive:"Competitive",
+  detail_topper_gap:"Topper Gap",
+  narrative_bottom_line:"The Bottom Line",
+  narrative_strengths_note:"Strengths note",
+  narrative_home_plan:"Home plan",
+  narrative_school_plan:"School plan",
+  toast_field_saved_for:"{{field}} saved for {{name}}.",
+  narrative_field_default:"Field",
+  remark_tone_tip:"Tone auto-detected from remark keywords — a light heuristic, not a guarantee",
+  toast_remark_saved_for:"Remark saved for {{name}} — {{test}}.",
+  toast_updated_sheet_downloaded:"Updated sheet downloaded: {{fname}}",
+  loading_reading_file:"Reading uploaded file…",
+  loading_parsing_records:"Parsing student records…",
+  loading_computing_marks:"Computing marks & percentages…",
+  loading_trend_detection:"Running trend detection…",
+  loading_percentile_ranks:"Calculating percentile ranks…",
+  loading_detecting_support:"Detecting students requiring support…",
+  loading_sentiment_analysis:"Sentiment analysis on remarks…",
+  loading_stress_wellbeing:"Running stress & wellbeing scoring…",
+  loading_ai_insights:"Generating AI-assisted insights…",
+  loading_next_test_trajectory:"Estimating next-test trajectory…",
+  loading_finalising:"Finalising academic insights…",
+  toast_analysis_complete:"Analysis complete - {{n}} students processed.",
+  toast_analysis_complete_one:"Analysis complete - {{n}} student processed.",
+  toast_analysis_complete_other:"Analysis complete - {{n}} students processed.",
+  toast_bulk_templates_downloaded:"Downloaded {{n}} section templates in {{fname}}.",
+  bucket_gender_unrecognized_count:"{{n}} student(s) have a Gender value that wasn't recognized (expected M/F/Male/Female/Boy/Girl) and were left out of this comparison.",
+  smart_keep_an_eye:"Keep an eye on this — not urgent, but worth noting.",
+  smart_worth_supportive_conv:"Worth a supportive conversation soon — academics aside.",
+  smart_no_particular_concern:"No particular concern at this time.",
+  bucket_cross_compare_title:"Compare Students Across Sections",
+  bucket_cross_compare_desc:"Pick one student from any two sections and compare them side-by-side",
+  continuity_roster_change:"Roster change",
+  continuity_needs_2_periods:"Needs at least 2 recorded periods to project.",
+  continuity_low_confidence:"Low confidence — only 2 periods on record",
+  continuity_trend_available:"Trend available (subject continued)",
+  continuity_cohort_avg_pct:"Cohort Avg %",
+  continuity_roster_change_from_to:"Roster change: {{from}} → {{to}}",
+  continuity_roster_change_first:"Roster change (first period on record)",
+  continuity_subjects_in:"Subjects in {{period}}",
+  continuity_carried_over:"Carried over from last period",
+  continuity_new_this_period:"New this period",
+  continuity_discontinued:"Discontinued from last period",
+  sdeck_show_full_dashboard:"Show full dashboard",
+  sdeck_next:"Next",
+  sdeck_skip_full_dashboard:"Skip to full dashboard",
+  sdeck_story_so_far:"The story so far",
+  sdeck_best_result_so_far:"Best result so far:",
+  sdeck_toughest_test:"Toughest test:",
+  sdeck_no_test_comparison:"No test-to-test comparison available yet.",
+  sdeck_no_subject_breakdown:"No subject breakdown available yet.",
+  sdeck_strongest:"Strongest:",
+  sdeck_needs_most_attention:"Needs the most attention:",
+  sdeck_what_to_do_next:"What to do next",
+  sdeck_class_average_across:"Class average across {{n}}",
+  sdeck_median_pct:"students. Median {{median}}%.",
+  sdeck_standard_deviation:"Standard deviation:",
+  sdeck_wide_spread:"a fairly wide spread across the class.",
+  sdeck_tight_spread:"a fairly tight spread across the class.",
+  sdeck_where_gaps_are:"Where the gaps are",
+  sdeck_no_subject_level_data:"No subject-level data yet.",
+  sdeck_pct_below_pass:"{{pct}}% of the class is below the pass threshold.",
+  sdeck_who_needs_help:"Who needs help",
+  sdeck_students_flagged:"{{n}} student(s) currently flagged",
+  sdeck_no_one_flagged:"No one is currently flagged — nothing urgent to review right now.",
+  sdeck_why_flagged:"Why they're flagged",
+  sdeck_flags_explanation:"Flags come from a mix of signals — low averages, sharp drops between tests, or repeated near-fails in a specific subject. Open a student below for their individual detail.",
+  sdeck_top_performers:"Top performers",
+  sdeck_no_standout_performers:"No standout performers to show yet.",
+  btn_select_all:"Select All",
+  btn_unselect_all:"Unselect All",
+  db_academic_year:"Academic Year",
+  btn_refresh_now:"Refresh now",
+  btn_later:"Later",
+  aria_dismiss_update_notice:"Dismiss update notice",
+  bucket_compare_label:"Compare Two Students",
+  bucket_compare_desc:"Side-by-side stats for any two students in this class",
+  compare_students_hint:"Pick any two students from this class — comparison only ever uses this same roster, so it's always apples-to-apples.",
+  compare_select_student_a:"Select student A…",
+  compare_select_student_b:"Select student B…",
+  compare_apples_to_apples_note:"Same class, same subjects, same tests, same max marks — this comparison is always apples-to-apples. Highlighted cell = better on that row.",
+  cluster_groups_hint:"Found by grouping students on average, consistency, trend and attendance together — not a single-number ranking. Groups only appear once a class is large enough (30+) for the pattern to be meaningful.",
+  cluster_group_averages_line:"Group averages: {{avg}}% overall, trend {{trend}} pts/test, {{absence}} absence days per test.",
+  cluster_group_summary_line:"{{label}} — {{shown}} of {{total}} students. Group averages: {{avg}}% overall, consistency score {{consistency}}, trend {{trend}} pts/test, {{absence}} absence days per test.",
+  bucket_continuity_label:"Continuity",
+  bucket_continuity_desc:"Cohort trends across periods/semesters",
+  bucket_wellbeing_title:"Wellbeing — {{name}}",
+  bucket_wellbeing_flag_line:"Wellbeing flag: {{flag}} (stress score {{score}}/100).",
+  bucket_viewing_sample_data:"You're viewing sample data.",
+  bucket_sample_data_desc:"This is a demo — head to Home whenever you're ready to import your own class's marks.",
+  th_rank:"Rank",
+  bucket_class_avg_in_subject:"Class average in {{subject}}: {{avg}}%. {{pct}}% of students are below the pass mark.",
+  bucket_subject_distribution:"{{subject}} — Distribution",
+  bucket_class_avg_median_range:"Class average: {{mean}}% (median {{median}}%). Range: {{min}}%–{{max}}%.",
+  bucket_weakest_subject_classwide:"Weakest subject class-wide: {{subject}} — class average {{avg}}%, {{pct}}% of students below the pass mark.",
+  bucket_attendance_correlation:"Students with no absences average {{a}}% vs {{b}}% for those with some absence.",
+  bucket_gender_comparison_available:"A gender comparison is available in the full dashboard's Class Insights tab.",
+  bucket_count_badge:"{{count}}",
+  home_strip_privacy:"No data ever uploaded",
+  home_strip_languages:"13 languages",
+  home_strip_autodetect:"Auto-detects subjects & tests",
+  home_strip_scale:"Works for one class or many",
+  home_preview_label:"What you'll see — sample preview",
+  home_preview_avg:"class average",
+  home_preview_atrisk:"at-risk flags",
+  home_preview_top:"top performer",
+  feature_flags_default_info:"Tip: add Feature_Scholarship / Feature_Compare / Feature_SmartSearch / Feature_Reports rows to your SETUP tab to control these features directly (Yes = on, anything else = off). By default these are locked, Pro-only features — contact Sandeep@hakki.in or sandeephakki@gmail.com to unlock them for your institution.",
+  toast_global_error_reload:"Something went wrong and the app couldn't continue. Your data was never saved, so nothing is lost beyond needing to re-upload — please reload and try again.",
+  toast_image_generate_failed:"Couldn't generate the image — try again.",
+  toast_image_downloaded_share:"Image downloaded — ready to share.",
+  toast_language_load_failed:"Couldn't load that language — staying on {{lang}}.",
+  toast_no_data_loaded:"No data loaded.",
+  toast_workbook_not_found_reimport:"Can't find the original workbook in memory for this session — please re-import the file, then try again.",
+  toast_workbook_copy_failed:"Couldn't safely copy the original workbook in this browser — try a different browser or device.",
+  toast_all_ai_features_selected:"All {{count}} AI features selected.",
+  btn_ask:"Ask",
+  btn_clear:"Clear",
+  btn_close:"Close",
+  btn_download_updated_sheet:"Download Updated Sheet",
+  btn_save:"Save",
+  bucket_no_student_data_yet:"No student data yet",
+  bucket_subjects_marks_title:"Subjects & Marks — {{name}}",
+  card_class_trend_over_tests:"Class Trend Over Tests",
+  card_progress_trend:"Progress Trend",
+  card_subject_breakdown:"Subject Breakdown",
+  btn_dismiss:"Dismiss",
+  card_target_next_test:"Target for Next Test",
+  kpi_best_test:"Best Test",
+  kpi_weakest_test:"Weakest Test",
+  th_subjects:"Subjects",
+  continuity_cohort_avg_title:"Cohort average % across periods",
+  smart_search_ai_tooltip:"AI feature — development in progress",
+  smart_search_back:"Back to Insights",
+  smart_search_coming_soon:"Coming soon",
+  smart_search_empty_sub:"This section needs a bit more data before questions become available here.",
+  smart_search_empty_title:"Nothing to ask yet",
+  smart_search_load_error:"Couldn't load Smart Search. Check your connection and try again.",
+  smart_search_select_first:"Select a student first.",
+  smart_search_select_student:"Select a student…",
+  smart_search_student_label:"Student",
+  smart_search_subtitle:"Tap a question for a plain-language answer, computed from this class's data. Nothing here is sent anywhere — calculated on your device, same as the rest of the app.",
+  smart_search_title:"Smart Search",
+  smart_search_pro_notice:"Smart Search feature is coming in StudIn Pro.",
+  smart_no_distribution_data:"No distribution data available yet.",
+  smart_note_below_threshold_high:"More than a fifth of the class is below pass threshold — worth flagging as a class-wide priority, not just individual cases.",
+  smart_note_excelling_high:"Over half the class is excelling — consider stretch material to keep them engaged.",
+  smart_enable_diversity_feature:"Enable the Diversity Analysis AI feature to see this.",
+  smart_close_to_top:"Very close to the top — small, consistent gains could close this gap.",
+  smart_distribution_note_below:"{{count}} student(s) are below the pass threshold and may need targeted support.",
+  smart_distribution_note_none_below:"Nobody is currently below the pass threshold.",
+  smart_attendance_note_matters:"Attendance looks like it's playing a real role here — worth reinforcing regular attendance.",
+  smart_attendance_note_no_clear_link:"No clear attendance-linked pattern in this comparison.",
+  smart_keep_reinforcing:"Keep reinforcing what's working.",
+  smart_performance_stable:"Performance is stable — fine unless a change is expected soon.",
+  smart_projection_below_threshold:"This projection is below the pass threshold — worth early attention.",
+  smart_very_steady:"Very steady — a reliable performer test to test.",
+  smart_reasonably_steady:"Reasonably steady, with some fluctuation.",
+  smart_quite_volatile:"Quite volatile — investigating what's causing the swings may help more than more content.",
+  smart_not_enough_subject_data:"Not enough subject data for this student yet.",
+  smart_spread_evenly:"This is spread evenly rather than one weak spot — a broader support plan may help more than single-subject tutoring.",
+  smart_question_not_available:"That question isn't available yet.",
+  smart_question_not_in_bank:"That question isn't in the current question bank.",
+  smart_needs_ai_feature:"This needs an AI feature that isn't enabled — turn it on from the AI panel first.",
+  smart_not_enough_data:"Not enough data yet to answer this.",
+  smart_select_student_first:"Select a student first.",
+  smart_moderate_gap:"A moderate gap — steady improvement in weaker subjects should narrow this.",
+  smart_significant_gap:"A significant gap — worth a focused improvement plan rather than broad effort.",
+  smart_worth_checkin:"Worth a check-in before this becomes a pattern.",
+  smart_needs_2_tests_project:"Needs at least 2 tests recorded to project a next score.",
+  smart_subjects_are:"subjects are",
+  smart_subject_is:"subject is",
+  smart_no_subject_comparison_data:"No subject comparison data available yet.",
+  smart_needs_2_tests_rank:"Needs at least 2 tests recorded to compare rank movement.",
+  smart_moved_up:"moved up",
+  smart_moved_down:"moved down",
+  smart_not_changed:"not changed",
+  smart_nothing_to_report:"Nothing to report here yet — needs more data.",
+  smart_question_bank_not_loaded:"Question bank not loaded yet.",
+  smart_ask_placeholder:"Ask about this class…",
+  smart_question_bank_not_loaded_retry:"Question bank isn't loaded yet — try again in a moment.",
+  smart_query_not_available_page:"Smart Query isn't available on this page.",
+  smart_ambiguous_student:"I found more than one student matching \"{{names}}\" — which one did you mean?",
+  smart_name_count_one:"Found 1 student matching \"{{token}}\": {{names}}.",
+  smart_name_count_many:"Found {{n}} students matching \"{{token}}\": {{names}}.",
+  smart_which_student_prompt:"Which student would you like to ask about? Type their name and try again.",
+  smart_ask_a_question:"Ask a question",
+  smart_empty_example:"Type a question below — e.g. \"which subject is weakest\" or \"any students at risk\".",
+  smart_launcher_title:"Ask a question about this class",
+  val_file_already_uploaded_compare:"{{fname}} was already uploaded for this comparison. Remove it first if you want to re-add it.",
+  val_error_reading_named:"Error reading {{fname}}: {{msg}}",
+  val_could_not_read_named:"Could not read {{fname}}.",
+  val_couldnt_detect_subjects_setup:"Couldn't detect any Subjects from its SETUP tab.",
+  val_couldnt_detect_tests_setup:"Couldn't detect any Tests from its SETUP tab.",
+  val_no_student_rows_setup:"No student rows found in its STUDENTS tab.",
+  val_section_list_changed:"Section list changed — previous comparison cleared. Run Comparison Analysis again.",
+  th_class:"Class",
+  title_click_to_open:"Click to open {{label}}",
+  bucket_compare_sections_title:"Compare Sections",
+  card_subject_wise_comparison:"Subject-wise Comparison (per test, per section)",
+  card_all_students_ranking_title:"All Students — Class-wide Ranking",
+  card_all_students_ranking_hint:"Every student across every compared section, ranked class-wide (bold, first column) — this is the true topper ranking. Section Rank only reflects standing within that one section's own roster.",
+  bucket_cross_compare_hint:"Pick a student for any two or more sections below — they don't need to be from the same section, or even share the exact same subjects.",
+  val_select_student:"Select student…",
+  val_pick_at_least_two:"Pick a student for at least 2 sections to compare.",
+  val_cross_compare_footnote:"Highlighted cell = best on that row. A subject only some of the picked students' sections have shows \"—\" for the rest.",
+  val_run_comparison_first:"Run Comparison Analysis first.",
+  pdf_section_comparison_header:"Student Insight  |  Section Comparison Report",
+  pdf_exec_summary_all:"Executive Summary — All Classes & Sections",
+  pdf_exec_summary:"Executive Summary",
+  pdf_school_avg:"School Avg",
+  pdf_pass_rate:"Pass Rate",
+  pdf_total_at_risk:"Total At-Risk",
+  pdf_best_class:"Best Class",
+  pdf_sections:"Sections",
+  pdf_top_section:"Top Section",
+  toast_comparison_report_downloaded:"Comparison report downloaded: {{fname}}",
+  card_weakest_subjects_compared:"Weakest Subjects (across compared sections)",
+  pdf_school_wide_weakest:"School-wide Weakest Subjects",
+  card_averaged_across_sections:"Averaged across every compared section, weighted by student count.",
+  th_class_rank:"Class Rank",
+  th_section:"Section",
+  th_section_rank:"Section Rank",
+  th_student:"Student",
+  th_score:"Score",
+  toast_compare_no_valid_files:"No valid files to analyse — check the errors above.",
+  toast_compare_pick_section_export:"Pick a section to export.",
+  toast_compare_no_sections_to_export:"No analysed sections to export.",
+  toast_compare_fix_data_issues:"Fix the data quality issue(s) in {{labels}} before exporting the comparison report.",
+  compare_no_valid_files_left:"No valid files left",
+  compare_drop_another_file:"Drop another Student Insight file below.",
+  compare_section_label_aria:"Section label for {{file}}",
+  compare_section_label_placeholder:"Section label",
+  kpi_school_avg:"School Avg",
+  kpi_school_pass_rate:"School Pass Rate",
+  kpi_total_at_risk:"Total At-Risk",
+  kpi_sections_compared:"Sections Compared",
+  kpi_top_section:"Top Section",
+  kpi_needs_attention:"Needs Attention",
+  bucket_no_analysed_sections:"No analysed sections yet.",
+  card_section_ranking:"Section Ranking",
+  pdf_class_section_grid:"Class × Section Grid (avg %)",
+  pdf_col_avg_pct:"Avg %",
+  pdf_col_pass_pct_full:"Pass %",
+  pdf_col_students:"Students",
+  pdf_kpi_class:"Class",
+  pdf_section_flagged_line:"{{label}} — {{avg}}% avg, {{atRisk}} at-risk of {{n}}",
+  pdf_sections_needing_attention:"Sections Needing Attention",
+  compare_click_row_hint:"Click any row to open that section's full dashboard.",
+  scholarship_navpanel_notenabled_title:"Scholarship module isn't turned on yet",
+  scholarship_navpanel_notenabled_desc:"Automatically shortlist eligible students for scholarships based on marks, attendance, and the criteria you set — no manual cross-checking of the class list.",
+  scholarship_navpanel_enable_btn:"Enable Scholarship Module",
+  scholarship_navpanel_notconfigured_title:"Scholarship is on, but no criteria are set yet",
+  scholarship_navpanel_notconfigured_desc:"The eligibility type and its thresholds (academic average, family income, etc.) haven't been filled in on Setup — without them every student would show as eligible. Set the criteria first.",
+  scholarship_navpanel_configure_btn:"Go to Setup",
+  scholarship_tab_locked_hint:"Fill at least one student's full row on Edit Data first",
+  scholarship_tab_locked_banner:"Reports unlock once at least one student has every scholarship field filled in — use Edit Data below.",
+  scholarship_tab_locked_toast:"Fill at least one student's full row before opening this tab.",
+  scholarship_navpanel_enabled_placeholder_title:"Scholarship dashboard is coming soon",
+  scholarship_navpanel_enabled_placeholder_desc:"The module is enabled for this file — the eligible-students view is being built next.",
+  scholarship_dashboard_title:"Scholarship Shortlist",
+  scholarship_dashboard_stat_total:"Total Students",
+  scholarship_dashboard_stat_eligible:"Eligible",
+  scholarship_dashboard_stat_not_eligible:"Not Eligible",
+  scholarship_dashboard_stat_data_missing:"Data Missing",
+  scholarship_dashboard_search_placeholder:"Search by name or ID...",
+  scholarship_dashboard_filter_status_all:"All Statuses",
+  scholarship_dashboard_filter_category_all:"All Categories",
+  scholarship_dashboard_status_eligible:"Eligible",
+  scholarship_dashboard_status_not_eligible:"Not Eligible",
+  scholarship_dashboard_tabs_aria:"Scholarship report views",
+  scholarship_dashboard_tab_shortlist:"Shortlist",
+  scholarship_dashboard_tab_by_category:"By Category",
+  scholarship_dashboard_tab_subject_toppers:"Subject Toppers",
+  scholarship_dashboard_tab_edit_data:"Edit Data",
+  scholarship_dashboard_th_rank:"Rank",
+  scholarship_dashboard_th_id:"ID",
+  scholarship_dashboard_th_name:"Name",
+  scholarship_dashboard_th_category:"Category",
+  scholarship_dashboard_th_score:"Score",
+  scholarship_dashboard_th_status:"Status",
+  scholarship_dashboard_th_reason:"Reason",
+  scholarship_dashboard_th_rank_in_category:"Rank in Category",
+  scholarship_dashboard_th_overall_avg:"Overall Avg",
+  scholarship_dashboard_no_rows:"No students match the current filters.",
+  scholarship_dashboard_error_grid_title:"Students With Incomplete Data In The Input Sheet",
+  scholarship_dashboard_error_grid_missing:"What's Missing",
+  scholarship_dashboard_detail_stub_toast:"Detail view is coming soon.",
+  scholarship_dashboard_download_stub_toast:"Report download is coming soon.",
+  scholarship_reason_academic_below_min:"Academic average is {{actual}}%, which is below the {{threshold}}% minimum required for this scheme.",
+  scholarship_reason_attendance_exceeds_floor:"Was absent for {{actual}} days this term, which is more than the {{threshold}}-day limit allowed for this scheme.",
+  scholarship_reason_no_fail_violated:"Scored {{actual}}% in the lowest test, which is below the {{threshold}}% pass mark required by this scheme's no-fail rule.",
+  scholarship_reason_income_data_missing:"Family income was not provided, so eligibility for this scheme's income limit could not be checked.",
+  scholarship_reason_income_exceeds_max:"Family income of ₹{{actual}} is above the ₹{{threshold}} maximum allowed for this scheme.",
+  scholarship_reason_category_not_eligible:"Category \"{{actual}}\" is not one of the reserved categories this scheme is limited to.",
+  scholarship_reason_meets_all_criteria:"Meets every eligibility requirement for this scholarship scheme.",
+  scholarship_audit_criterion_category:"Category",
+  scholarship_audit_category_threshold:"Reserved category (not General)",
+  scholarship_audit_pass:"Met",
+  scholarship_audit_fail:"Not Met",
+  scholarship_audit_criterion_academic:"Academic %",
+  scholarship_audit_criterion_attendance:"Attendance",
+  scholarship_audit_criterion_no_fail:"No-Fail Rule",
+  scholarship_audit_criterion_income:"Family Income",
+  scholarship_audit_max_absent_days:"Max {{days}} absent days",
+  scholarship_audit_no_attendance_limit:"No attendance limit set",
+  scholarship_audit_absent_days:"{{days}} absent days",
+  scholarship_audit_min_per_test:"Min {{pct}}% in every test",
+  scholarship_audit_lowest_test:"Lowest test: {{pct}}%",
+  scholarship_audit_max_income:"Max ₹{{amount}}",
+  scholarship_audit_income_missing:"Not provided",
+  scholarship_audit_th_criterion:"Criterion",
+  scholarship_audit_th_threshold:"Threshold",
+  scholarship_audit_th_actual:"Actual",
+  scholarship_audit_th_result:"Result",
+  scholarship_audit_criteria_title:"Eligibility Criteria",
+  scholarship_audit_math_title:"Weighted Score Calculation",
+  scholarship_audit_component_academic:"Academic",
+  scholarship_audit_component_consistency:"Consistency",
+  scholarship_audit_component_growth:"Growth",
+  scholarship_audit_total:"Total",
+  scholarship_audit_no_score_incomplete:"No score computed — this student's data is incomplete.",
+  scholarship_audit_untitled_scheme:"Scholarship Scheme",
+  scholarship_audit_snapshot_type:"Eligibility Type: {{type}}",
+  scholarship_audit_snapshot_weights:"Weights — Academic {{academic}}%, Consistency {{consistency}}%, Growth {{growth}}%",
+  scholarship_audit_reason_label:"Reason",
+  scholarship_audit_print_btn:"Print Certificate",
+  scholarship_audit_not_found_toast:"Couldn't find that student's data.",
+  scholarship_edit_th_category:"Category",
+  scholarship_edit_th_income:"Annual Family Income",
+  scholarship_edit_th_guardian_occupation:"Guardian Occupation",
+  scholarship_edit_th_prior_status:"Prior Scholarship Status",
+  scholarship_edit_th_persistent_id:"Persistent Student ID",
+  scholarship_edit_th_special_flag:"Special Category Flag",
+  scholarship_edit_save_btn:"Update and Download",
+  scholarship_edit_nothing_to_save:"No edits to save yet.",
+  scholarship_edit_gate_incomplete:"{{count}} student(s) still missing a required field — fill in every highlighted cell to enable Update and Download.",
+  scholarship_edit_no_students_sheet:"Couldn't find a STUDENTS tab in the original file to update.",
+  scholarship_edit_saved_toast:"Downloaded {{fname}} — backup + updated file, zipped together.",
+  scholarship_cert_pdf_title:"Scholarship Certificate",
+  scholarship_cert_select_student_toast:"Select at least one student.",
+  scholarship_cert_generating_toast:"Generating: {{name}} ({{done}}/{{total}})",
+  scholarship_cert_toast_success:"{{count}} certificate(s) downloaded.",
+  scholarship_cert_export_failed_toast:"Certificate export failed: {{msg}}",
+  scholarship_export_sheet_shortlist:"Shortlist",
+  scholarship_export_sheet_by_category:"By Category",
+  scholarship_export_sheet_subject_toppers:"Subject Toppers",
+  scholarship_export_toast_success:"Downloaded {{fname}}",
+  pdf_confidential_scholarship:"CONFIDENTIAL — Scholarship record",
+  about_bio_desc:"Educator and builder based in India, working on privacy-first tools that give teachers, institutions, and parents back control of their own data — Student Insight is one of them, built as a social cause rather than a product.",
+  about_bio_email_btn:"sandeep@hakki.in",
+  about_bio_kicker:"Who built this",
+  about_bio_name:"Sandeep S Hakki",
+  about_bio_projectpage_btn:"Project Page",
+  about_builtby:"Built by Sandeep Hakki",
+  about_eyebrow:"Student Insight — About",
+  about_formulas_btn:"See Exact Formulas →",
+  about_formulas_desc:"Every average, rank, percentile, trend and composite score, written out as exact formulas — for the maths/statistics/analytics people your institute will ask.",
+  about_formulas_title:"Want to verify the maths yourself?",
+  about_hero_sub:"Student Insight turns a spreadsheet of marks into ranks, trends, at-risk flags, and plain-language findings — entirely in your browser. No accounts, no cloud, no server ever sees your data.",
+  about_hero_title:"You have students' marks. <span style=\"color:#2ec4b6\">Let's build meaningful insight from them.</span>",
+  about_philosophy_cite:"Our Philosophy",
+  about_philosophy_quote:"Student Insight is a privacy-first, offline education analytics platform where educators own their data, projects live in user-controlled files, and the application serves only as an intelligent analysis engine.",
+  about_sec1_p1:"Student Insight never treats the browser as permanent storage.",
+  about_sec1_p2:"Your data is stored only in files that you own.",
+  about_sec1_p3:"Every project can be imported, analyzed, updated, exported, shared, archived, or backed up without depending on an online account or remote server.",
+  about_sec1_p4:"If you move to another computer, your project moves with you. If you disconnect from the internet, your project continues to work.",
+  about_sec1_p5:"<strong>Your data remains yours.</strong>",
+  about_sec1_title:"Your Data Always Belongs to You",
+  about_sec2_host1:"GitHub Pages",
+  about_sec2_host2:"A local HTML file",
+  about_sec2_host3:"A USB drive",
+  about_sec2_host4:"A school intranet",
+  about_sec2_host5:"An offline classroom computer",
+  about_sec2_p1:"Student Insight is intentionally designed to run from a single static website. It works equally well whether it is opened from:",
+  about_sec2_p2:"No installation. No server. No database. No subscriptions. No vendor lock-in.",
+  about_sec2_title:"Built for GitHub Pages and Static Hosting",
+  about_sec3_no1:"User accounts",
+  about_sec3_no2:"Cloud synchronization",
+  about_sec3_no3:"Remote databases",
+  about_sec3_no4:"Cookies or fingerprinting",
+  about_sec3_no5:"Personal data collection",
+  about_sec3_no6:"Background uploads of your files",
+  about_sec3_p1:"Educational records are among the most sensitive types of information.",
+  about_sec3_p2:"Student Insight is designed so that student information never needs to leave the educator's device. The application does not require:",
+  about_sec3_p3:"The browser simply processes the data that you choose to open — your uploaded spreadsheets and student records never leave your device.",
+  about_sec3_p4:"To understand how many people use Student Insight, the site uses <strong>Cloudflare Web Analytics</strong> — a cookieless, aggregate-only visit counter that does not use fingerprinting and collects no personal data. It only ever sees anonymous page-view counts, never anything from the files you upload or analyze.",
+  about_sec3_title:"Privacy by Design",
+  about_sec4_p1:"Traditional systems store information inside databases. Student Insight stores knowledge inside educator-owned project files.",
+  about_sec4_p2:"The application can always reconstruct the complete working environment from those files.",
+  about_sec4_p3:"Nothing important depends on browser memory. Nothing important depends on server storage.",
+  about_sec4_p4:"This carries through the whole academic year, not just a single test. As Test 2 and Test 3 come in, the same file grows to hold them — the Setup step can load an already-filled sheet and add the next test's columns onto it directly, so nothing already recorded is ever re-entered or discarded along the way.",
+  about_sec4_p5:"<strong>Your project remains portable, transparent, and future-proof.</strong>",
+  about_sec4_title:"Your Spreadsheet is the Source of Truth",
+  about_sec5_chip1:"Schools",
+  about_sec5_chip2:"Colleges",
+  about_sec5_chip3:"Universities",
+  about_sec5_chip4:"Coaching Centres",
+  about_sec5_chip5:"Individual Tutors",
+  about_sec5_chip6:"Training Institutes",
+  about_sec5_chip7:"Online Learning Programs",
+  about_sec5_chip8:"Parents",
+  about_sec5_chip9:"Self-Prep Aspirants",
+  about_sec5_p1:"Its architecture is designed to support:",
+  about_sec5_title:"Designed for Every Educational Institution — and Individuals",
+  about_sec6_p1:"Student Insight is not another student management system. Its purpose is to help educators understand learning.",
+  about_sec6_p2:"The goal is not simply to collect data.",
+  about_sec6_p3:"<strong>The goal is to transform educational data into educational intelligence.</strong>",
+  about_sec6_title:"Beyond Marks and Attendance",
+  about_sec7_col1:"Every educator or parent accesses the same application.<br>Every user owns their own data.<br>Every project remains independent.",
+  about_sec7_col2:"No shared sessions.<br>No shared storage.<br>No hidden cloud dependency.",
+  about_sec7_col3:"The application is temporary.<br><br>Your project is permanent.",
+  about_sec7_title:"Offline First. Stateless by Design.",
+  about_sec8_p1:"Because Student Insight is built around open file formats and user-owned data, everyone remains free to archive, migrate, or extend their projects without being tied to proprietary infrastructure.",
+  about_sec8_title:"Open, Portable and Future Ready",
+  about_stat_cost:"Cost, forever",
+  about_stat_license_label:"Open source licence",
+  about_stat_offline:"Offline capable",
+  about_stat_servers:"Servers involved",
+  about_sec3_p5:"On accessibility: Student Insight has not yet been formally tested against accessibility standards (e.g. WCAG). If you rely on assistive technology, it's worth verifying directly rather than assuming full support today.",
+  about_sec8_p2:"\"Open\" here covers two separate things: open <em>file formats</em> (xlsx/PDF — described above) and the MIT <em>source-code</em> license shown in the stats bar. The source itself is not yet published at a public, stable link — this page will be updated with a direct repository link as soon as that's live, rather than leaving the license claim unverifiable.",
+  about_sec9_title:"Every Way a Scholarship Scheme Can Be Configured",
+  about_sec9_p1:"The scholarship module isn't a fixed list of scheme types — it's a small set of independent switches a school configures once, and the same eligibility engine applies them consistently to every student. There's no separate code path per scheme type; identical calculation logic runs no matter which switches are on.",
+  about_sec9_p2:"Five settings combine to define any scheme: which students qualify on merit, on need, on category, or a mix; whether a no-fail rule applies; whether there's an attendance cutoff; how academic performance, consistency, and growth are weighted against each other; and how category quota is reported alongside the ranked list.",
+  about_sec9_no1:"Merit-only — ranks purely by academic average; income and category are not checked.",
+  about_sec9_no2:"Need-only — an income ceiling is the only gate; academic performance is not checked.",
+  about_sec9_no3:"Merit-cum-Need — both the academic average and the income ceiling must be met together.",
+  about_sec9_no4:"Merit + No-Fail — adds a requirement that no test was failed outright, on top of the academic threshold.",
+  about_sec9_no5:"Merit + Attendance Floor — adds a hard cutoff on total absences, on top of the academic threshold.",
+  about_sec9_no6:"Category-based — eligibility is decided purely by category membership, independent of marks or income.",
+  about_sec9_no7:"Custom — every check active at once: academic threshold, income ceiling, attendance floor, no-fail rule, and category — for schools that want the strictest combination.",
+  about_sec9_p3:"Every one of these — plus edge cases like an unreachable threshold or a very high income ceiling — has been run against real calculated data as part of testing, not just described. A student with an incomplete record, such as a blank income field, is never silently marked eligible or ineligible — they're flagged separately so the school can complete the record and recalculate.",
+  about_flow_aria:"Your file goes from upload, to your browser only, to insight — it never reaches a server",
+  about_flow_node_file:"Your file",
+  about_flow_node_browser:"Your browser",
+  about_flow_node_browser_sub:"(only, always)",
+  about_flow_node_insight:"Insight",
+  faq_audience_finance:"For the Admin / Office",
+  faq_audience_formulas:"Exact Formulas & Calculation Logic",
+  faq_audience_it:"From the IT-in-charge",
+  faq_audience_nitpicky:"The Nitpicky (But Real) Ones",
+  faq_audience_parent:"Parent-Facing Concerns",
+  faq_audience_principal:"From the Principal",
+  faq_audience_teacher:"From a Regular Teacher",
+  faq_audience_terms:"Terms & Abbreviations Used in the App",
+  faq_audience_vp:"From the VP / Academic Coordinator",
+  faq_cnt_finance:"Budget & paperwork",
+  faq_cnt_formulas:"For maths/statistics/analytics reviewers — every number, in writing",
+  faq_cnt_it:"Hosting & data location",
+  faq_cnt_nitpicky:"You'll actually hear these",
+  faq_cnt_parent:"What the principal anticipates",
+  faq_cnt_principal:"Money, liability, reputation",
+  faq_cnt_teacher:"The actual daily user",
+  faq_cnt_terms:"What every label actually means",
+  faq_cnt_vp:"Process & control",
+  faq_empty:"No questions match your search. Try a different word.",
+  faq_hero_eyebrow:"Frequently Asked Questions",
+  faq_hero_sub:"These are the actual questions principals, coordinators, IT staff and teachers ask when this tool is proposed to them — from serious procurement concerns down to the nitpicky ones. Every answer below reflects exactly what the app does today. Where something isn't built yet, that's stated plainly rather than glossed over.",
+  faq_hero_title:"You have students' marks. Here's exactly how the StudIn analytic tool <span style=\"color:#2ec4b6\">turns them into insight —</span> answered honestly, not persuasively.",
+  faq_jump_formulas:"Jump straight to Exact Formulas & Calculation Logic (for maths/stats reviewers)",
+  faq_search_placeholder:"🔍 Search questions — e.g. 'data', 'offline', 'cost', 'save'...",
+  faq_tag_admin:"Admin",
+  faq_tag_appdefined:"App-defined",
+  faq_tag_core:"Core",
+  faq_tag_practical:"Practical",
+  faq_tag_serious:"Serious",
+  faq_tag_silly:"Silly",
+  faq_tag_statistics:"Statistics",
+  faq_tag_technical:"Technical",
+  faq_q_principal_1:"Is this free forever, or a trial that starts charging later?",
+  faq_a_principal_1:"It's free. There's no backend, no server cost, no subscription infrastructure — it's a single HTML file hosted on GitHub Pages, which is free hosting. There's nothing for me to \"start charging\" for later because there's no ongoing cost on my end to recover.",
+  faq_q_principal_2:"What's the catch — what are you getting out of this?",
+  faq_a_principal_2:"No catch in the commercial sense. I built it because I wanted a tool like this to exist and be genuinely private. There's no data collection, no ads, no lead-gen — it's a personal project, not a funded product.",
+  faq_q_principal_3:"Who else is using this? Can you name another school?",
+  faq_a_principal_3:"Right now, honestly — I can't point you to another school using it yet. You'd be among the first. I won't pretend otherwise.",
+  faq_q_principal_4:"If a grade comes out wrong on a report card, who's responsible?",
+  faq_a_principal_4:"The calculations are transparent formulas (averages, trends, rankings) applied to the numbers entered — there's no hidden AI making judgment calls. If a number is wrong, it's traceable to either the source data or a bug I need to fix. Every report should be reviewed by a teacher before it goes out, the same as anything drafted by a junior staff member.",
+  faq_q_principal_5:"Do you have a registered company?",
+  faq_a_principal_5:"No. This is an independent personal project, not a registered vendor. If procurement requires a registered entity, this can't satisfy that today.",
+  faq_q_principal_6:"What happens if you stop maintaining this next year?",
+  faq_a_principal_6:"Your data isn't stored anywhere by the app — it lives in your Excel files. Even if maintenance stopped entirely, no historical records would be lost; only future analysis via this specific tool would stop. That's a direct benefit of the stateless design.",
+  faq_q_principal_7:"Does this replace our school ERP?",
+  faq_a_principal_7:"No — it doesn't handle attendance, fees, or admissions. It's narrowly for turning marks into analysis and report cards, as an add-on for one specific job, not a replacement for a school management system.",
+  faq_q_principal_8:"Did you build this alone? Are you even a teacher?",
+  faq_a_principal_8:"Yes, alone, and no, not a teacher. This was built as a developer solving a well-defined problem — marks in, insight and report cards out — not as someone claiming pedagogical authority.",
+  faq_q_vp_1:"Does this integrate with our existing student database?",
+  faq_a_vp_1:"No integration — you upload an Excel file each time. If your ERP can export marks to Excel, that export can be fed into this. There's no live sync.",
+  faq_q_vp_2:"Our teachers struggle with Excel — will they manage?",
+  faq_a_vp_2:"The app generates a ready-made Excel template based on your subjects and tests, so teachers fill a structured sheet rather than building one from scratch. That said, a teacher uncomfortable with Excel entirely will still need to do that filling-in step — this doesn't remove Excel from the workflow.",
+  faq_q_vp_3:"Who trains the teachers on this?",
+  faq_a_vp_3:"There's no training program or support team — it's a single developer and the app itself. The Sample Files section has downloadable examples to reduce guesswork, but there's no live onboarding available at scale today.",
+  faq_q_vp_4:"Can I use this to track just my own kid?",
+  faq_a_vp_4:"Yes — choose Individual mode in Setup instead of Institution mode. It's built for a parent tracking their own child or an aspirant tracking their own exam prep, with no class roster or comparison to other students.",
+  faq_q_vp_5:"Can I track two children in different grades?",
+  faq_a_vp_5:"Yes. Add each child as their own row in the same Individual-mode Excel sheet, then use the switcher on Insights to flip between them — each child's data and reports stay fully separate, never compared to each other.",
+  faq_q_vp_6:"Do I need to be tech-savvy to use this?",
+  faq_a_vp_6:"No — you just fill in a downloadable Excel template with marks and upload it back. No installation, no account, and no spreadsheet formulas to write yourself.",
+  faq_q_vp_7:"Can a coordinator see all teachers' data, and teachers only their own?",
+  faq_a_vp_7:"There's no login or accounts at all, so there's no \"coordinator view vs teacher view.\" Anyone with the uploaded file and the app open sees everything in that session. Access control is entirely organizational (who has the file), not enforced by the app.",
+  faq_q_vp_8:"Does it catch teacher data-entry mistakes?",
+  faq_a_vp_8:"Partially — before analysis runs, it checks for duplicate student IDs, marks rows referencing students who don't exist, and non-numeric entries in a marks cell (like \"Absent\" typed where a number was expected). It flags these; it doesn't guess the correct value for you.",
+  faq_q_vp_9:"Does it handle CBSE/ICSE/State board grading differences?",
+  faq_a_vp_9:"Grading bands and thresholds (pass marks, drop alerts) are configurable per class in Setup, so it's flexible on numbers. It hasn't been specifically validated against every board's exact convention — worth a direct conversation about your system before relying on it as a perfect fit.",
+  faq_q_vp_10:"What about students with different elective subject combinations?",
+  faq_a_vp_10:"No — subjects are set once at the class level in Setup and applied uniformly. If students take different subject combinations, this isn't built for that today.",
+  faq_q_vp_11:"Can I customize the report card layout?",
+  faq_a_vp_11:"Not as a visual template editor — the layout is fixed in the code. What is customizable is the content: institution name, class, subjects, tests, and thresholds.",
+  faq_q_vp_12:"Does it work if our internet is down?",
+  faq_a_vp_12:"Once the page and its libraries have loaded, core steps (reading Excel, computing, generating PDF) run in-browser, so a brief mid-session drop likely doesn't interrupt them. But it needs internet to load the app and its libraries initially — it isn't designed or tested as a true offline tool.",
+  faq_q_it_1:"Where exactly is our data stored?",
+  faq_a_it_1:"Nowhere, by design. The app doesn't save student data to any server, database, or even the browser's local storage — it exists only in the browser tab's memory while in use, and disappears when the tab closes. The uploaded Excel file is the only persistent copy, and it stays wherever it already was. One honest caveat: \"nothing is stored\" isn't the same as \"nothing is ever visible to anyone else\" — on a shared or public computer, anything genuinely in memory during an active session could still be seen via the browser's back/forward cache, open DevTools, or a screen-share/remote-support tool. That's inherent to any browser-based tool, not something this app can fix on its own — close the tab when you're done on a shared machine.",
+  faq_q_it_2:"Is this hosted on a government-approved server?",
+  faq_a_it_2:"It's hosted on GitHub Pages, a standard public web-hosting service — not on any government-empanelled cloud.",
+  faq_q_it_3:"You said no login — so how do you stop misuse?",
+  faq_a_it_3:"There's no authentication layer. Access control is entirely on the school's side (who has the link, who has the Excel file). This tool doesn't provide role-based access.",
+  faq_q_it_4:"Installed app, or does it run in a browser?",
+  faq_a_it_4:"Browser only — it's a website, not an install from a store. It is technically a PWA (progressive web app), so it can be \"Added to Home Screen\" for an app-like icon, but it's still a web page underneath.",
+  faq_q_it_5:"Is this on the Play Store / App Store?",
+  faq_a_it_5:"No, only via the web link.",
+  faq_q_it_6:"Can we host this on our own school website instead?",
+  faq_a_it_6:"The code is a single HTML file, so it can technically be hosted anywhere that serves static files, including a school's own web server — but that's not currently packaged or officially supported as a distributable install.",
+  faq_q_it_7:"What if our ISP blocks GitHub Pages?",
+  faq_a_it_7:"Then the app won't load. There's no fallback hosting today.",
+  faq_q_teacher_1:"How much time will this actually save me?",
+  faq_a_teacher_1:"There's no validated number from a formal time-and-motion study against manual report-card creation. What's concrete: it removes the manual calculation and PDF-formatting steps once marks are in the template — the real time saved depends on the current process being replaced.",
+  faq_q_teacher_2:"Can I edit the AI-generated remarks, or are they locked?",
+  faq_a_teacher_2:"Yes — every narrative field (The Bottom Line, Strengths, At Home This Week, At School) has an editable box right in the student modal, with its own Save button. Whatever you type there is what goes into the exported PDF. The one exception is \"What's Changed,\" which is a computed summary of the marks table, not a wording template — it isn't meant to be edited.",
+  faq_q_teacher_3:"Does the report show total marks, not just percentages?",
+  faq_a_teacher_3:"Yes — each test row shows a Total column (e.g. \"231/450\") alongside how many subjects were actually attempted (e.g. \"4/5 opted\"), so a partially-attempted test doesn't get silently folded into an average without showing the real numbers. In Institution mode, a Class Avg row sits directly under each test for comparison.",
+  faq_q_teacher_4:"How does it handle a student absent for a whole test?",
+  faq_a_teacher_4:"There's an absence field per test that factors into some calculations (like the stress score, which weighs absence frequency). The exact effect on overall averages is worth verifying on a real example with your data before relying on it — better to check than assume.",
+  faq_q_teacher_5:"Can I save my work and come back tomorrow?",
+  faq_a_teacher_5:"<strong>No — this is the most important limitation to know upfront.</strong> Closing the tab loses everything in that session. The source Excel file is safe, but any in-progress Setup or analysis is not saved. Re-upload and re-run analysis each time you return. This is a deliberate tradeoff for the \"nothing stored anywhere\" privacy model, not a bug.",
+  faq_q_teacher_6:"Why do I need an app for something I can do in Excel myself?",
+  faq_a_teacher_6:"Fair challenge — averages and rankings could be computed with Excel formulas directly. What this adds is packaging: automatic report card layout, consolidated flags/wellbeing indicators, and PDF generation, without building and maintaining your own formulas and formatting every term.",
+  faq_q_teacher_7:"Will this replace my judgment as a teacher?",
+  faq_a_teacher_7:"No — every flag comes with a plain-language reason (e.g. a specific score drop between two named tests), meant to surface things to look at, not decide for you. Any flag can be disagreed with.",
+  faq_q_teacher_8:"Could the AI say something insensitive about a student?",
+  faq_a_teacher_8:"The \"AI\" here is rule-based text generated from formulas — not a language model improvising sentences — so it won't say anything unexpected outside its fixed templates. It hasn't been independently reviewed by an educator for tone, so feedback on anything that reads badly is genuinely welcome.",
+  faq_q_teacher_9:"Can I do this on my phone, or only a laptop?",
+  faq_a_teacher_9:"It runs in a mobile browser, but working with Excel uploads and multi-column setup forms is realistically more comfortable on a laptop — not recommended for the setup/data-entry steps on a phone.",
+  faq_q_teacher_10:"Can I fix a mistake by re-uploading, or do I start over?",
+  faq_a_teacher_10:"Re-uploading a corrected file re-runs the analysis fresh. Restarting the whole Setup step is only needed if the mistake was in Setup itself.",
+  faq_q_teacher_11:"Will parents see this directly?",
+  faq_a_teacher_11:"No built-in parent portal — export the PDF and share it however report cards are already shared (print, email, WhatsApp, etc.).",
+  faq_q_teacher_12:"Does it support regional-language names with special characters?",
+  faq_a_teacher_12:"Non-Latin scripts and special characters in name fields haven't been specifically tested — worth verifying directly rather than assuming it works cleanly.",
+  faq_q_teacher_13:"Does it print directly, or save PDF first?",
+  faq_a_teacher_13:"It generates a downloadable PDF; printing happens through your normal printer/PDF viewer — no direct \"print\" button skipping that step.",
+  faq_q_teacher_14:"Can I put my school's logo on the report card?",
+  faq_a_teacher_14:"Not currently — there's no image/logo upload feature in the app today.",
+  faq_q_teacher_15:"Is there a WhatsApp group for support?",
+  faq_a_teacher_15:"No — support is directly from the developer if something's broken, not a dedicated team.",
+  faq_q_parent_1:"Why does it say my child is at \"burnout risk\"?",
+  faq_a_parent_1:"Every flag includes a specific, factual explanation — like a defined score drop between two named tests — rather than a vague label. That reasoning can be shown to a parent directly, not just an unexplained flag.",
+  faq_q_parent_2:"Is this leaking data to an ad company?",
+  faq_a_parent_2:"No — there are no ads, no analytics tracking of student data, and nothing is transmitted off the device during use. This isn't a promise on faith — it's a direct consequence of there being no server for data to go to in the first place.",
+  faq_q_parent_3:"Is this like a \"free VPN\" that secretly sells your data?",
+  faq_a_parent_3:"No — those business models make money by collecting and selling data. This app has no mechanism to collect data in the first place, so there's nothing to sell.",
+  faq_q_finance_1:"Will there be a per-student or per-teacher fee later?",
+  faq_a_finance_1:"Not planned — there's no infrastructure cost driving a future need to charge. \"Never\" isn't a guarantee that can be made absolutely, but there's no roadmap toward monetization today.",
+  faq_q_finance_2:"Do we need to sign an MOU or agreement?",
+  faq_a_finance_2:"No formal agreement exists today — this isn't an enterprise product with a sales/legal process behind it.",
+  faq_q_finance_3:"Is there a paid version with more features?",
+  faq_a_finance_3:"No — there is one version.",
+  faq_q_nitpicky_1:"Does it work on Internet Explorer?",
+  faq_a_nitpicky_1:"Almost certainly not reliably — it depends on modern browser features and is built and tested against browsers like Chrome, Edge, and Firefox, not legacy IE.",
+  faq_q_nitpicky_2:"Can it detect if a teacher marked a student unfairly?",
+  faq_a_nitpicky_2:"No — it only analyzes the numbers it's given. It has no way to know whether those numbers were assigned fairly in the first place.",
+  faq_q_nitpicky_3:"Why \"Insight\" — does it predict the future?",
+  faq_a_nitpicky_3:"There is a \"predicted next score\" metric based on simple trend extrapolation from past scores — closer to \"if this trend continues\" than any real forecasting model.",
+  faq_q_nitpicky_4:"If two teachers open it at once, will it get confused?",
+  faq_a_nitpicky_4:"No — each browser tab or session is completely independent; there's no shared server state to conflict over.",
+  faq_q_nitpicky_5:"What's the AI's error rate?",
+  faq_a_nitpicky_5:"There's no trained model with an ML-style error rate — every number is a deterministic formula. The more accurate framing: the calculations are exactly as accurate as the data entered and the formulas used, which can be verified by hand on any single student.",
+  faq_q_nitpicky_6:"Is this connected to ChatGPT — is my data going to OpenAI?",
+  faq_a_nitpicky_6:"No — there's no external AI API call anywhere in the app. All \"AI-style\" outputs are generated locally from formulas in the browser.",
+  faq_q_nitpicky_7:"What if I close the tab by mistake?",
+  faq_a_nitpicky_7:"Everything in that session is gone. This is worth knowing upfront rather than discovering mid-report-card-season — see \"Can I save my work and come back tomorrow?\" above.",
+  faq_q_formulas_1:"How is a test percentage calculated?",
+  faq_a_formulas_1:"For each test: <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">Test % = ( Σ min(marks scored, subject max) ) ÷ ( Σ subject max ) × 100</code>, summed across every subject the student attempted in that test, then rounded to the nearest whole number. A subject with no mark entered is excluded from both the numerator and denominator for that test (it doesn't count as zero). If an entered mark exceeds the subject's max, it's clamped down to the max for this calculation and separately flagged as a data-entry issue.",
+  faq_q_formulas_2:"How is the Overall Average calculated?",
+  faq_a_formulas_2:"<code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">Overall Avg = ( Σ marks scored across ALL tests ) ÷ ( Σ max marks across ALL tests ) × 100</code>, rounded once at the end. This is deliberately <strong>not</strong> a simple average of the already-rounded per-test percentages — averaging pre-rounded numbers compounds rounding error test over test. Working from raw cumulative totals and rounding only once keeps the final figure accurate to the source marksheet.",
+  faq_q_formulas_3:"What are the grade bands?",
+  faq_a_formulas_3:"Applied to the Overall Average: <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">A+ ≥90 · A ≥80 · B ≥70 · C ≥60 · D ≥ Pass Threshold · F below Pass Threshold</code>. The Pass Threshold itself is set per-institute in Setup (default 35%), so D/F cut-offs move with whatever threshold was configured — the A+/A/B/C bands are fixed.",
+  faq_q_formulas_4:"How is class Rank decided, including ties?",
+  faq_a_formulas_4:"Students are sorted by Overall Average, descending. Standard <strong>competition ranking (\"1224\")</strong> is used: students tied on Overall Average share the same rank number, and the next distinct score skips ahead by the number of students tied above it (e.g. two students tied for Rank 1 → the next student is Rank 3, not Rank 2). This matches how real exam boards report ranks.",
+  faq_q_formulas_5:"How is Percentile calculated?",
+  faq_a_formulas_5:"Students are sorted by Overall Average ascending. For a student at position <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">i</code> (0-indexed) out of <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">n</code> students: <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">Percentile = round( i ÷ (n−1) × 100 )</code>. With only 1 student in the class, percentile is defined as 100.",
+  faq_q_formulas_6:"How is Trend (Improving/Declining/Stable) decided?",
+  faq_a_formulas_6:"Needs at least 2 tests with valid data. <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">diff = (latest test %) − (first test %)</code>. Improving if diff ≥ +5, Declining if diff ≤ −5, otherwise Stable. It only compares the first and most recent test — it does not fit a trendline through every point in between.",
+  faq_q_formulas_7:"How is the Predicted Next Score calculated?",
+  faq_a_formulas_7:"Simple linear extrapolation, needs ≥2 valid tests: <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">slope = (latest % − first %) ÷ (number of valid tests − 1)</code>, then <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">Prediction = latest % + slope</code>, clamped to 0–100. This is \"if the average trend so far continues by one more step\" — a straight-line projection, not a statistical forecasting model.",
+  faq_q_formulas_8:"How is SD (Standard Deviation) calculated, at class and student level?",
+  faq_a_formulas_8:"Population standard deviation (divide by n, not n−1): <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">SD = √( Σ(x − mean)² ÷ n )</code>. At class level, x = each student's Overall Average. At student level (used for Volatile and Consistency Score below), x = each of that student's own valid test percentages.",
+  faq_q_formulas_9:"How are Median, Q1 and Q3 calculated?",
+  faq_a_formulas_9:"Class Overall Averages are sorted ascending (n values). <strong>Median</strong>: middle value if n is odd, average of the two middle values if n is even. <strong>Q1</strong>: the value at index <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">floor(n × 0.25)</code>. <strong>Q3</strong>: the value at index <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">floor(n × 0.75)</code>. This is one accepted quartile convention among several used in statistics software — with small class sizes, different conventions can shift Q1/Q3 by a mark or two, which is normal.",
+  faq_q_formulas_10:"How is Consistency Score calculated?",
+  faq_a_formulas_10:"<code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">Consistency = max(0, round(100 − 2 × SD))</code> of the student's own valid test percentages. It's mathematically the inverse of that student's own volatility — a design choice to turn \"spread\" into a 0–100 \"steadiness\" number that reads intuitively on a report card.",
+  faq_q_formulas_11:"How is Growth Rate calculated?",
+  faq_a_formulas_11:"<code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">Growth Rate = round( (latest % − first %) ÷ max(first %, 1) × 100 )</code>, clamped to ±300%. The clamp exists because a near-zero starting score (e.g. 0% → 50%) produces a mathematically correct but meaningless \"+5000%\" — clamping keeps the number informative instead of alarming on a parent-facing report.",
+  faq_q_formulas_12:"How is the Health Score calculated?",
+  faq_a_formulas_12:"A weighted blend of four sub-scores, each 0–100: <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">Health = 0.4×Academic + 0.2×Consistency + 0.2×Trend + 0.2×Engagement</code>. <strong>Academic</strong> = Overall Average (capped at 100). <strong>Consistency</strong> = as defined above. <strong>Trend</strong> = 100 if Improving, 60 if Stable, 20 if Declining. <strong>Engagement</strong> = the Engagement Index defined below. Bands: Excellent ≥80, Good ≥65, Average ≥50, Below Average ≥35, Needs Support below 35. The 40/20/20/20 weighting is this app's own design choice, not a published or standardized formula — stated plainly so it isn't mistaken for a clinical or peer-reviewed instrument.",
+  faq_q_formulas_13:"How is the Engagement Index calculated?",
+  faq_a_formulas_13:"<code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">absentPct = min(100, totalAbsences ÷ (number of tests × 3) × 100)</code>, then <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">Engagement = min(100, round( (100 − absentPct) × trendMultiplier ))</code>, where trendMultiplier is 1.1 for Improving, 0.8 for Declining, 1.0 for Stable. It is an attendance-and-trend based proxy — the app has no way to directly measure classroom participation.",
+  faq_q_formulas_14:"How is the Stress Score calculated?",
+  faq_a_formulas_14:"<code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">Stress = min(100, (totalAbsences × 5) + (30 if Declining) + (40 if below Pass Threshold))</code>. Wellbeing Flag: High ≥60, Moderate ≥30, Low below 30. Built from absence frequency and performance trend only — not a certified wellbeing or psychological assessment.",
+  faq_q_formulas_15:"How is the Early Warning Score calculated?",
+  faq_a_formulas_15:"Sum of fixed point-values for whichever flags are currently active on the student, capped at 100: <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">At Risk +40 · Sharp Drop +20 · High Absence +15 · Volatile +10 · Burnout Risk +15</code>. It's an additive composite of existing flags, not an independently derived statistic.",
+  faq_q_formulas_16:"What exactly triggers each flag (Volatile, Sharp Drop, Plateau, Burnout, Resilient)?",
+  faq_a_formulas_16:"<strong>Volatile:</strong> SD of the student's valid test % values &gt; 15. <strong>Sharp Drop:</strong> any two consecutive tests where the score falls by ≥ the configured Drop Alert threshold (default 20 points). <strong>Plateau:</strong> across 3+ valid tests, <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">(max − min) ≤ 8</code> points, and Overall Average is below 70 (a high-scorer holding steady near the top isn't flagged). <strong>Burnout Risk:</strong> first valid test ≥70% AND latest valid test is more than 15 points below the first. <strong>Resilient:</strong> at any point in the sequence, a test dropped ≥10 points from two tests prior, and the very next test recovered by ≥8 points from that dip.",
+  faq_q_formulas_17:"How is a Subject Average calculated, and Subject-vs-Class Delta?",
+  faq_a_formulas_17:"Subject Average = mean of that subject's per-test percentage <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">(marks ÷ subject max × 100, capped at 100)</code> across every test where it was attempted, rounded. Subject-vs-Class Delta = that student's Subject Average minus the class-wide average for the same subject — a signed number showing exactly how far above/below the class norm a student sits in one subject.",
+  faq_q_formulas_18:"How is class-level Subject Weakness identified?",
+  faq_a_formulas_18:"For each subject: <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">% of class below Pass Threshold</code> in that subject, plus the class-wide subject average. Subjects are then ranked by that percentage, worst first — this identifies which subject needs curriculum attention, distinct from which individual student needs attention.",
+  faq_q_formulas_19:"How is the Attendance-vs-Performance correlation calculated?",
+  faq_a_formulas_19:"Students are split into two groups — zero recorded absences vs. one-or-more absences — and the average Overall Average of each group is compared side by side. Only shown when both groups have at least 2 students, as a basic floor against drawing conclusions from (or identifying) a single student's data.",
+  faq_q_formulas_20:"Where in the code do these formulas actually live?",
+  faq_a_formulas_20:"All of them run client-side, in the browser, inside three functions in the app's own source: <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">computeAnalysis()</code> (per-student scores, flags, grades), <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">computeExtraInsights()</code> (subject deltas, rank movement) and <code style=\"background:#f1f3f5;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12.5px\">computeClassStats()</code> (mean/median/SD/quartiles/correlations). Anyone with browser dev-tools access can inspect the exact running code — nothing is computed on a server or hidden behind an API.",
+  faq_q_terms_1:"Median",
+  faq_a_terms_1:"The <strong>middle score</strong> if every student were lined up from lowest to highest — half the class scored above it, half below. Unlike a plain average, one or two extreme scores can't pull the median up or down.",
+  faq_q_terms_2:"SD",
+  faq_a_terms_2:"<strong>Full form: Standard Deviation.</strong> A measure of how spread out the scores are around the average. A small SD means most students scored close together; a large SD (e.g. ±22) means there's a big gap between the strongest and weakest students in the class.",
+  faq_q_terms_3:"Q1",
+  faq_a_terms_3:"<strong>Full form: First Quartile.</strong> The score below which the bottom 25% of the class falls. If Q1 is 48%, a quarter of the class scored 48% or less.",
+  faq_q_terms_4:"Q3",
+  faq_a_terms_4:"<strong>Full form: Third Quartile.</strong> The opposite end from Q1 — 25% of the class scored at or above this number.",
+  faq_q_terms_5:"Percentile",
+  faq_a_terms_5:"Shows how a student compares to classmates — e.g. \"78th percentile\" means this student scored better than 78% of the class. <strong>This is not the same as a percentage score</strong> — a student can be at the 78th percentile with a 60% score, if the rest of the class scored even lower. Easy to misread, worth clarifying with parents. Below 12 students in a class, the app doesn't show a percentile number at all — it implies more precision than a tiny class actually has — and shows rank plus a plain point-difference from the class average instead.",
+  faq_q_terms_6:"Rank & Tie Handling",
+  faq_a_terms_6:"Uses standard \"competition ranking\": if two students tie for 1st place, both are shown as Rank 1, and the next student is Rank 3 — not Rank 2. This matches how real exam results are conventionally reported, so a \"skipped\" rank number is expected, not a bug.",
+  faq_q_terms_7:"Health Score / Health Band",
+  faq_a_terms_7:"Not a standard statistical or medical term — it's a single 0–100 number this app calculates by blending four things: 40% how well the student is scoring, 20% how consistent they are, 20% whether they're trending up or down, and 20% an engagement estimate. Those weightings are a design choice made for this app, not a scientifically standardized formula.",
+  faq_q_terms_8:"Consistency Score",
+  faq_a_terms_8:"How steady a student's scores are from test to test. A high consistency score means they don't swing wildly between a great test and a bad one — it's mathematically the inverse of how \"spread out\" their individual scores are.",
+  faq_q_terms_9:"Growth Rate",
+  faq_a_terms_9:"How fast a student's scores are moving up or down over time, shown as a percentage with a + or – sign.",
+  faq_q_terms_10:"Engagement Index",
+  faq_a_terms_10:"The app's estimate of how \"involved\" a student seems, inferred indirectly from attendance and score-trend data. <strong>Important to clarify:</strong> this is a proxy, not a direct measurement — the app cannot actually observe classroom participation or attention.",
+  faq_q_terms_11:"Plateau Detection",
+  faq_a_terms_11:"Flags a student whose scores haven't moved up or down much across 3 or more tests in a row. It means \"flat,\" not necessarily \"failing\" — a high-scoring student can plateau too.",
+  faq_q_terms_12:"Early Warning Score",
+  faq_a_terms_12:"A single combined risk number built from several other signals together (score drops, volatility, absences), meant to surface students needing attention even before any one signal alone looks alarming.",
+  faq_q_terms_13:"Burnout Risk",
+  faq_a_terms_13:"Flags a student who was previously scoring well and then dropped sharply. It describes a score pattern associated with burnout — it is not a clinical or psychological diagnosis.",
+  faq_q_terms_14:"Resilience Score",
+  faq_a_terms_14:"The positive counterpart to Burnout Risk — flags a student who bounced back well after a bad test.",
+  faq_q_terms_15:"Volatility / Volatile",
+  faq_a_terms_15:"Same idea as SD above, but applied to one individual student instead of the whole class — do their scores bounce around a lot from test to test?",
+  faq_q_terms_16:"Stress Score / Wellbeing Flag",
+  faq_a_terms_16:"A number combining how often a student is absent with penalties for declining performance trends. Meant as an indicator to look into, not a certified wellbeing assessment.",
+  faq_q_terms_17:"PWA",
+  faq_a_terms_17:"<strong>Full form: Progressive Web App.</strong> A website built to feel more like an installed app — it can be \"Added to Home Screen\" for an icon, but it's still a web page running in the browser underneath, not a Play Store / App Store install.",
+  faq_q_terms_18:"MOU",
+  faq_a_terms_18:"<strong>Full form: Memorandum of Understanding.</strong> A formal agreement document sometimes required before a school adopts outside software — not currently used for this app, since there's no vendor relationship behind it.",
+  faq_q_terms_19:"ERP",
+  faq_a_terms_19:"<strong>Full form: Enterprise Resource Planning.</strong> The umbrella term for a school's main management software (attendance, fees, admissions, etc.). This app is not an ERP — it's a narrow add-on for marks analysis and report cards only.",
+  faq_q_terms_20:"CBSE / ICSE",
+  faq_a_terms_20:"<strong>Full form:</strong> Central Board of Secondary Education / Indian Certificate of Secondary Education — the two major Indian school-board systems, each with its own grading conventions the app's thresholds may need to be checked against.",
+  faq_q_accessibility:"Is this accessible to users with disabilities (screen readers, keyboard-only navigation, etc.)?",
+  faq_a_accessibility:"It hasn't been specifically tested against accessibility standards (e.g. WCAG) — worth verifying directly with your assistive-technology setup rather than assuming it works cleanly.",
+  faq_q_source:"Is the source code available — can we audit it?",
+  faq_a_source:"Not yet at a public, stable link, despite the MIT license shown on the About page — that claim is about the license Student Insight is released under once published, not a working repo link today. This will be updated with a direct link as soon as one is live, rather than leaving it unverifiable in the meantime. In the meantime, the app's entire logic runs client-side and is visible via browser dev-tools (see \"Where in the code do these formulas actually live?\" under Exact Formulas).",
+  faq_tag_forreviewers:"For reviewers",
+  faq_tag_applogic:"App logic",
+  setup_absent_alert_label:"Absent Alert",
+  setup_btn_back:"Back",
+  setup_btn_done_upload:"Done — Upload on Home",
+  setup_btn_download_template:"Download Template",
+  setup_btn_load_different:"Load a Different Sheet",
+  setup_btn_load_existing:"Load Existing Filled Sheet",
+  setup_btn_next:"Next",
+  setup_card_new_desc:"Start fresh — set up institution, class, subjects and tests, then download a blank workbook to fill offline.",
+  setup_card_new_title:"Create New Template",
+  setup_card_update_desc:"Already filled Test 1? Load your workbook, add Test 2 / Test 3, then re-download — existing marks are kept, only new blank columns are added.",
+  setup_card_update_title:"Update Existing Template",
+  setup_class_name_error:"Class / Batch is required",
+  setup_class_name_label:"Class / Batch",
+  setup_class_name_placeholder:"e.g. Class 9",
+  setup_class_section_label:"Section",
+  setup_class_section_placeholder:"e.g. B",
+  setup_class_teacher_label:"Teacher Name",
+  setup_class_title:"Class / Batch",
+  setup_class_year_error:"Academic year is required",
+  setup_class_year_label:"Academic Year",
+  setup_class_year_placeholder:"e.g. 2026",
+  setup_compare_banner_btn:"Home · Upload",
+  setup_compare_banner_desc:"Optional — if every section's teacher already has a filled sheet, skip straight to <button class=\"btn btn-secondary btn-sm\" data-action=\"goStep\" data-arg=\"home\" style=\"display:inline-flex;padding:3px 8px;font-size:12px;vertical-align:middle\">Home · Upload</button> and the Subjects/Tests/Max Marks from the first file you upload become the shared schema automatically. Only fill this in if you need to <b>generate a blank template</b> to hand out first — in that case, Subjects, Tests & Max Marks entered below will be shared across every section you compare.",
+  setup_compare_banner_title:"Compare Sections / Batches — Institution mode",
+  setup_drop_alert_label:"Drop Alert %",
+  setup_howstart_title:"How would you like to start?",
+  setup_indiv_multichild_hint:"Tracking more than one child? Use a separate workbook per child, not another row here — Subjects and Max Marks apply to the whole file, so a second child in the same STUDENTS tab would wrongly inherit this child's grade-level setup.",
+  setup_inst_contact_label:"Contact",
+  setup_inst_contact_placeholder:"phone / email",
+  setup_inst_location_label:"Location",
+  setup_inst_location_placeholder:"City, State",
+  setup_inst_name_error:"Institution name is required",
+  setup_inst_name_label:"Institution Name",
+  setup_inst_name_placeholder:"e.g. Hakki Public School",
+  setup_inst_title:"Institution",
+  setup_inst_type_label:"Type",
+  setup_inst_type_select:"Select...",
+  setup_merge_cancel:"Cancel — start a fresh template instead",
+  setup_mode_indiv_desc:"A parent tracking one or more children, or an aspirant tracking their own prep — no class comparison, just personal progress over time.",
+  setup_mode_indiv_title:"Individual (Parent / Self-Prep)",
+  setup_mode_inst_desc:"A teacher or coaching centre tracking a whole class or batch of students — with rank, class average, and at-risk flags.",
+  setup_mode_inst_title:"Institution / Coaching Batch",
+  setup_pass_threshold_label:"Pass %",
+  setup_scoring_grade:"Grade",
+  setup_scoring_marks:"Marks",
+  setup_scoring_passfail:"Pass/Fail",
+  setup_scoring_pct:"Percentage",
+  setup_scoring_title:"Scoring",
+  setup_step1_title:"Step 1 · Setup",
+  setup_subjects_addbtn:"Add Subject",
+  setup_subjects_title:"Subjects",
+  setup_subtitle:"Configure your institution, academic year, class, subjects and assessment details before importing student data.",
+  setup_tests_addbtn:"Add Test",
+  setup_tests_title:"Tests / Exams",
+  setup_whofor_title:"Who is this for?",
+  setup_whofor_opt_preprimary:"Pre-primary / Playschool",
+  setup_whofor_opt_primary:"Primary School",
+  setup_whofor_opt_highschool:"High School",
+  setup_whofor_opt_college:"College / University",
+  setup_whofor_opt_coaching:"Coaching Centre",
+  setup_whofor_opt_corporate:"Corporate Training",
+  setup_whofor_opt_other:"Other",
+  setup_progress_initialising:"Initialising…",
+  setup_progress_step_label:"Step 1 of 10",
+  setup_progress_crunching:"Crunching numbers in your browser — this only takes a few seconds.",
+  setup_progress_stage_1:"Performance Analysis",
+  setup_progress_stage_2:"Early Warning & Flags",
+  setup_progress_stage_3:"AI Narrative Generation",
+  setup_progress_stage_4:"Wellbeing & Psychosocial",
+  setup_progress_stage_5:"Management & Institutional",
+  setup_title_fill_mandatory:"Fill mandatory fields first",
+  setup_tests_need_subject_hint:"Add at least one subject first — tests need subject columns to score against.",
+  setup_bulk_sections_toggle:"Generate/update multiple sections",
+  setup_bulk_sections_label:"Section names (comma-separated)",
+  setup_bulk_sections_placeholder:"e.g. A, B, C",
+  setup_bulk_sections_hint:"Same Class/Batch, Subjects, Tests, and Teacher apply to every section — only the Section changes per file. Downloads as one ZIP.",
+  setup_bulk_sections_error:"Enter at least 2 section names, separated by commas",
+  setup_max_marks_per_subject:"Max marks per subject:",
+  setup_about:"About",
+  setup_student_name_label:"Student / Aspirant Name",
+  setup_institution_name_label:"Institution Name",
+  setup_eg_student_name:"e.g. Ananya Krishnan",
+  setup_eg_institution_name:"e.g. Hakki Public School",
+  setup_multi_child_hint:"Tracking more than one child? Download a separate workbook for each — Subjects and Max Marks are set once per file, so one child per workbook keeps different grades/subjects/marks-out-of clean.",
+  setup_goal:"Goal",
+  setup_class_batch:"Class / Batch",
+  setup_target_exam_goal:"Target Exam / Goal (optional)",
+  setup_mentor_coach:"Mentor / Coach (optional)",
+  setup_teacher_name:"Teacher Name",
+  setup_target_pct:"Target %",
+  setup_pass_pct:"Pass %",
+  setup_progress_reports:"Progress Reports",
+  setup_student_reports:"Student Reports",
+  setup_progress_pdf_desc:"One PDF per student — personal trend, subject breakdown, coaching notes.",
+  setup_student_pdf_desc:"One PDF per student — scores, trend, narrative, study plan.",
+  setup_progress_pdfs:"Progress PDFs",
+  setup_student_pdfs:"Student PDFs",
+  setup_eg_upsc_goal:"e.g. UPSC CSE 2027",
+  setup_eg_class:"e.g. Class 9",
+  val_level_high:"high",
+  val_level_low:"low",
+  val_trend_declining:"declining",
+  val_trend_stable:"stable",
+  val_level_moderate:"moderate",
+  val_trend_improving:"improving",
+  val_fill_student_name_first:"Fill Student/Aspirant Name first.",
+  val_fill_institution_name_first:"Fill Institution Name first.",
+  val_add_one_subject:"Add at least one subject.",
+  val_add_one_test:"Add at least one test.",
+  val_error_reading_file:"Error reading file: {{msg}}",
+  val_not_app_file_individual:"That doesn't look like a file downloaded from this app — please upload the same Excel file you filled in earlier, not a different one.",
+  val_missing_setup_students_tabs:"That file doesn't have SETUP and STUDENTS tabs — can't safely update it. If this is an older single-sheet Student Insight file, please download a fresh template and re-enter your data — sorry for the inconvenience, the file format has been improved to one tab per test.",
+  val_students_tab_no_id_col:"The STUDENTS tab doesn't have a 'Student ID' column — can't safely update this file.",
+  val_students_tab_empty_individual:"That file's STUDENTS tab doesn't have any filled-in rows yet — nothing to bring forward. Use Download Template to start fresh instead.",
+  val_individual_one_child_per_file:"This file has more than one child in the STUDENTS tab. Individual mode supports one child per workbook — Subjects and Max Marks are set once for the whole file, so a second child (different grade, different subjects, different max marks) can't share it safely. Download a separate template for each child instead.",
+  val_students_tab_empty:"That file's STUDENTS tab has a header but no student rows yet — nothing to preserve. Use a fresh Download Template instead.",
+  val_students_tab_all_sample:"That file's STUDENTS tab still has only the 5 unfilled template sample rows (SAMPLE-1..5) — replace them with your real students, then re-upload.",
+  val_setup_incomplete_title:"Setup Incomplete — {{n}} issue(s) found in SETUP tab",
+  val_file_issues_title:"{{n}} issue(s) found in your file",
+  val_fix_setup_tab_hint:"Fix the required fields in your Excel SETUP tab and re-import.",
+  val_fix_file_issues_hint:"Fix the issue(s) listed above in your Excel file and re-import.",
+  val_edit_setup_in_app_btn:"Edit Setup in App",
+  val_not_this_file_start_over:"↺ Not this file — start over / import a different one",
+  val_no_new_test_found:"No new test found — every test in your Setup form already has a tab in the loaded sheet. Add the new test's name first (✚ Add Test).",
+  val_subjects_list_changed:"Your Subjects list is different from the loaded file's. Existing test tabs are untouched either way, but double-check this was intentional.",
+  val_subjects_added_to_existing:"New subject(s) added — {{subjects}}. A blank column for each has been added to every existing test tab too, so you can fill in marks for them on past tests, not just new ones.",
+  val_missing_orig_tests:"Test tab(s) from the loaded file aren't in your current Setup form: {{names}}. That tab and its marks are still kept exactly as-is in the new file — this just means it wasn't recognised as matching a test in your Setup form. If you meant to keep the same test, re-add it with the exact original name instead of a new one.",
+  val_dupe_ids_students_tab:"Duplicate Student ID(s) already existed on the STUDENTS tab: {{ids}}.",
+  val_new_period_same_class:"Class/Batch is still \"{{label}}\" — same as the period you're moving on from. For a new class/semester this needs to actually change (e.g. Class 5 -> Class 6).",
+  val_no_file_selected:"No file selected.",
+  val_file_too_large:"File too large (max 50MB).",
+  val_unsupported_file:"Unsupported file. Use {{exts}}",
+  val_setup_missing_institution:"Institution Name is missing from SETUP tab",
+  val_setup_missing_class:"Class / Batch Name is missing from SETUP tab",
+  val_setup_missing_year:"Academic Year is missing from SETUP tab",
+  val_setup_no_subjects:"No subjects found. Add 'Subject 1', 'Subject 2'... rows to SETUP tab",
+  val_setup_no_tests:"No tests/assessments found. Add 'Test 1 Name'... rows to SETUP tab",
+  val_setup_teacher_not_set:"Class Teacher name not set (optional but recommended)",
+  val_setup_pass_threshold_not_set:"Pass Threshold % not set — defaulting to 35%",
+  val_setup_dupe_subjects:"Duplicate subject name(s) in SETUP tab: {{names}} — their data will overwrite each other",
+  val_setup_dupe_tests:"Duplicate test name(s) in SETUP tab: {{names}} — their data will overwrite each other",
+  val_setup_max_marks_not_set:"Test \"{{test}}\": Max Marks not set for {{subjects}} — defaulting to 100",
+  val_dupe_ids_students_fix:"Duplicate Student ID(s) already in the STUDENTS tab: {{ids}}. Fix these in the source file for reliable analysis.",
+  val_mode_individual:"Individual",
+  val_mode_institution:"Institution",
+  val_mode_mismatch_confirm:"This file was created in {{fileLabel}} mode, but this session is currently in {{curLabel}} mode. Switch this session to {{fileLabel}} mode and load the file?\n\nCancel to keep {{curLabel}} mode and abort this import.",
+  val_not_yet:"Not Yet",
+  val_healthband_excellent:"Excellent",
+  val_healthband_good:"Good",
+  val_healthband_average:"Average",
+  val_healthband_below_average:"Below Average",
+  val_healthband_needs_support:"Needs Support",
+  val_yes:"Yes",
+  val_home_only:"Available only from the Home screen.",
+  val_mode_compare:"Compare",
+  val_mode_scale:"Scale",
+  val_mode_continuity:"Continuity",
+  val_fix_data_quality_before_export:"Fix the data quality issues shown on the Dashboard, then re-import, before exporting.",
+  val_no_flags_detected:"No flags detected.",
+  val_no_subject_data:"No subject data.",
+  val_needs_2_subjects:"needs at least 2 subjects to compare.",
+  val_needs_10_students:"needs at least 10 students (this class has {{n}}) — with fewer, a single student's result can swing the number misleadingly.",
+  val_not_enough_data_compare:"Not enough data to compare — {{reason}}",
+  val_above:"above",
+  val_below:"below",
+  val_competitive_high:"High",
+  val_competitive_moderate:"Moderate",
+  val_competitive_developing:"Developing",
+  val_competitive_needs_support:"Needs Support",
+  val_tone_positive:"Positive",
+  val_tone_neutral:"Neutral",
+  val_tone_concern:"Needs attention",
+  val_cannot_find_marks_sheet:"Cannot find marks sheet in loaded data.",
+  val_raw_data_not_available:"Raw data not available.",
+  val_cannot_find_students_tab:"Cannot find the STUDENTS tab in the loaded data.",
+  val_fetching_sample_data:"Fetching sample data…",
+  val_upload_data_first:"Upload data first.",
+  val_rows_detected_one:"{{n}} row detected",
+  val_rows_detected_other:"{{n}} rows detected",
+  val_cant_find_subjects_individual:"We couldn't find your subjects — go back to Setup and re-generate the template.",
+  val_cant_detect_subjects:"Cannot detect subjects. Check SETUP tab or fill Step 1.",
+  val_cant_find_tests_individual:"We couldn't find your tests — go back to Setup and re-generate the template.",
+  val_cant_detect_tests:"Cannot detect tests. Check SETUP tab or fill Step 1.",
+  val_data_errors_found:"Data errors found",
+  val_fix_data_errors_below:"Fix the data error(s) shown below before analysis can run.",
+  val_data_warnings_will_proceed:"Data warnings (analysis will proceed)",
+  val_confirm_large_file:"This file looks like it has {{n}}+ student rows. Analysing a class this large may take a while and could freeze the tab on slower computers. Continue anyway?",
+  val_large_class_detected:"Large class detected (~{{n}} students) — analysis may take longer than usual.",
+  val_duplicate_ids:"Duplicate Student IDs: {{ids}}",
+  val_no_student_rows_marks_context:"No student rows found in MARKS+CONTEXT. Upload a filled Excel.",
+  val_rows_no_full_name:"{{n}} row(s) have a Student ID but no Full Name filled in.",
+  val_duplicate_ids_students_tab:"Duplicate Student IDs on the STUDENTS tab: {{ids}}",
+  val_no_student_rows_students_tab:"No student rows found on the STUDENTS tab. Upload a filled Excel.",
+  val_no_tab_matching_test:"No tab found matching test name \"{{names}}\" — the tab name must exactly match the test name in Setup (this also confirms the file is a genuine Student Insight template).",
+  val_students_no_gender:"{{n}} student(s) on the STUDENTS tab don't have a Gender filled in (expected M or F).",
+  val_name_truncated:"Full Name is {{len}} characters — truncated to {{max}} for display/export.",
+  val_remark_truncated:"Remark is {{len}} characters — truncated to {{max}} for display/export.",
+  val_orphan_rows_skipped:"{{n}} row(s) had a Student ID not on the roster and were skipped — see Data Issues.",
+  val_sample_rows_skipped:"{{n}} unused template sample row(s) (SAMPLE-1..5) were skipped — replace them with your real students before uploading next time.",
+  val_setup_fields_truncated:"{{fields}} was too long and got shortened to {{max}} characters — check it still reads correctly.",
+  val_bulk_sections_need_two:"Enter at least 2 section names, separated by commas (e.g. A, B, C) — or uncheck bulk mode for a single file.",
+  val_outlier_reason:"{{name}}'s overall average ({{pct}}%) is a statistical outlier vs the class — z-score {{z}} against a class mean of {{mean}}% (SD {{sd}}). {{dir}} peers — worth a closer look either way.",
+  val_far_ahead:"Unusually far ahead of",
+  val_far_below:"Unusually far below",
+  val_cluster_high_steady:"High & Steady",
+  val_cluster_high_volatile:"High but Volatile",
+  val_cluster_low_declining:"Low & Declining",
+  val_cluster_moderate_inconsistent:"Moderate but Inconsistent",
+  val_cluster_moderate_steady:"Moderate & Steady",
+  val_no_gender_column:"No Gender column found — add one to the MARKS+CONTEXT tab to enable this.",
+  val_not_enough_gendered_students:"Not enough students with a recognised Gender value in at least two groups (need {{n}}+ each) to report a meaningful comparison.",
+  val_compare_max_files:"Compare mode supports up to {{max}} files at a time — {{skipped}} file(s) were not added. Remove a section first to add another.",
+  val_no_students:"No students",
+  val_mode_locked_to:"Mode is locked to {{mode}} for this project — a template or file is already in use. Start a new project (Home → New Project) to switch modes.",
+  val_locked_start_new_project:"Locked — start a new project to switch modes",
+  val_choose_option_continue:"Choose an option to continue.",
+  val_student_name_required:"Student / Aspirant name is required.",
+  val_institution_name_required:"Institution name is required.",
+  val_choose_who_for:"Choose who this is for.",
+  val_class_batch_required:"Class / Batch is required.",
+  val_academic_year_required:"Academic year is required.",
+  val_no_data_stored:"Student Insight doesn't store data — your Excel file is your save. Use Export to generate reports.",
+  val_student_name_required_short:"⚠ Student / Aspirant name is required",
+  val_institution_name_required_short:"⚠ Institution name is required",
+  val_at_least_one_subject:"at least one Subject",
+  val_at_least_one_test:"at least one Test",
+  val_dupe_subject_names:"duplicate Subject name(s): {{names}}",
+  val_dupe_test_names:"duplicate Test name(s): {{names}}",
+  val_still_needed:"Still needed: {{items}}.",
+  val_new_version_available:"A new version of Student Insight is available.",
+  val_smart_search_unavailable:"Smart Search isn't available right now.",
+  val_pick_two_different_students:"Pick two different students.",
+  val_avg_colon:"Avg:",
+  val_top_subject_colon:"Top subject:",
+  val_no_data_yet_for:"No data yet for {{subject}}.",
+  val_upload_file_home_first:"Upload a file on Home first.",
+  val_upload_1_valid_file_home_first:"Upload at least 1 valid file on Home first.",
+  val_run_analysis_first:"Run Analysis first.",
+  val_run_analysis_first_title:"Run Analysis on Home first",
+  val_no_data_loaded:"No data loaded.",
+  val_and_download_icon_instead:"and the download icon instead.",
+  val_existing_sheet_loaded:"Existing sheet loaded — add your new test, then click Update & Download.",
+  val_import_failed_hint:"Make sure the file is a valid .xlsx or .xls file.",
+  val_import_failed_label:"Import failed:",
+  val_no_multiperiod_data:"No multi-period data loaded.",
+  val_no_prior_period:"No prior period to compare against.",
+  val_no_students_match_filter:"No students match the filter.",
+  val_no_subject_data_yet:"No subject data available yet.",
+  val_search_by_name:"Search by name…",
+  val_search_by_subject:"Search by subject…",
+  val_try_again_or_use:"try again, or use",
+  val_update_aborted_integrity:"Update aborted — integrity check failed: {{reason}}",
+  val_cant_analyse_files:"Can't analyse these files",
+  val_cant_analyse_files_detail:"None of these look like Student Insight templates — check you're uploading the filled Excel file(s) exported from Setup, with SETUP and MARKS+CONTEXT tabs intact.",
+  val_couldnt_load_sample_directly:"Couldn't load the sample directly",
+  val_no_data_short:"No data.",
+  val_target_pct:"Target %",
+  pdf_no_students_export:"No students to export.",
+  pdf_fix_data_issues:"Fix the {{count}} data quality issue(s) on the Dashboard before exporting.",
+  pdf_select_report_type:"Select at least one report type to export.",
+  pdf_generating_student:"Generating: {{name}} ({{done}}/{{total}})",
+  pdf_generating_teacher:"Generating Teacher Report…",
+  pdf_generating_mgmt:"Generating Management Report…",
+  pdf_building_zip:"Building ZIP…",
+  pdf_zip_downloaded:"ZIP downloaded: {{fname}}",
+  pdf_downloaded_individually:"{{count}} PDF(s) downloaded individually.",
+  pdf_export_failed:"Export failed: {{msg}}",
+  pdf_generated_label:"Generated: {{date}}",
+  pdf_footer_tagline:" — Open Source  |  Privacy-First  |  Built by Sandeep Hakki",
+  pdf_page_of:"Page {{p}} of {{total}}",
+  pdf_progress_report:"Progress Report",
+  pdf_id_label:"ID: {{id}}",
+  pdf_student_id_label:"Student ID: {{id}}",
+  pdf_grade_prefix:"Grade {{grade}}",
+  pdf_nav_marks:"Marks Table",
+  pdf_trend:"Trend",
+  pdf_nav_journey:"Journey",
+  pdf_nav_alerts:"Alerts",
+  pdf_nav_remarks:"Remarks",
+  pdf_jump_to:"JUMP TO:",
+  pdf_kpi_grade:"Grade",
+  pdf_kpi_met_target:"Met Target",
+  pdf_val_yes:"Yes",
+  pdf_val_not_yet:"Not Yet",
+  pdf_val_up:"UP",
+  pdf_val_down:"DOWN",
+  pdf_val_stable:"STABLE",
+  pdf_kpi_absences:"Absences",
+  pdf_kpi_rank:"Rank",
+  pdf_kpi_percentile:"Percentile",
+  pdf_subject_performance:"Subject Performance",
+  pdf_all_test_scores:"All Test Scores",
+  pdf_marks_legend:"Score shown as scored/max marks  ·  Green = strong (80%+)  ·  Blue = passing  ·  Red = below {{threshold}}%  ·  gray dash = not taken",
+  pdf_col_test:"Test",
+  pdf_col_total:"Total",
+  pdf_col_avg:"Avg",
+  pdf_opted_suffix:"{{opted}}/{{total}} opted",
+  pdf_class_avg:"Class Avg",
+  pdf_test_trend:"Test Trend",
+  pdf_alerts_flags:"Alerts & Flags",
+  pdf_teacher_remarks:"Teacher Remarks",
+  pdf_confidential_personal:"Personal record — not for redistribution",
+  pdf_confidential_parent:"CONFIDENTIAL — For parent/guardian only",
+  pdf_teacher_report_title:"Teacher Report",
+  pdf_kpi_students:"Students",
+  pdf_kpi_pass_rate:"Pass Rate",
+  pdf_kpi_at_risk:"At Risk",
+  pdf_kpi_improving:"Improving",
+  pdf_kpi_declining:"Declining",
+  pdf_subject_averages:"Subject Averages",
+  pdf_student_rankings:"Student Rankings",
+  pdf_col_name:"Name",
+  pdf_col_grade:"Grade",
+  pdf_col_ew:"EW",
+  pdf_col_flags:"Flags",
+  pdf_val_up_cap:"Up",
+  pdf_val_down_cap:"Down",
+  pdf_val_stable_cap:"Stable",
+  pdf_students_needing_support:"Students Needing Support",
+  pdf_subject_gaps:"Subject Gaps",
+  pdf_subject_gaps_note:"Sorted by % of class below the pass threshold in that subject.",
+  pdf_subject_gap_stat:"{{pct}}% below pass  ·  class avg {{avg}}%",
+  pdf_top_performers:"Top Performers",
+  pdf_test_comparison:"Test Comparison — Class Average",
+  pdf_gender_analysis:"Gender Analysis",
+  pdf_teacher_remarks_ptm:"Teacher Remarks — Notes for PTM",
+  pdf_confidential_teacher:"TEACHER CONFIDENTIAL",
+  pdf_mgmt_report_title:"Management Report",
+  pdf_kpi_total_students:"Total Students",
+  pdf_kpi_class_average:"Class Average",
+  pdf_students_lc:"students",
+  pdf_needs_attention:"Needs attention",
+  pdf_all_clear:"All clear",
+  pdf_of_class:"of class",
+  pdf_kpi_class_topper:"Class Topper",
+  pdf_subject_perf_overview:"Subject Performance Overview",
+  pdf_consistently_improving:"Consistently Improving",
+  pdf_consistently_declining:"Consistently Declining",
+  pdf_at_risk_students:"At-Risk Students",
+  pdf_stable_performance:"Stable Performance",
+  pdf_gender_perf_analysis:"Gender Performance Analysis",
+  pdf_pass_rate_prefix:"Pass rate: {{rate}}%",
+  pdf_compare_sections:"Compare Sections",
+  pdf_col_section:"Section",
+  pdf_col_pass_pct:"Pass%",
+  pdf_col_at_risk_short:"At-Risk",
+  pdf_col_topper:"Topper",
+  pdf_rec_high_risk:"High at-risk rate detected. Consider remedial sessions for flagged subjects.",
+  pdf_rec_strong_trend:"Strong positive trend across the class. Recognition programme recommended.",
+  pdf_rec_stable:"Class performance is stable. Monitor declining students closely.",
+  pdf_recommendation_prefix:"Recommendation: {{rec}}",
+  pdf_strategic_recommendation:"Strategic Recommendation",
+  pdf_confidential_mgmt:"MANAGEMENT CONFIDENTIAL",
+  pdf_gender_lead_narrative:"{{lead}} are outperforming {{other}} overall by {{gap}} points this term.",
+  pdf_gender_gap_largest:" The gap is largest in {{subject}} ({{value}} pts).",
+  pdf_gender_gap_largest_led:" The gap is largest in {{subject}} ({{value}} pts, led by {{led}}).",
+  pdf_gender_even:"Overall performance is essentially even between the two groups this term.",
+  pdf_gender_girls:"Girls",
+  pdf_gender_boys:"Boys",
+  ai_anxiety_flag_label:"Anxiety Flag",
+  ai_anxiety_flag_sub:"Pattern of consistent underperformance suggesting anxiety",
+  ai_at_risk_label:"At-Risk Detection",
+  ai_at_risk_sub:"Scored below pass threshold in any subject",
+  ai_avg_label:"Subject-wise Average",
+  ai_avg_sub:"Mean marks per subject per test",
+  ai_burnout_risk_label:"Burnout Risk",
+  ai_burnout_risk_sub:"Declining performance after previous high scores",
+  ai_chronic_absent_label:"Chronic Absenteeism",
+  ai_chronic_absent_sub:"Exceeds absence threshold near test dates",
+  ai_class_difficulty_label:"Class Difficulty Flag",
+  ai_class_difficulty_sub:"Subject where >40% of class is struggling",
+  ai_class_health_label:"Class Health Score",
+  ai_class_health_sub:"Overall class performance index 0–100",
+  ai_competitive_readiness_label:"Competitive Readiness",
+  ai_competitive_readiness_sub:"Readiness signal for entrance exams (JEE/NEET/IAS)",
+  ai_consistency_label:"Consistency Score",
+  ai_consistency_sub:"Low variance = consistent; high = unpredictable",
+  ai_cumulative_label:"Cumulative Average",
+  ai_cumulative_sub:"Running average across all tests to date",
+  ai_diversity_analysis_label:"Gender & Group Analysis",
+  ai_diversity_analysis_sub:"Performance patterns across gender groups",
+  ai_early_warning_label:"Early Warning Score",
+  ai_early_warning_sub:"Composite risk score for proactive intervention",
+  ai_engagement_index_label:"Engagement Index",
+  ai_engagement_index_sub:"Proxy for class engagement via attendance + trend",
+  ai_grade_label:"Grade Assignment",
+  ai_grade_sub:"A/B/C/D/F by percentage bands",
+  ai_growth_rate_label:"Growth Rate",
+  ai_growth_rate_sub:"Score velocity — how fast improving or declining",
+  ai_intervention_label:"Intervention Note",
+  ai_intervention_priority_label:"Intervention Priority List",
+  ai_intervention_priority_sub:"Ranked list of students needing immediate support",
+  ai_intervention_sub:"Teacher guidance for at-risk students",
+  ai_motivation_label:"Motivational Message",
+  ai_motivation_sub:"Personalised encouragement based on trend",
+  ai_multiple_fails_label:"Multiple Subject Failures",
+  ai_multiple_fails_sub:"Failing in 2 or more subjects simultaneously",
+  ai_parent_summary_label:"Parent-Friendly Summary",
+  ai_parent_summary_sub:"Plain-language progress narrative for parents",
+  ai_pct_label:"Percentage Calculation",
+  ai_pct_sub:"% score per subject and overall",
+  ai_peer_outlier_label:"Peer Outlier",
+  ai_peer_outlier_sub:"Performing unusually above or below peer group",
+  ai_percentile_label:"Percentile Calculation",
+  ai_percentile_sub:"Where student stands within the class",
+  ai_plateau_label:"Plateau Detection",
+  ai_plateau_sub:"No improvement across 3+ consecutive tests",
+  ai_prediction_label:"Next Test Prediction",
+  ai_prediction_sub:"Projected score from trend (2+ tests)",
+  ai_progress_narrative_label:"Progress Narrative",
+  ai_progress_narrative_sub:"Story of the student's journey across all tests",
+  ai_rank_label:"Class Ranking",
+  ai_rank_sub:"Rank 1–N by overall average",
+  ai_resilience_score_label:"Resilience Score",
+  ai_resilience_score_sub:"Ability to recover after a drop — positive rebound",
+  ai_sharp_drop_label:"Sharp Drop Alert",
+  ai_sharp_drop_sub:"Sudden marks drop ≥ configurable % between tests",
+  ai_strengths_letter_label:"Strengths Letter",
+  ai_strengths_letter_sub:"Highlight what the student excels at",
+  ai_stress_score_label:"Stress Indicator",
+  ai_stress_score_sub:"Composite score from volatility, absences & trend",
+  ai_study_plan_label:"Study Plan",
+  ai_study_plan_sub:"Targeted recommendations for weak subjects",
+  ai_subject_audit_label:"Subject Audit",
+  ai_subject_audit_sub:"Which subjects need curriculum or teaching review",
+  ai_subject_collapse_label:"Subject Collapse",
+  ai_subject_collapse_sub:"Was strong, now suddenly failing in a subject",
+  ai_subject_strength_label:"Subject Strength & Weakness",
+  ai_subject_strength_sub:"Best and weakest subject per student",
+  ai_teacher_remarks_ai_label:"AI Remark Sentiment",
+  ai_teacher_remarks_ai_sub:"Classify teacher remarks as positive / neutral / concern",
+  ai_test_difficulty_label:"Test Difficulty Analysis",
+  ai_test_difficulty_sub:"Was the test too hard or too easy vs class history",
+  ai_topper_gap_label:"Topper Gap Analysis",
+  ai_topper_gap_sub:"How far each student is from class topper",
+  ai_trend_label:"Performance Trend",
+  ai_trend_sub:"Improving / Stable / Declining across tests",
+  ai_volatile_label:"Volatile Performance",
+  ai_volatile_sub:"High score variance — inconsistent pattern",
+  ai_wellbeing_summary_label:"Wellbeing Summary",
+  ai_wellbeing_summary_sub:"Class-level psychosocial overview for teacher",
+  ai_year_projection_label:"Year-End Projection",
+  ai_year_projection_sub:"Projected final scores based on current trajectory",
+  shell_right_generate_zip:"Generate & Download ZIP",
+  shell_scholarship_students_label:"Students",
+  shell_scholarship_common_reports_label:"Common Reports",
+  shell_scholarship_common_reports_desc:"Also include the class-wide Shortlist / By Category / Subject Toppers workbook (XLSX) already on this dashboard's Download button.",
+  shell_scholarship_download_certificates:"Download Certificates (PDF)",
+  shell_home_left_pitch_1:"Instant PDF report cards",
+  shell_home_left_pitch_2:"No data ever uploaded",
+  shell_home_left_pitch_3:"Auto-detects subjects & tests",
+  shell_home_left_pitch_4:"Works for one class or many",
+  shell_home_left_pitch_5:"13 languages, full RTL support",
+  shell_home_left_pitch_6:"Ask questions in plain language",
+  shell_home_left_pitch_7:"Turns raw marks into rank, trend & risk flags",
+  shell_home_right_pitch_1:"Class-wide KPIs — averages, pass rate, and trends across tests",
+  shell_home_right_pitch_2:"A performance heatmap across every subject and test",
+  shell_home_right_pitch_3:"An automatic list of students who may need extra help",
+  shell_home_right_pitch_4:"Top performers and instant two-student comparisons",
+  shell_home_right_pitch_5:"Patterns pulled out of teacher remarks and wellbeing notes",
+  shell_home_right_pitch_6:"Performance groups, once the class is large enough",
+  shell_left_file_details_title:"File details",
+  shell_left_current_file_details_title:"Current File Details",
+  shell_left_recent_files_title:"Recent Files",
+  shell_left_recent_files_hint:"Tap a file to open the picker and select it again",
+  shell_left_file_label:"Uploaded file",
+  shell_left_multi_file:"Multiple files",
+  shell_left_no_file:"No file uploaded yet",
+  shell_left_org_label:"Institution / Individual",
+  shell_left_records_label:"Records",
+  shell_left_single_file:"Single file",
+  shell_rail_features_title:"Features",
+  shell_rail_properties_title:"Properties",
+  shell_right_build_template:"Build Your Own Template",
+  shell_right_exports_ready:"Exports ready",
+  shell_right_link_sample_files:"Sample Files",
+  shell_right_selected_features:"Selected features",
+  shell_right_try_sample:"Try Sample Data",
+  shell_skip_to_content:"Skip to main content",
+  shell_nav_home:"Home",
+  shell_nav_scholarship:"Scholarship",
+  shell_nav_setup:"Setup",
+  shell_nav_samplefiles:"Sample Files",
+  shell_nav_about:"About",
+  shell_nav_faq:"FAQ",
+  shell_ribbon_privacy_tagline:"Privacy First • Browser Based • No Student Data Uploaded",
+  shell_aria_country_lang:"Country and language",
+  shell_title_country:"Country",
+  shell_title_language:"Language",
+  shell_aria_theme:"Colour theme",
+  shell_title_theme_light:"Light theme",
+  shell_title_theme_dark:"Dark theme",
+  shell_title_unsaved:"Unsaved changes",
+  shell_aria_setup_steps:"Setup steps",
+  shell_aria_nav_setup:"Setup — build your own template",
+  shell_aria_nav_samplefiles:"Sample Files — try without downloading",
+  shell_aria_collapse_panel:"Collapse panel",
+  shell_aria_details_panel:"Details panel",
+  shell_aria_resize_details:"Resize details panel",
+  shell_aria_main_content:"Main content",
+  shell_aria_resize_actions:"Resize actions panel",
+  shell_aria_actions_panel:"Actions panel",
+  shell_aria_close_dialog:"Close dialog",
+  shell_hint_features_peek:"Tap for page info & help",
+  shell_hint_properties_peek:"Tap for tools & actions",
+  shell_expand_panel:"Expand panel",
+  shell_collapse_panel:"Collapse panel",
+  shell_students_label:"Students",
+  shell_report_types:"Report Types",
+  shell_teacher_report:"Teacher Report",
+  shell_management_report:"Management Report",
+  shell_left_recent_files_delete_aria:"Remove from recent files",
+};
+// v3.9 — Phase 3 i18n. SR_STRINGS_EN above stays inline in this file as
+// the EMERGENCY FALLBACK (per explicit direction: "English sits in html
+// [/JS] only for any emergencies") — if i18n/en.json fails to fetch (bad
+// connection, file missing, whatever), the app still runs correctly in
+// English using this inline copy, never a blank/broken string.
+// Hindi/Kannada (and any future language) are no longer hardcoded here —
+// they load on demand from i18n/<code>.json only when the user actually
+// picks that language (see loadLanguage() below), protecting low-end/
+// slow-connection devices from downloading language data nobody asked
+// for. This replaces the old SR_STRINGS_HI/SR_STRINGS_KN consts and the
+// static SR_LANG_TABLES object that used to live here.
+window.I18N_TABLES = { en: SR_STRINGS_EN };
+window.SR_LANG = "en"; // default — see COUNTRY_LANGUAGES/applyCountryDefault() in js/state-nav.js for how India+English became the default
+
+// FIX (i18n full sweep §5): toLocaleDateString() calls throughout the app
+// used to run with no locale argument, so dates always rendered in the
+// browser's SYSTEM locale — completely independent of which language the
+// user picked in-app. A user with English OS settings but Hindi selected
+// in Student Insight got an English-formatted date on their Hindi PDF
+// report. bcp47TagFor() maps our 2-letter SR_LANG codes to real BCP-47
+// tags so toLocaleDateString(bcp47TagFor(SR_LANG)) actually follows the
+// in-app language choice.
+const SR_LANG_BCP47 = {
+  en:"en-IN", hi:"hi-IN", bn:"bn-IN", ta:"ta-IN", te:"te-IN", kn:"kn-IN",
+  ml:"ml-IN", mr:"mr-IN", gu:"gu-IN", pa:"pa-IN", or:"or-IN", as:"as-IN",
+  ur:"ur-IN",
+};
+function bcp47TagFor(langCode){
+  return SR_LANG_BCP47[langCode] || "en-IN";
+}
+window.I18N_LOADING = false;
+
+// i18n split into feature-owned files, mirroring the ui/bal/dal folder
+// layout (i18n/common, i18n/smart-search, i18n/compare, i18n/scholarship,
+// i18n/about, i18n/faq, i18n/setup) — en.json's single ~1400-key file was
+// becoming unmanageable and only growing (scholarship alone added ~100
+// keys; about/faq/setup were split out next as the next-largest common
+// chunks). Ownership per key was
+// decided by which code folder actually references it (see the split
+// migration script) — most strings stay in i18n/common since they're
+// consumed by shared shell/dashboard/export code, only genuinely
+// feature-scoped strings moved out. Legacy monolithic i18n/<code>.json
+// stays supported as a fallback for languages not yet split (today: all
+// except en) — loadLanguage() below checks for the split common file
+// first and only falls back to the old single-file layout if it's
+// missing, so splitting a new language later needs zero code changes.
+const I18N_FEATURES = ["common","smart-search","compare","scholarship","about","faq","setup","validation","pdf","ai","shell","studinpro"];
+function fetchJsonOrNull(url){
+  return fetch(url).then(r=>r.ok?r.json():null).catch(()=>null);
+}
+function loadSplitOrLegacyLanguage(code){
+  return fetchJsonOrNull(`i18n/common/${code}.json`).then(common=>{
+    if(!common){
+      // BUG FIX: this used to throw a real fetch error (via `fetch()`,
+      // not `fetchJsonOrNull()`) whenever i18n/<code>.json didn't exist
+      // either — which is now guaranteed for every non-Indian language
+      // added to the country/language dropdown (de, fr, ru, zh — see
+      // core/state-nav.js's COUNTRY_LANGUAGES) since none of them have
+      // real translation files yet. That thrown error propagated all
+      // the way up to loadLanguage()'s .catch(), which showed the user
+      // an error toast and left the UI on whatever language it was
+      // already on — i.e. picking "Deutsch" from the dropdown visibly
+      // failed instead of doing anything. Every OTHER shard below
+      // already used fetchJsonOrNull (graceful null-on-404, filtered
+      // out before merging) — this legacy single-file fallback was the
+      // one path that still threw. Now it degrades the exact same way:
+      // no i18n/common/<code>.json AND no legacy i18n/<code>.json means
+      // an empty {} merges in below, and render-i18n.js's own
+      // table[key]||SR_STRINGS_EN[key] chain (see srT()) renders every
+      // string in English — same safe, already-documented fallback
+      // behavior as a language that's split but missing individual keys,
+      // not a crash.
+      return fetchJsonOrNull(`i18n/${code}.json`).then(legacy=>legacy||{});
+    }
+    return Promise.all(
+      I18N_FEATURES.slice(1).map(f=>fetchJsonOrNull(`i18n/${f}/${code}.json`))
+    ).then(rest=>Object.assign({}, common, ...rest.filter(Boolean)));
+  });
+}
+
+function loadLanguage(code){
+  // BUG FIX (vs-shell-plan-v2 Task 1): English used to short-circuit here
+  // ("already... it's English, always present inline") and never fetch
+  // i18n/en.json, while SR_STRINGS_EN above was a hand-maintained subset
+  // that had silently drifted out of sync with en.json (missing keys like
+  // smart_search_back/title/subtitle) — that drift, not a race condition,
+  // is why raw key names showed on screen. English now goes through the
+  // exact same fetch path as every other language: one code path for all
+  // 14 cases. SR_STRINGS_EN stays inline purely as the emergency fallback
+  // (per the original "English sits in html/JS only for emergencies"
+  // direction, see comment above) — it's still used below if the fetch
+  // fails, and it still pre-populates I18N_TABLES.en so the very first
+  // synchronous render (before this fetch resolves) isn't blank.
+  if(window.I18N_TABLES[code] && code!=="en"){ // already fetched (non-English only — English always refetches once, below)
+    window.SR_LANG = code;
+    syncLanguageDropdown(code);
+    reapplyI18nStrings();
+    return Promise.resolve();
+  }
+  window.I18N_LOADING = true;
+  return loadSplitOrLegacyLanguage(code)
+    .then(json=>{
+      window.I18N_TABLES[code] = json;
+      window.SR_LANG = code;
+      window.I18N_LOADING = false;
+      syncLanguageDropdown(code);
+      reapplyI18nStrings();
+    })
+    .catch(err=>{
+      window.I18N_LOADING = false;
+      console.error("loadLanguage failed for", code, err);
+      if(code==="en"){
+        // Emergency fallback: keep the inline SR_STRINGS_EN copy already
+        // sitting in window.I18N_TABLES.en so English still renders correctly
+        // even though i18n/en.json couldn't be fetched.
+        window.SR_LANG = "en";
+        syncLanguageDropdown("en");
+        reapplyI18nStrings();
+        return;
+      }
+      toast(srT("toast_language_load_failed",{lang:SR_LANG_TABLES_LABEL(window.SR_LANG)}),"warn");
+    });
+}
+// BUG FIX (studin-ui-bugs-2): loadLanguage() is called from several places
+// that are NOT the #language-select <select> itself changing (e.g. the
+// onboarding/demo-slide language picker calling window.onLanguageChange()
+// directly on "Get started"/"Skip"). The dropdown's own onchange handler
+// keeps it in sync when the USER drives it, but nothing previously wrote
+// the new language back into the <select>'s value when a language change
+// came from elsewhere — so after finishing the onboarding tour in e.g.
+// Hindi, the app WAS correctly switched to Hindi (translations applied,
+// AI-translation notice shown) but the Home screen's language dropdown
+// still displayed "English", contradicting the app's actual state. Calling
+// this from every place loadLanguage() sets window.SR_LANG (not just the
+// dropdown's own handler) keeps the visible control truthful regardless of
+// which caller triggered the switch.
+function syncLanguageDropdown(code){
+  const sel = document.getElementById("language-select");
+  if(sel && sel.value!==code) sel.value = code;
+}
+// AI-translation disclosure popup — shown whenever the user switches from
+// India/English into any regional language (see onLanguageChange in
+// js/state-nav.js). Displays the fixed disclosure message in both English
+// and the newly selected language so non-English readers can still verify
+// the sender/purpose in a language they're confident in. Reuses the
+// existing generic #modal-overlay/#modal-box, same as Sample Files and
+// Student Detail modals elsewhere in the app.
+function showAiTranslationNotice(langCode){
+  const enTable = window.I18N_TABLES.en || SR_STRINGS_EN;
+  const nativeTable = window.I18N_TABLES[langCode] || {};
+  const enText = enTable["lang_ai_disclosure_notice"] || "";
+  const nativeText = nativeTable["lang_ai_disclosure_notice"] || "";
+  const nativeLabel = (nativeTable._meta && nativeTable._meta.label) || langCode;
+  $("#modal-content").html(`
+    <h3 style="font-family:var(--font-display);font-size:16px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+      <svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-50'/></svg>
+      AI Translation Notice
+    </h3>
+    <div style="font-size:13px;color:var(--c-text2);line-height:1.5;margin-bottom:12px">${enText}</div>
+    <div style="font-size:13px;color:var(--c-text2);line-height:1.5;padding-top:12px;border-top:1px solid var(--c-border)" lang="${langCode}">${nativeText}</div>
+    <div style="font-size:12px;color:var(--c-text3);margin-top:10px;letter-spacing:.2px">${nativeLabel}</div>
+  `);
+  gsapModalEntrance();
+  setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);
+}
+// Sample-names disclosure popup — shown whenever the user switches the
+// Country selector away from India (see onCountryChange in
+// core/state-nav.js). The sample files always use Indian student names
+// regardless of country selected (sample data itself isn't localized),
+// so this heads-up prevents a non-India user assuming the sample is
+// meant to reflect their own students. Reuses the same generic
+// #modal-overlay/#modal-content as showAiTranslationNotice() above.
+//
+// BUG FIX: this used to render purely via srT(), which resolves against
+// whatever language is CURRENTLY active — so a user who'd already
+// switched to a regional language (e.g. Hindi) and then changed Country
+// saw the notice ONLY in Hindi, with no English fallback to fall back on.
+// A country change on its own says nothing about the user's language
+// preference, so English must always be shown (matching the "show in
+// English" requirement for a plain country change); and when a regional
+// language is ALSO currently selected, the native translation is shown
+// underneath too — same dual-language pattern already used by
+// showAiTranslationNotice() above — rather than swapping English out for
+// it entirely.
+// `onContinue`, when supplied, renders a Continue button (instead of just
+// relying on the modal's own X/close) that runs the callback and closes
+// the modal — used by render-core.js's runSampleFile() gate so the
+// sample actually loads once the person has seen the disclosure. Called
+// with no argument, this stays purely informational (no button), for any
+// future non-gating use.
+function showSampleNamesNotice(onContinue){
+  const currentLang = window.SR_LANG || "en";
+  const enTable = window.I18N_TABLES.en || SR_STRINGS_EN;
+  const enTitle = enTable["country_sample_names_notice_title"] || SR_STRINGS_EN["country_sample_names_notice_title"];
+  const enText = enTable["country_sample_names_notice"] || SR_STRINGS_EN["country_sample_names_notice"];
+  let nativeBlock = "";
+  if(currentLang !== "en"){
+    const nativeTable = window.I18N_TABLES[currentLang] || {};
+    const nativeText = nativeTable["country_sample_names_notice"] || "";
+    const nativeLabel = (nativeTable._meta && nativeTable._meta.label) || currentLang;
+    if(nativeText){
+      nativeBlock = `
+        <div style="font-size:13px;color:var(--c-text2);line-height:1.5;margin-top:12px;padding-top:12px;border-top:1px solid var(--c-border)" lang="${currentLang}">${nativeText}</div>
+        <div style="font-size:12px;color:var(--c-text3);margin-top:10px;letter-spacing:.2px">${esc(nativeLabel)}</div>
+      `;
+    }
+  }
+  const continueBtn = (typeof onContinue==="function")
+    ? `<div style="display:flex;justify-content:flex-end;margin-top:16px"><button type="button" class="btn btn-primary btn-sm" data-action="continueSampleNamesNotice">Continue</button></div>`
+    : "";
+  $("#modal-content").html(`
+    <h3 style="font-family:var(--font-display);font-size:16px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+      <svg class='ic' width='1em' height='1em' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' focusable='false'><use href='#icon-50'/></svg>
+      ${esc(enTitle)}
+    </h3>
+    <div style="font-size:13px;color:var(--c-text2);line-height:1.5">${esc(enText)}</div>
+    ${nativeBlock}
+    ${continueBtn}
+  `);
+  if(typeof onContinue==="function") _pendingSampleNamesContinue=onContinue;
+  gsapModalEntrance();
+  setTimeout(()=>{const f=document.querySelector('#modal-overlay.open .modal-close');if(f)f.focus();},0);
+}
+// Holds the callback passed to showSampleNamesNotice() until the Continue
+// button (wired via data-action in inline-actions.js) fires it — a plain
+// module-level var is enough since only one such notice is ever open at
+// a time (the modal system itself is single-instance).
+let _pendingSampleNamesContinue=null;
+function continueSampleNamesNotice(){
+  const cb=_pendingSampleNamesContinue;
+  _pendingSampleNamesContinue=null;
+  closeModal();
+  if(typeof cb==="function") cb();
+}
+function SR_LANG_TABLES_LABEL(code){
+  const t = window.I18N_TABLES[code];
+  return (t&&t._meta&&t._meta.label) || code;
+}
+// BUG 1 FIX (studin-ui-bugs-prompt v1.0): a global data-i18n sweep did NOT
+// exist before this — reapplyI18nStrings() only ever re-rendered the
+// bucket/Smart Search screens via JS (srT() calls inside their own render
+// functions). This adds the missing static-HTML half: any element with a
+// data-i18n="<key>" attribute anywhere in the document gets its innerHTML
+// replaced from the current language table. Uses .html() not .text()
+// because some tagged elements (e.g. about_hero_title) contain nested
+// markup (a colored <span>) that must be preserved — these are trusted,
+// app-authored translation strings, not user input, so this is the same
+// trust model already used for srT()-driven bucket/Smart Search content
+// elsewhere in the app, not a new XSS surface.
+function applyDataI18nSweep(){
+  const table = window.I18N_TABLES[window.SR_LANG] || SR_STRINGS_EN;
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const key = el.getAttribute("data-i18n");
+    const val = table[key] || SR_STRINGS_EN[key];
+    if(val!==undefined) el.innerHTML = val;
+  });
+  // v3.9: placeholder text on inputs can't be set via innerHTML — needs its
+  // own attribute + pass.
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el=>{
+    const key = el.getAttribute("data-i18n-placeholder");
+    const val = table[key] || SR_STRINGS_EN[key];
+    if(val!==undefined) el.setAttribute("placeholder",val);
+  });
+  // i18n-gap-analysis: loader previously had no handling for title= or
+  // aria-label= attributes at all — every data-i18n-title/data-i18n-aria-label
+  // in the HTML was inert until these two passes were added.
+  document.querySelectorAll("[data-i18n-title]").forEach(el=>{
+    const key = el.getAttribute("data-i18n-title");
+    const val = table[key] || SR_STRINGS_EN[key];
+    if(val!==undefined) el.setAttribute("title",val);
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach(el=>{
+    const key = el.getAttribute("data-i18n-aria-label");
+    const val = table[key] || SR_STRINGS_EN[key];
+    if(val!==undefined) el.setAttribute("aria-label",val);
+  });
+  // i18n-gap-analysis #80: <title> is outside the querySelectorAll sweep
+  // (it's not swept by "[data-i18n]") — set it explicitly instead.
+  const titleVal = table["doc_title"] || SR_STRINGS_EN["doc_title"];
+  if(titleVal!==undefined) document.title = titleVal;
+}
+// v3.9 — small helper so the handful of buttons that get their innerHTML
+// rewritten from JS (Download Template / Load Existing / Load a Different
+// Sheet — see project-setup.js and template-upload.js) look up the current
+// language instead of hardcoding English every time they re-render.
+function i18nLabel(key, fallback){
+  const table = window.I18N_TABLES[window.SR_LANG] || SR_STRINGS_EN;
+  return table[key] || SR_STRINGS_EN[key] || fallback;
+}
+// Re-render whichever screen is currently visible so a language switch
+// takes effect immediately without a full page reload. Scoped to the
+// screens that actually use srT() today (buckets, Smart Search) — see
+// TRANSLATION_REFERENCE.md for the current scope limitation (most of the
+// app outside these ~40 keys is still hardcoded English).
+async function reapplyI18nStrings(){
+  applyDataI18nSweep();
+  // RTL support: only Urdu (ur.json) is flagged rtl:true in its _meta
+  // today. This flips the DIRECTION of the screens that actually
+  // localize (buckets, Smart Search, AI feature panel — v4.2 adds the
+  // latter) — NOT the whole page, since the rest of the app (Setup, FAQ,
+  // Export, etc.) is still English-only layout and flipping it would look
+  // broken, not better. A real full-page RTL pass is separate future
+  // work — this is a scoped, honest fix for the screens that currently
+  // show translated text at all.
+  const table = window.I18N_TABLES[window.SR_LANG];
+  const isRtl = !!(table && table._meta && table._meta.rtl);
+  $("#bucket-screen,#bucket-list-screen,#bucket-answer-screen,#smart-search-screen,#panel-ai")
+    .attr("dir", isRtl ? "rtl" : "ltr")
+    .toggleClass("rtl-screen", isRtl);
+  // vs-shell-plan-v2 Task 3: #app-shell-body gets dir only (no .rtl-screen
+  // class, which sets text-align:right) so the shell grid's own columns
+  // mirror without forcing text-align on the still-English-layout panels
+  // nested inside it. A full content-level RTL audit is Task 8's job.
+  $("#app-shell-body").attr("dir", isRtl ? "rtl" : "ltr");
+  // v4.21-individual-mode-shell-parity §6/OQ2: this used to check
+  // #bucket-screen's visibility, which was already stale for Institution
+  // mode (migrated to the rail-driven #bucket-answer-screen/
+  // #legacy-dashboard-body pattern earlier — #bucket-screen is never
+  // shown for it) and is now stale for Individual mode too after this
+  // migration. Re-render whichever mode's actual current view is showing.
+  if(APP.compareMode){
+    if($("#legacy-dashboard-body").is(":visible") && typeof renderDashboard==="function") renderDashboard();
+    else if($("#bucket-answer-screen").is(":visible")){
+      const { renderCompareOverview } = await import('../bal/compare/compute-compare.js');
+      renderCompareOverview();
+    }
+  } else if(APP.setup && APP.setup.mode==="individual"){
+    if($("#bucket-answer-screen").is(":visible") && typeof openIndividualBucket==="function") openIndividualBucket(window._individualBucketCurrent||"report");
+  } else {
+    if(($("#legacy-dashboard-body").is(":visible")||$("#bucket-answer-screen").is(":visible")) && typeof openBucket==="function") openBucket(APP._currentBucketId||"class");
+  }
+  // NB-5 (prompt.md §11.2): smart-engine-ui.js deleted along with the rest of
+  // the Smart Search screen — no caller shows #smart-search-screen, and the
+  // renderSmartSearchScreen dynamic import + call below is dead too.
+  // v4.2: AI feature checkboxes are JS-injected innerHTML (data-driven from
+  // AI_FEATURES), not static data-i18n markup, so the sweep above can't
+  // reach them — re-render explicitly, same pattern as buckets/Smart
+  // Search above, only when that panel is actually on screen.
+  if($("#panel-ai").is(":visible") && typeof renderAICheckboxes==="function"){
+    renderAICheckboxes();
+  }
+  // vs-shell-plan-v2 Task 4/5: left-rail and right-rail content are
+  // JS-injected innerHTML too (same reason as the AI checkboxes above) —
+  // the data-i18n sweep can't reach them, re-render explicitly for
+  // whichever panel is current. Wrapped: see goStep()'s identical guard
+  // in js/state-nav.js for why.
+  try{
+    if(typeof renderShellLeftRail==="function" && APP.currentStep){
+      renderShellLeftRail(APP.currentStep);
+    }
+    if(typeof renderShellRightRail==="function" && APP.currentStep){
+      renderShellRightRail(APP.currentStep);
+    }
+  }catch(err){
+    console.error("Shell rail refresh failed on language switch:",err);
+  }
+  // StudInPro ticker is JS-injected text (same reason as buckets/AI panel
+  // above) — re-render on every language switch so it doesn't keep
+  // showing the old language after the rest of the app has switched.
+  if(typeof window.renderStudInProTicker==="function"){
+    window.renderStudInProTicker();
+  }
+}
+// Pluralization: resolves the CLDR plural CATEGORY (one/two/few/many/
+// other) for `count` in the active language via the browser's native
+// Intl.PluralRules — not a hand-rolled English-style "1 vs everything
+// else" rule. This matters as soon as a language with more than two
+// plural forms is added (Russian/Polish: one/few/many/other; Arabic:
+// zero/one/two/few/many/other) — English/Hindi/Bengali/etc. only ever
+// resolve to "one"/"other" so existing `_one`/`_other` key pairs keep
+// working unchanged; this is additive, not a breaking rewrite.
+// Falls back to the old binary rule if Intl.PluralRules is unavailable
+// (very old runtimes) so nothing breaks in that edge case.
+const _pluralRulesCache={};
+function _pluralCategoryFor(langCode,count){
+  if(typeof Intl==="undefined"||typeof Intl.PluralRules!=="function")
+    return count===1?"one":"other";
+  const tag=bcp47TagFor(langCode);
+  if(!_pluralRulesCache[tag]){
+    try{_pluralRulesCache[tag]=new Intl.PluralRules(tag);}
+    catch(e){_pluralRulesCache[tag]=new Intl.PluralRules("en");}
+  }
+  return _pluralRulesCache[tag].select(count);
+}
+function srT(key,params,count){
+  const table = window.I18N_TABLES[window.SR_LANG] || SR_STRINGS_EN;
+  let k=key;
+  if(count!==undefined){
+    const hasPluralForms=["_zero","_one","_two","_few","_many","_other"].some(sfx=>table[key+sfx]!==undefined);
+    if(hasPluralForms){
+      const category=_pluralCategoryFor(window.SR_LANG,count);
+      // CLDR fallback chain per the spec: exact category → "other" is
+      // always defined for every locale's plural rule set, so it's the
+      // guaranteed last resort before falling through to the plain key.
+      k=table[key+"_"+category]!==undefined?key+"_"+category:(table[key+"_other"]!==undefined?key+"_other":key);
+    }
+  }
+  let s=table[k]||SR_STRINGS_EN[k]||key;
+  if(params)Object.keys(params).forEach(p=>{s=s.split("{{"+p+"}}").join(params[p]);});
+  return s;
+}
+
+// Findings that mean "this child may need attention" — Data Error is
+// deliberately excluded: it's a data-quality problem surfaced via the
+// EXPORT_GATE banner, not a performance finding, and listing it here
+// would misleadingly read as "this student is struggling."
+
+
+// --- ES module exports (added for module-system conversion, HANDOVER #4) ---
+export { SR_LANG_TABLES_LABEL, SR_STRINGS_EN, _ordinal, _pluralizeUnit, applyDataI18nSweep, bcp47TagFor, continueSampleNamesNotice, continuityNarrativeClause, generateHomePlan, generateParentMessage, generateSchoolPlan, generateTrendFacts, generateWhatChangedSummary, i18nLabel, loadLanguage, reapplyI18nStrings, renderDataIssueBanner, shareInsightAsImage, showAiTranslationNotice, showSampleNamesNotice, srT, weakestSubjectsInfo, wrapCanvasText };
+
+// Legacy-global compatibility shim: modules don't leak top-level
+// declarations onto window the way classic scripts did. The handful of
+// inline onkeydown=/oninput=/onchange= attributes intentionally left as-is
+// (out of scope for HANDOVER #3 — only onclick was converted) still need a
+// bare global to resolve, so every exported name is also mirrored onto
+// window here. Harmless duplication for anything already imported properly.
+if(typeof window!=='undefined'){window.SR_LANG_TABLES_LABEL=SR_LANG_TABLES_LABEL;window.SR_STRINGS_EN=SR_STRINGS_EN;window._ordinal=_ordinal;window._pluralizeUnit=_pluralizeUnit;window.applyDataI18nSweep=applyDataI18nSweep;window.bcp47TagFor=bcp47TagFor;window.continueSampleNamesNotice=continueSampleNamesNotice;window.continuityNarrativeClause=continuityNarrativeClause;window.generateHomePlan=generateHomePlan;window.generateParentMessage=generateParentMessage;window.generateSchoolPlan=generateSchoolPlan;window.generateTrendFacts=generateTrendFacts;window.generateWhatChangedSummary=generateWhatChangedSummary;window.i18nLabel=i18nLabel;window.loadLanguage=loadLanguage;window.reapplyI18nStrings=reapplyI18nStrings;window.renderDataIssueBanner=renderDataIssueBanner;window.shareInsightAsImage=shareInsightAsImage;window.showAiTranslationNotice=showAiTranslationNotice;window.showSampleNamesNotice=showSampleNamesNotice;window.srT=srT;window.weakestSubjectsInfo=weakestSubjectsInfo;window.wrapCanvasText=wrapCanvasText;}

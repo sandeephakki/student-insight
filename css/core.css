@@ -1,0 +1,922 @@
+:root{
+  /* ── APPLE THEME — retint of legacy tokens, var names unchanged so every rule below just works ── */
+  --c-bg:#f5f5f7;--c-surface:#fff;--c-surface2:#fafafc;
+  --c-border:#e0e0e0;--c-primary:#0F5C4E;--c-primary-soft:#E8F5F1;
+  --c-success:#1c8748;--c-warn:#c77700;--c-danger:#d70015;--c-purple:#5e5ce6;--c-purple-soft:#eeeefd;
+  --c-text:#1d1d1f;--c-text2:#6c6c71;--c-text3:#6d6d71;
+  --c-shadow:0 1px 3px rgba(0,0,0,.06);--c-shadow-md:0 4px 24px rgba(0,0,0,.10);
+  --r:8px;--r-sm:8px;--font:"SF Pro Text","Inter",system-ui,-apple-system,sans-serif;--font-display:"SF Pro Display","SF Pro Text","Inter",system-ui,-apple-system,sans-serif;
+  --transition:all .15s ease;--topbar-h:52px;--stepper-h:44px;--content-top:96px;
+
+  /* ── SEMANTIC COLOR ROLES (same values as legacy tokens, named for intent) ── */
+  --c-bg-canvas:var(--c-bg);--c-bg-raised:var(--c-surface);--c-bg-sunken:var(--c-surface2);
+  --c-border-subtle:var(--c-border);--c-border-strong:#d2d2d7;
+  --c-text-primary:var(--c-text);--c-text-secondary:var(--c-text2);--c-text-tertiary:var(--c-text3);
+  --c-success-text:#0d6b34;--c-success-bg:#e3f6e9;
+  --c-warn-text:#8a5700;--c-warn-bg:#fdf1dc;
+  --c-danger-text:#a4000f;--c-danger-bg:#fce6e7;
+  --c-info-text:#004a94;--c-info-bg:#e8f1fc;
+  --c-focus-ring:0 0 0 3px rgba(0,113,227,.35);
+  --c-link-visited:#5e5ce6;
+  --c-product-shadow:3px 5px 30px rgba(0,0,0,.22);
+
+  /* ── 8px SPACING SCALE ── */
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-7:32px;--sp-8:40px;
+
+  /* ── TYPE SCALE (7-step, paired line-heights) ── */
+  --fs-xs:11px;   --lh-xs:1.5;
+  --fs-sm:12px;   --lh-sm:1.5;
+  --fs-base:14px; --lh-base:1.55;
+  --fs-md:14px;   --lh-md:1.5;
+  --fs-lg:16px;   --lh-lg:1.4;
+  --fs-xl:18px;   --lh-xl:1.3;
+  --fs-2xl:21px;  --lh-2xl:1.25;
+  --fs-3xl:26px;  --lh-3xl:1.2;
+  --fs-4xl:32px;  --lh-4xl:1.15;
+  --lh-heading:1.2;--lh-body:1.55;--lh-table:1.4;
+
+  /* ── ELEVATION SCALE (5-step) — Apple keeps chrome flat; shadow reserved for product-shadow above ── */
+  --e-0:none;
+  --e-1:0 1px 2px rgba(0,0,0,.04);
+  --e-2:0 2px 10px rgba(0,0,0,.06);
+  --e-3:0 4px 20px rgba(0,0,0,.09);
+  --e-4:0 12px 34px rgba(0,0,0,.14);
+
+  /* ── RADIUS SCALE (4-step) ── */
+  --r-xs:5px;--r-md:11px;--r-lg:18px;--r-card:12px;--r-pill:9999px;
+
+  /* ── MOTION ── */
+  --dur-fast:.12s;--dur-base:.18s;--dur-slow:.3s;--ease-standard:cubic-bezier(.4,0,.2,1);
+
+  color-scheme:light;
+}
+
+/* ── DARK MODE — token overrides only, no structural change ──
+   Theme is always resolved to an explicit "light" or "dark" by the
+   preload script in <head> before first paint, so this only needs to
+   key off [data-theme="dark"] — no prefers-color-scheme media query
+   needed here. */
+[data-theme="dark"]{
+  color-scheme:dark;
+  --c-bg:#000000;--c-surface:#1d1d1f;--c-surface2:#272729;
+  --c-border:#38383a;--c-border-strong:#48484a;
+  --c-primary:#3DA88F;--c-primary-soft:#123B33;
+  --c-success:#32d74b;--c-warn:#ff9f0a;--c-danger:#ff453a;--c-purple:#7d7aff;--c-purple-soft:#252043;
+  --c-text:#f5f5f7;--c-text2:#a1a1a6;--c-text3:#6e6e73;
+  --c-shadow:0 2px 12px rgba(0,0,0,.4);--c-shadow-md:0 4px 24px rgba(0,0,0,.55);
+  --c-success-text:#6fe08a;--c-success-bg:#0f2e17;
+  --c-warn-text:#ffc773;--c-warn-bg:#3d2905;
+  --c-danger-text:#ff8a82;--c-danger-bg:#3a1210;
+  --c-info-text:#7fbaff;--c-info-bg:#12233a;
+  --c-link-visited:#7d7aff;
+}
+
+@font-face{font-family:"SF Pro Display";src:local("SF Pro Display"),local("-apple-system");font-display:swap}
+@font-face{font-family:"SF Pro Text";src:local("SF Pro Text"),local("-apple-system");font-display:swap}
+/* Rebrand: --font-display is now the same Apple sans stack as --font for
+   every locale (previously Source Serif 4 for en, sans for the rest — a
+   leftover pre-Apple-rebrand split that made headings look like a
+   different app from body text). Nothing further needed per-lang. */
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--c-bg);color:var(--c-text);font-size:var(--fs-base);line-height:var(--lh-body);letter-spacing:-.1px;min-height:100vh;display:flex;flex-direction:column;transition:background var(--dur-base) var(--ease-standard),color var(--dur-base) var(--ease-standard);position:relative;
+/* mobile's scroll container (css/vs-shell.css's <=768px block makes #main
+   height:auto so body/html scroll naturally instead) — see the matching
+   #main comment in vs-shell.css for why this needs to be off. */
+overflow-anchor:none}
+/* UI redesign (2026-08): removed the body::before "92 / 63 / A+ / avg"
+   tiled watermark that used to sit behind every screen. Intended as a
+   subtle texture, it rendered clearly legible (fill color was too close
+   to --c-bg to disappear, especially against white card backgrounds),
+   read as a stray rendering artifact rather than a design choice, and
+   showed through gaps around the Home panel on real viewports. Removed
+   outright rather than just dimmed further — a data-analytics product's
+   real numbers, shown after upload, are the more credible "wallpaper." */
+#main{flex:1 0 auto}
+a{color:var(--c-primary);text-decoration:none}
+a:visited{color:var(--c-link-visited)}
+button{font-family:var(--font);cursor:pointer;border:none;outline:none}
+input,select,textarea{font-family:var(--font);font-size:var(--fs-base)}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:16px;padding-right:32px!important;cursor:pointer;
+  transition:border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+select:hover{border-color:var(--c-primary)}
+select:focus-visible{outline:none;border-color:var(--c-primary);box-shadow:var(--c-focus-ring)}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:600;line-height:var(--lh-heading);letter-spacing:-.374px}
+button,.btn,[role="button"]{transition:transform .1s var(--ease-standard),background var(--dur-fast) var(--ease-standard)}
+button:active,.btn:active,[role="button"]:active{transform:scale(.95)}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--c-border);border-radius:99px}
+
+/* ── SKIP LINK ── */
+.skip-link{position:fixed;top:-48px;left:8px;z-index:10000;background:var(--c-primary);color:#fff;padding:10px 18px;border-radius:var(--r-sm);font-size:var(--fs-sm);font-weight:700;transition:top var(--dur-base) var(--ease-standard)}
+.skip-link:focus{top:8px}
+
+/* ── THEME TOGGLE ── */
+.theme-btn{border:none;background:transparent;color:var(--c-text3);font-size:12px;font-weight:700;padding:5px 10px;border-radius:99px;cursor:pointer;transition:var(--transition);line-height:1}
+.theme-btn[aria-pressed="true"]{background:var(--c-surface);color:var(--c-primary);box-shadow:var(--e-1)}
+.theme-btn:hover:not([aria-pressed="true"]){color:var(--c-text2)}
+.theme-btn:focus-visible{outline:2px solid var(--c-primary);outline-offset:1px}
+@media(max-width:480px){#theme-toggle{margin-right:2px}.theme-btn{padding:5px 7px}}
+
+/* ── UNIVERSAL FOCUS-VISIBLE (WCAG 2.4.7) ── */
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,[tabindex]:focus-visible,[role="button"]:focus-visible,
+.step-item:focus-visible,.filter-btn:focus-visible,.del-btn:focus-visible,
+.trust-pill:focus-visible,.db-tab:focus-visible,summary:focus-visible{
+  outline:2px solid var(--c-primary);outline-offset:2px;border-radius:var(--r-xs);
+}
+:focus:not(:focus-visible){outline:none}
+
+/* ── REDUCED MOTION / CONTRAST ── */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
+@media (prefers-contrast: more){
+  :root{--c-border:var(--c-border-strong)}
+  .card,.kpi-card,.student-card,.chart-container{border-width:1.5px}
+}
+
+/* TOPBAR */
+#topbar{position:fixed;top:0;left:0;right:0;z-index:1000;height:var(--topbar-h);background:color-mix(in srgb,var(--c-surface) 80%,transparent);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--c-border);display:flex;align-items:center;padding:0 28px;gap:14px;box-shadow:0 1px 6px rgba(0,0,0,.04)}
+#topbar .logo{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:16px;color:var(--c-primary)}
+#topbar .logo img{width:30px;height:30px;border-radius:7px;object-fit:cover}
+#topbar .tagline{font-size:11px;color:var(--c-text3)}
+#topbar .spacer{flex:1}
+.session-badge{font-size:11px;background:var(--c-primary-soft);color:var(--c-primary);padding:3px 10px;border-radius:99px;font-weight:500}
+.unsaved-dot{width:7px;height:7px;border-radius:50%;background:var(--c-warn);display:none}
+.unsaved-dot.visible{display:inline-block}
+#env-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#fff3cd;color:#856404;border:1px solid #ffc107;display:none}
+
+/* STEPPER */
+#stepper{position:fixed;top:var(--topbar-h);left:0;right:0;z-index:999;background:color-mix(in srgb,var(--c-surface2) 80%,transparent);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--c-border);display:flex;align-items:center;padding:0 28px;height:var(--stepper-h);overflow-x:auto;scrollbar-width:none}
+#stepper::-webkit-scrollbar{display:none}
+.step-item{display:flex;align-items:center;gap:7px;padding:0 16px;height:var(--stepper-h);font-size:12px;font-weight:600;color:var(--c-text3);white-space:nowrap;cursor:pointer;transition:var(--transition);position:relative}
+.step-item:hover:not(.locked){color:var(--c-primary)}
+.step-item.active{color:var(--c-primary);border-bottom:2px solid var(--c-primary)}
+.step-item.locked{opacity:.45;cursor:not-allowed}
+/* Task 07: fully hidden (not dimmed like .locked above) until a file is
+   loaded — see updateScholarshipNavVisibility() in js/state-nav.js. */
+.step-item.nav-file-required{display:none}
+.step-item.nav-file-required.nav-file-loaded{display:flex}
+/* UI review fix: the top-nav Scholarship tab is now permanently hidden —
+   entry point moved to the left FEATURES rail (bucket row, below Smart
+   Search — see js/render-buckets.js buildDashboardControlsHtml()). The
+   element/JS wiring (goStep("scholarship"), updateScholarshipNavVisibility())
+   are left untouched; this rule just wins over .nav-file-loaded above so
+   the tab never re-appears once a file loads. */
+.step-item[data-step="scholarship"]{display:none!important}
+.step-item.completed{color:var(--c-text2)}
+.step-num{width:20px;height:20px;border-radius:50%;background:var(--c-surface2);border:2px solid var(--c-border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;position:relative}
+.step-num::after{content:"";position:absolute;top:50%;left:50%;width:44px;height:44px;transform:translate(-50%,-50%)}
+.step-item.active .step-num{background:var(--c-primary);border-color:var(--c-primary);color:#fff}
+.step-item.step-cta{color:var(--c-text3);font-weight:600}
+.step-item.step-cta:hover:not(.locked){color:var(--c-primary)}
+.step-item.step-cta.active{color:var(--c-primary);border-bottom:2px solid var(--c-primary)}
+/* v3.7: Setup/Sample Files/About/FAQ are Home-only side-paths (see
+   updateNavHomeOnlyState()). Deliberately NOT pointer-events:none like
+   .step-item.locked — hover needs to still work so the title="" tooltip
+   is discoverable; the actual navigation block happens in JS (goStep()/
+   showSampleFiles() guards), which also surfaces a toast on click. */
+.step-item.nav-home-only.disabled,.step-item.nav-setup-tab.disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+.step-item.nav-home-only.disabled:hover,.step-item.nav-setup-tab.disabled:hover{color:var(--c-text3)}
+.step-item.completed .step-num{background:var(--c-success);border-color:var(--c-success);color:#fff}
+.step-item:focus-visible{outline:2px solid var(--c-primary);outline-offset:-2px}
+.step-sep{color:var(--c-text3);font-size:12px;padding:0 2px}
+
+/* MAIN */
+#main{margin-top:var(--content-top);padding:clamp(16px,2.5vw,40px);max-width:min(1600px,96vw);margin-left:auto;margin-right:auto}
+.panel{display:none}.panel.active{display:block}
+
+/* CARDS — single system; variants layer on top instead of new one-off card styles */
+.card{background:var(--c-bg-raised);border:1px solid var(--c-border);border-radius:var(--r-md);padding:var(--sp-4) var(--sp-5);box-shadow:var(--e-1);margin-bottom:var(--sp-3);transition:box-shadow var(--dur-base) var(--ease-standard),border-color var(--dur-base) var(--ease-standard)}
+.card-title{font-family:var(--font-display);font-weight:700;font-size:var(--fs-md);margin:0 0 var(--sp-3);display:flex;align-items:center;gap:6px}
+.icon{font-size:16px}
+.ic{vertical-align:-0.15em;flex-shrink:0}
+.step-num .ic,.del-btn .ic{vertical-align:-0.1em}
+.card--interactive{cursor:pointer}
+.card--interactive:hover{box-shadow:var(--e-3);border-color:var(--c-primary)}
+.card--interactive:focus-visible{outline:2px solid var(--c-primary);outline-offset:2px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4)}
+.grid-4{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:var(--sp-3)}
+
+/* FAQ */
+.faq-section{margin:0;border:none}
+.faq-section>summary.faq-audience{display:flex;align-items:center;gap:9px;margin:26px 0 12px;cursor:pointer;list-style:none;user-select:none;padding:6px 8px;border-radius:10px;transition:background .15s}
+.faq-section>summary.faq-audience::-webkit-details-marker{display:none}
+.faq-section>summary.faq-audience:hover{background:var(--c-surface2)}
+.faq-section-chevron{margin-left:auto;font-size:13px;color:var(--c-text3);transition:transform .2s}
+.faq-section[open]>summary .faq-section-chevron{transform:rotate(180deg)}
+.faq-audience{display:flex;align-items:center;gap:9px;margin:26px 0 12px}
+.faq-audience:first-child{margin-top:0}
+.faq-audience .icon-badge{width:30px;height:30px;border-radius:9px;background:var(--c-primary-soft);display:flex;align-items:center;justify-content:center;font-size:15px;flex:0 0 30px}
+.faq-audience .txt{font-family:var(--font-display);font-weight:700;font-size:14.5px;color:var(--c-text)}
+.faq-audience .cnt{font-size:11px;color:var(--c-text3);font-weight:600;background:var(--c-surface2);border-radius:99px;padding:2px 9px;margin-left:2px}
+.faq-list{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+.faq-item{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r);overflow:hidden;transition:var(--transition)}
+.faq-item[open]{border-color:var(--c-primary);box-shadow:0 2px 10px rgba(43,58,103,.08)}
+.faq-item summary{list-style:none;cursor:pointer;padding:13px 16px;display:flex;align-items:flex-start;gap:10px;font-size:13px;font-weight:600;color:var(--c-text)}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary .faq-q-mark{flex:0 0 20px;height:20px;border-radius:50%;background:var(--c-surface2);color:var(--c-text2);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.faq-item[open] summary .faq-q-mark{background:var(--c-primary);color:#fff}
+.faq-item summary .faq-chevron{margin-left:auto;flex:0 0 16px;color:var(--c-text3);font-size:12px;transition:transform .2s}
+.faq-item[open] summary .faq-chevron{transform:rotate(180deg);color:var(--c-primary)}
+.faq-item .faq-a{padding:0 16px 16px 46px;font-size:12.8px;line-height:1.85;color:var(--c-text2)}
+.faq-item .faq-a strong{color:var(--c-text)}
+.faq-tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:2px 8px;border-radius:99px;margin-left:8px;flex:0 0 auto}
+.faq-tag.serious{background:#fde8e8;color:#c53030}
+.faq-tag.practical{background:#e6f7f5;color:#0e7c7b}
+.faq-tag.silly{background:var(--c-warn-bg);color:var(--c-warn-text)}
+.faq-search{width:100%;padding:11px 14px;border:1.5px solid var(--c-border);border-radius:var(--r);font-size:13px;margin-bottom:22px;background:var(--c-surface)}
+.faq-search-hero{margin-bottom:0;background:rgba(255,255,255,.95);border-color:transparent;box-shadow:0 4px 16px rgba(0,0,0,.18);transition:box-shadow var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard)}
+.faq-search-hero:focus-visible{box-shadow:0 4px 20px rgba(0,0,0,.22),0 0 0 3px rgba(0,113,227,.4);outline:none;transform:translateY(-1px)}
+.faq-search:focus{outline:none;border-color:var(--c-primary)}
+.faq-empty{text-align:center;padding:40px 20px;color:var(--c-text3);font-size:13px;display:none}
+
+/* FORMS */
+.form-group{margin-bottom:var(--sp-3)}
+.form-group label{display:block;font-size:var(--fs-xs);font-weight:700;color:var(--c-text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:var(--sp-1)}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 11px;border:1.5px solid var(--c-border);border-radius:var(--r-sm);font-size:var(--fs-base);background:var(--c-surface);color:var(--c-text);transition:var(--transition)}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary);box-shadow:var(--c-focus-ring)}
+.form-group input:focus-visible,.form-group select:focus-visible,.form-group textarea:focus-visible{outline:2px solid var(--c-primary);outline-offset:1px}
+.form-help{font-size:var(--fs-xs);color:var(--c-text3);margin-top:var(--sp-1)}
+.form-group input.has-error,.form-group select.has-error{background-image:none}
+
+/* BUTTONS — full state coverage: default/hover/active/focus-visible/disabled */
+.btn{padding:8px 16px;min-height:36px;border-radius:var(--r-pill);font-size:13px;font-weight:400;cursor:pointer;transition:var(--transition);border:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-primary:hover{background:#0B4238}
+.btn-primary:active{background:#0B4238;transform:scale(.95);box-shadow:none}
+.btn-secondary{background:var(--c-surface2);color:var(--c-text2);border:1px solid var(--c-border)}
+.btn-secondary:hover{background:var(--c-border);color:var(--c-text)}
+.btn-secondary:active{background:var(--c-border-strong);transform:translateY(1px)}
+.btn-ghost{background:transparent;color:var(--c-text3);border:1px solid transparent;box-shadow:none}
+.btn-ghost:hover{background:var(--c-surface2);color:var(--c-text2)}
+.btn-ghost:active{transform:translateY(1px)}
+.btn-success{background:var(--c-success);color:#fff}
+.btn-success:hover{background:#1c837a}
+.btn-success:active{background:#1f8f85;transform:translateY(1px)}
+.btn-sm{padding:5px 11px;font-size:12px;min-height:32px}
+.btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none;transform:none}
+/* BUG FIX (i18n-lock): #language-select is disabled (see goStep() in
+   state-nav.js) for the life of an analysis run so results don't end up
+   mixed-language — this makes that lock visually obvious instead of just
+   inert, since a disabled <select> otherwise looks identical to normal. */
+#language-select:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible{outline:2px solid var(--c-primary);outline-offset:2px}
+.btn-primary:focus-visible,.btn-success:focus-visible{outline-color:#fff;box-shadow:0 0 0 2px currentColor}
+.btn-glow{position:relative;animation:btnPulse 1.8s ease-in-out infinite}
+.btn-glow:hover{animation:none}
+@keyframes btnPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,113,227,.45)}50%{box-shadow:0 0 0 9px rgba(0,113,227,0)}}
+@media (prefers-reduced-motion: reduce){.btn-glow{animation:none;box-shadow:0 0 0 3px rgba(0,113,227,.3)}}
+.phase-actionbar{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--c-surface) 80%,transparent);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border:1px solid var(--c-border);border-radius:var(--r);padding:12px 16px;margin-bottom:16px;box-shadow:var(--c-shadow);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.phase-actionbar .phase-actionbar-title{font-family:var(--font-display);font-size:14px;font-weight:700}
+.phase-actionbar .phase-actionbar-sub{font-size:12px;color:var(--c-text3);margin-top:1px}
+.phase-actionbar .phase-actionbar-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
+
+/* SECTION */
+.section-sub{font-size:12.5px;color:var(--c-text2);margin-bottom:16px;line-height:1.6}
+
+/* TOAST */
+#toast-wrap{position:fixed;bottom:24px;inset-inline-end:24px;top:auto;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--c-text);color:#fff;padding:10px 16px;border-radius:var(--r-sm);font-size:13px;box-shadow:var(--c-shadow-md);max-width:340px;display:flex;align-items:center;gap:8px;animation:toastIn var(--dur-base) var(--ease-standard)}
+@keyframes toastIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.toast{animation:none}}
+.toast.success{background:#146b62}.toast.success::before{content:"✓"}
+.toast.error{background:#8b2b24}.toast.error::before{content:"✕"}
+.toast.warn{background:#7a5200}.toast.warn::before{content:"⚠"}
+.toast.success::before,.toast.error::before,.toast.warn::before{font-weight:900;flex-shrink:0}
+
+/* MODAL */
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;display:none;align-items:center;justify-content:center;padding:20px}
+#modal-overlay.open{display:flex}
+.modal-box{background:var(--c-surface);border-radius:var(--r);padding:28px;width:100%;max-width:780px;max-height:90vh;overflow-y:auto;box-shadow:var(--c-shadow-md);animation:modalIn var(--dur-base) var(--ease-standard)}
+@keyframes modalIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.modal-box{animation:none}}
+/* Screen-swap transition — bucket screens, Smart Search, legacy dashboard
+   body. Same pattern as toastIn/modalIn above (short fade+rise, disabled
+   under reduced-motion) so switching between Dashboard and Smart Search,
+   or between buckets, feels like one consistent surface rather than an
+   abrupt cut — per explicit "flawless, smooth transition" direction. */
+.screen-fade-in{animation:screenFadeIn var(--dur-base,.2s) var(--ease-standard,ease)}
+@keyframes screenFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.screen-fade-in>*{animation:screenFadeIn var(--dur-slow) var(--ease-standard) both}
+.screen-fade-in>*:nth-child(1){animation-delay:0s}
+.screen-fade-in>*:nth-child(2){animation-delay:.04s}
+.screen-fade-in>*:nth-child(3){animation-delay:.08s}
+.screen-fade-in>*:nth-child(4){animation-delay:.12s}
+.screen-fade-in>*:nth-child(n+5){animation-delay:.16s}
+@media (prefers-reduced-motion: reduce){.screen-fade-in,.screen-fade-in>*{animation:none}}
+@media (prefers-reduced-motion: reduce){.screen-fade-in{animation:none}}
+/* Empty-state — consistent look wherever a bucket/list has nothing to
+   show yet, instead of a blank area or a plain unstyled line. */
+.bucket-empty-state{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:40px 20px;color:var(--c-text2)}
+.bucket-empty-state svg{opacity:.5}
+.bucket-empty-state .bucket-empty-title{font-size:14px;font-weight:700;color:var(--c-text)}
+.bucket-empty-state .bucket-empty-sub{font-size:12.5px;max-width:320px}
+/* RTL support (Urdu) — scoped to the two screens that actually localize
+   today (buckets, Smart Search), not a full-page flip — see
+   reapplyI18nStrings() comment for why. Mirrors row layout and back-arrow
+   direction; the back-arrow glyph itself is swapped in ur.json's own
+   "back" string (→ instead of ←) rather than CSS-rotated, since a CSS
+   transform on an emoji/arrow character renders inconsistently. */
+.rtl-screen{text-align:right}
+.rtl-screen .bucket-row{flex-direction:row-reverse;text-align:right}
+.rtl-screen .bucket-back-btn{flex-direction:row-reverse}
+.modal-close{float:right;font-size:16px;cursor:pointer;color:var(--c-text3);line-height:1;margin-top:-4px;
+  width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:var(--transition);position:relative}
+.modal-close::after{content:"";position:absolute;top:50%;left:50%;width:44px;height:44px;transform:translate(-50%,-50%)}
+.modal-close:hover{background:var(--c-surface2);color:var(--c-text)}
+.modal-close:focus-visible{outline:2px solid var(--c-primary);outline-offset:2px}
+
+/* RTL — every physical-direction rule this app relies on, mirrored under [dir="rtl"] on <html>. Default LTR layout is untouched. */
+[dir="rtl"] .modal-close{float:left}
+[dir="rtl"] #toast-wrap{inset-inline-end:auto;inset-inline-start:24px}
+[dir="rtl"] .step-item[style*="border-left"]{border-left:none;border-right:1px solid var(--c-border)}
+[dir="rtl"] .about-blockquote{border-radius:12px}
+
+/* STUDENT CARDS */
+.student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--sp-3);margin-bottom:var(--sp-4)}
+.student-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r);padding:var(--sp-4);transition:var(--transition)}
+.student-card:hover{box-shadow:var(--e-2);transform:translateY(-2px)}
+@media (prefers-reduced-motion: reduce){.student-card:hover{transform:none}}
+.sc-name{font-weight:700;font-size:13.5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-id{font-size:11px;color:var(--c-text3);margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-avg{font-size:22px;font-weight:700;font-family:var(--font-display)}
+.sc-bar{height:4px;background:var(--c-border);border-radius:99px;overflow:hidden;margin-bottom:8px}
+.sc-bar-fill{height:100%;width:100%;border-radius:99px;transform-origin:left;transition:transform var(--dur-slow) var(--ease-standard)}
+.sc-flags{display:flex;flex-wrap:wrap;gap:4px}
+
+/* FILTER BAR */
+.filter-bar{display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap;margin-bottom:var(--sp-3);background:var(--c-surface);padding:var(--sp-2) var(--sp-3);border-radius:var(--r-sm);border:1px solid var(--c-border)}
+.filter-bar input{flex:1;min-width:160px;padding:6px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:12.5px}
+.filter-bar input:focus-visible{outline:2px solid var(--c-primary);outline-offset:1px}
+.filter-btn{padding:5px 12px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid var(--c-border);background:var(--c-surface2);color:var(--c-text2);cursor:pointer;transition:var(--transition);position:relative}
+.filter-btn::after{content:"";position:absolute;top:50%;left:50%;min-width:44px;width:100%;height:44px;transform:translate(-50%,-50%)}
+.filter-btn.active,.filter-btn:hover{background:var(--c-primary-soft);color:var(--c-primary);border-color:var(--c-primary)}
+.filter-btn:focus-visible{outline:2px solid var(--c-primary);outline-offset:2px}
+
+/* HEATMAP */
+.heatmap-wrap{overflow-x:auto}
+.heatmap-table{border-collapse:collapse;font-size:11.5px;min-width:100%}
+.heatmap-table th{padding:6px 10px;text-align:left;font-size:11px;color:var(--c-text3);font-weight:600;white-space:nowrap;border-bottom:1px solid var(--c-border)}
+.heatmap-table td{padding:5px 8px;border:1px solid var(--c-border);text-align:center;font-size:11.5px;font-weight:500}
+/* WCAG AA-verified fill+text pairs; each also gets a shape cue (::before) so grade bands never rely on hue alone */
+.hm-ex{background:#c9edd3;color:#0f4a1e}.hm-good{background:#c9f0ec;color:#0f4a42}
+.hm-avg{background:#ffe6b3;color:#6b4900}.hm-below{background:#fbd2ce;color:#7a1414}.hm-risk{background:#e3d7f2;color:#3b1458}
+.hm-ex::before{content:"▲ "}.hm-good::before{content:"● "}.hm-avg::before{content:"◆ "}.hm-below::before{content:"▼ "}.hm-risk::before{content:"✕ "}
+.hm-ex::before,.hm-good::before,.hm-avg::before,.hm-below::before,.hm-risk::before{font-size:11px;opacity:.75}
+
+/* CHARTS */
+.chart-container{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r);padding:var(--sp-3);margin-bottom:var(--sp-3);box-shadow:var(--e-1)}
+.chart-container canvas{max-height:260px;width:100%!important}
+@media(max-width:480px){.chart-container canvas{max-height:200px}}
+
+/* KPI */
+.kpi-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r);padding:var(--sp-3) var(--sp-4)}
+.kpi-label{font-size:var(--fs-xs);font-weight:700;color:var(--c-text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.kpi-val{font-size:var(--fs-3xl);font-weight:700;font-family:var(--font-display);line-height:1}
+.kpi-sub{font-size:var(--fs-xs);color:var(--c-text3);margin-top:3px}
+
+/* PROGRESS */
+.prog-bar{height:6px;background:var(--c-border);border-radius:99px;overflow:hidden}
+.prog-fill{height:100%;width:100%;background:var(--c-primary);border-radius:99px;transform-origin:left;transform:scaleX(0);transition:transform .3s ease}
+
+/* LOADER */
+#ai-loader{display:none;text-align:center;padding:40px;scroll-margin-top:calc(var(--content-top) + 14px)}
+#ai-loader.card-loader{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r);box-shadow:var(--c-shadow-md);margin-bottom:16px}
+.loader-ring{width:48px;height:48px;border:4px solid var(--c-border);border-top-color:var(--c-primary);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.loader-ring{animation:none;border-top-color:var(--c-border)}}
+.loader-msg{font-size:13.5px;color:var(--c-text2);margin-bottom:12px;font-weight:600}
+.loader-step-count{font-size:11px;color:var(--c-text3);margin-bottom:10px}
+.loader-hint{font-size:12px;color:var(--c-text3);margin-top:10px;font-style:italic}
+
+/* Any element we programmatically scroll to should never be tucked
+   under the fixed topbar + stepper — always leave clearance below them. */
+#home-import-status,.scroll-target{scroll-margin-top:calc(var(--content-top) + 14px)}
+
+/* AI CHECKBOXES */
+.ai-checkbox-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-bottom:8px}
+.ai-check-item{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);cursor:pointer;transition:var(--transition);background:var(--c-surface2)}
+.ai-check-item:hover,.ai-check-item.selected{border-color:var(--c-purple);background:var(--c-purple-soft)}
+.ai-check-item input{margin-top:2px;accent-color:var(--c-purple)}
+.ai-check-label{font-size:12.5px;font-weight:600;margin-bottom:2px}
+.ai-check-sub{font-size:12px;color:var(--c-text2);line-height:1.4}
+
+.st-name{font-weight:700;font-size:14px;margin-bottom:3px}
+.st-meta{font-size:11.5px;color:var(--c-text3);margin-bottom:10px}
+
+/* SETUP ROWS */
+.subj-row{display:grid;grid-template-columns:24px 1fr auto;gap:8px;align-items:center;margin-bottom:6px}
+.test-row{display:grid;grid-template-columns:24px 1fr 1fr auto;gap:8px;align-items:center}
+.subj-row input,.test-row input{padding:6px 9px;border:1px solid var(--c-border);border-radius:var(--r-sm)}
+.row-num{font-size:11px;color:var(--c-text3);font-weight:700;text-align:center}
+.del-btn{background:none;border:none;color:var(--c-text3);font-size:16px;cursor:pointer;padding:2px 5px;border-radius:var(--r-sm);transition:var(--transition);position:relative}
+.del-btn::after{content:"";position:absolute;top:50%;left:50%;width:44px;height:44px;transform:translate(-50%,-50%)}
+.del-btn:hover{background:#fdecea;color:var(--c-danger)}
+.del-btn:focus-visible{outline:2px solid var(--c-danger);outline-offset:1px}
+.mm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));column-gap:16px;row-gap:4px;margin:6px 0 0 30px}
+.mm-chip{display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:8px;font-size:11.5px;padding:3px 0}
+.mm-chip .mm-name{font-size:12px;color:var(--c-text2);white-space:normal;overflow:visible;text-overflow:clip;min-width:0;cursor:pointer;line-height:1.3}
+.mm-chip .mm-inc{margin:0;flex:none}
+.mm-chip input.mm-inp{width:56px;padding:4px 6px;border:1px solid var(--c-border);border-radius:var(--r-sm);font-size:12px;text-align:center;justify-self:end}
+
+/* DROP ZONE */
+.drop-zone{border:2px dashed var(--c-border);border-radius:var(--r);padding:16px 24px;text-align:center;cursor:pointer;transition:var(--transition),transform var(--dur-base) var(--ease-standard),background var(--dur-base) var(--ease-standard)}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--c-primary);background:var(--c-primary-soft)}
+.drop-zone.drag-over{transform:scale(1.01)}
+.drop-zone-icon{font-size:24px;margin-bottom:6px;transition:transform var(--dur-base) var(--ease-standard)}
+.drop-zone.drag-over .drop-zone-icon{transform:translateY(-3px)}
+@media (prefers-reduced-motion: reduce){.drop-zone,.drop-zone-icon{transition:none}.drop-zone.drag-over{transform:none}}
+.drop-zone-title{font-weight:700;font-size:13px;margin-bottom:3px}
+.drop-zone-sub{font-size:12px;color:var(--c-text2)}
+
+/* PDF ACTIONS */
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto}
+/* Vertical+horizontal scroll variant for long rosters (e.g. the cross-
+   section "All Students" ranking table, ~90+ rows) — keeps the header
+   pinned via .data-table th's existing position:sticky, which only takes
+   effect once its scroll ancestor actually has a bounded height. */
+.tbl-wrap-scroll{max-height:520px;overflow-y:auto}
+/* Compare Students Across Sections — one column per uploaded file/section
+   (up to MAX_COMPARE_FILES=5). Framed + scrolls in whichever direction it
+   actually needs: overflow-x for many sections side-by-side on a narrow
+   screen, overflow-y as a fallback if they wrap onto multiple lines. */
+.cross-compare-frame{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;padding:14px;border:1px solid var(--c-border);border-radius:var(--r-md);max-height:280px;overflow:auto;background:var(--c-surface2)}
+.cross-compare-col{flex:1 1 200px;min-width:180px;max-width:260px}
+.cross-compare-col-label{font-size:12px;font-weight:700;color:var(--c-text2);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.data-table{border-collapse:collapse;width:100%;font-size:var(--fs-sm);line-height:var(--lh-table)}
+table.data-table th{background:var(--c-surface2);padding:var(--sp-2) var(--sp-3);text-align:left;font-size:var(--fs-xs);font-weight:700;color:var(--c-text3);text-transform:uppercase;border-bottom:1px solid var(--c-border);position:sticky;top:0;z-index:1}
+table.data-table td{padding:var(--sp-2) var(--sp-3);border-bottom:1px solid var(--c-border)}
+table.data-table tbody tr:nth-child(even) td{background:color-mix(in srgb, var(--c-surface2) 45%, transparent)}
+table.data-table tr:hover td{background:var(--c-primary-soft)}
+table.data-table th[data-sortable]{cursor:pointer;user-select:none}
+table.data-table th[data-sortable]:hover{color:var(--c-primary)}
+table.data-table th[data-sortable]:focus-visible{outline:2px solid var(--c-primary);outline-offset:-2px}
+
+/* WELLBEING */
+.wb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.wb-card{padding:12px;background:var(--c-surface2);border-radius:var(--r-sm);text-align:center}
+.wb-val{font-size:20px;font-weight:700;font-family:var(--font-display)}
+
+/* FOOTER */
+#footer{padding:0;border-top:1px solid var(--c-border);background:var(--c-surface);flex-shrink:0;margin-top:24px}
+
+/* StudInPro ticker runs directly inside #footer (no separate static
+   footer text, no extra row). Calm speed, pauses fully on hover/touch
+   rather than just slowing down — a mid-speed "slow but still moving"
+   state is harder to read than a full stop. */
+#studinpro-ticker{
+  display:flex;align-items:center;
+  cursor:pointer;user-select:none;overflow:hidden;position:relative;
+  padding:8px 10px 8px 130px;font-size:11.5px;color:var(--c-primary);
+  background:var(--c-primary)0d;
+  transition:background .15s;
+  /* CONFIRMED BUG (measured live in Chromium): css/vs-shell.css's desktop
+     media query sets #footer{display:flex;justify-content:center}, which
+     CENTERS a flex item at its natural content width rather than
+     stretching it. With no explicit width here, this div shrinks to fit
+     just its own padding/badge (~140px) and sits centered in the footer —
+     which is exactly why the scroll viewport next to it can measure 0px
+     wide with no text ever visible. width:100% forces it to fill the
+     footer regardless of that justify-content:center. DO NOT REMOVE. */
+  width:100%;
+}
+#studinpro-ticker:hover,#studinpro-ticker:focus-visible{background:var(--c-primary)1a;outline:none}
+#studinpro-ticker-badge{
+  position:fixed;left:14px;bottom:10px;z-index:5;
+  font-weight:700;letter-spacing:.3px;padding:3px 10px;border-radius:999px;
+  background:var(--c-primary);color:#fff;font-size:10px;
+}
+#studinpro-ticker-scroll{flex:1;width:100%;overflow:hidden;white-space:nowrap;position:relative;height:1.4em}
+/* Position is driven entirely by JS (ui/common/studinpro-ticker.js)
+   setting transform:translateX(...) directly on every animation frame —
+   no CSS @keyframes/animation properties needed here. */
+#studinpro-ticker-text{
+  position:absolute;top:0;left:0;white-space:nowrap;will-change:transform;
+}
+#studinpro-ticker-hint{font-weight:600;text-decoration:underline;flex-shrink:0;white-space:nowrap}
+
+/* RESPONSIVE FIXES — 1024 (tablet) / 768 (small tablet/large phone) / 480 (phone) / 360 (small phone/foldable) */
+@media(max-width:1024px){
+  #main{max-width:100%;padding:var(--sp-6)}
+  .grid-4{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .db-kpi-strip{flex-wrap:wrap}
+  .db-kpi-strip .kpi-card{min-width:140px;flex:1 1 140px}
+}
+@media(max-width:768px){
+  #main{padding:var(--sp-4)}
+  #stepper{gap:0;padding:0 12px}
+  .step-item{padding:0 8px;font-size:11px}
+  .step-sep{padding:0}
+  .step-item span{display:none}
+  .step-item .step-num{font-size:11px}
+  .filter-bar{flex-direction:column;align-items:stretch}
+  .filter-bar input{min-width:unset}
+  .db-header{flex-direction:column;align-items:flex-start}
+  .phase-actionbar{flex-direction:column;align-items:stretch}
+  .modal-box{padding:20px}
+  /* MOBILE FIX (item #2, iPhone screenshots): iOS Safari auto-zooms the
+     whole page when a focused input's computed font-size is under 16px,
+     and on some pages doesn't reliably zoom back out on blur, leaving the
+     user stuck zoomed in. 16px is the documented iOS threshold — this
+     overrides every input/select/textarea (including more specific rules
+     like .form-group input, .filter-bar input, .mm-chip input which were
+     each below it) without touching desktop sizing at all.
+     Ref: https://webkit.org/blog/7929/designing-websites-for-iphone-x/ */
+  input,select,textarea{font-size:16px!important}
+  /* MOBILE FIX (item #4): Back / Done / Download were squeezed onto the
+     same crowded row with mismatched widths on narrow screens. Stack them
+     full-width instead, so every control reads the same. */
+  .sw-nav{flex-direction:column;align-items:stretch}
+  .sw-nav>div{flex-direction:column;align-items:stretch;width:100%}
+  .sw-nav .btn{width:100%;justify-content:center}
+  /* MOBILE FIX (item #5, iPhone screenshots): stacking Back + the two
+     action buttons with equal weight and no gap read as "3 confusing
+     buttons". Back is now a quiet ghost link (styled above) so it doesn't
+     compete with the real action; give it its own row with space below
+     so it doesn't visually fuse into the action group underneath it. */
+  .sw-nav{gap:18px}
+  .sw-nav-actions{gap:10px!important}
+  /* Bug fix: sample-data banner was using full desktop padding/font-size
+     and a full-size dismiss button, so on a narrow screen the two lines
+     of text + button took up a disproportionate amount of the viewport. */
+  .dashboard-sample-banner-card{padding:8px 10px!important;gap:8px!important}
+  .dashboard-sample-banner-card>div:first-child{font-size:11.5px!important}
+  .dashboard-sample-banner-card button{padding:4px 8px!important;min-height:unset!important;font-size:12px!important}
+}
+/* STRESS-TEST FIX (BUG-2, STRESS_TEST_REPORT.md): grid collapse needs a
+   threshold BELOW iPad mini (744px CSS width) and an unfolded Galaxy
+   Fold 7 (~717-904px) — both are genuinely wide enough for 2 columns and
+   were being squeezed into a single mobile column by the old 768px rule.
+   Verify 700px against a real device/emulator if possible. */
+@media(max-width:700px){
+  .grid-2{grid-template-columns:1fr}
+  .student-grid{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  :root{--content-top:90px}
+  #topbar{padding:0 14px;gap:8px}
+  #topbar .tagline{display:none}
+  #topbar .logo{font-size:13px;gap:6px;min-width:0;flex-shrink:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #topbar .logo img{width:22px;height:22px;flex-shrink:0}
+  #i18n-selector{min-width:0;flex-shrink:1;gap:4px!important;margin-right:6px!important}
+  #i18n-selector select{min-width:0;max-width:84px;padding:4px 5px!important;font-size:11px!important}
+  .grid-4{grid-template-columns:1fr 1fr}
+  .db-kpi-strip .kpi-card{min-width:120px}
+}
+@media(max-width:360px){
+  :root{--content-top:86px}
+  #topbar{padding:0 10px;gap:6px}
+  #topbar .logo{font-size:12px}
+  #topbar .logo img{width:20px;height:20px}
+  #i18n-selector select{max-width:64px;padding:3px 4px!important;font-size:10.5px!important}
+  #main{padding:var(--sp-3)}
+  .grid-4{grid-template-columns:1fr}
+  .card{padding:14px}
+  .kpi-val{font-size:22px}
+}
+@media(min-width:1800px){
+  #main{max-width:min(1800px,94vw);padding:clamp(28px,3vw,56px)}
+  #topbar,#stepper{padding-left:clamp(28px,3vw,56px);padding-right:clamp(28px,3vw,56px)}
+}
+
+/* ABOUT */
+.about-hero-eyebrow{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.12);border-radius:99px;padding:4px 14px;margin-bottom:18px;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.88)}
+.about-no-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.about-no-item{display:flex;align-items:center;gap:7px;padding:7px 12px;background:var(--c-surface2);border-radius:var(--r-sm);font-size:12px;font-weight:600;color:var(--c-text2)}
+.about-no-item .x{width:16px;height:16px;background:#fdecea;color:var(--c-danger);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex-shrink:0}
+.about-hosting-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.about-hosting-item{padding:7px 14px;background:var(--c-surface2);border-radius:var(--r-sm);font-size:12.5px;font-weight:600;color:var(--c-text2)}
+.about-inst-item{padding:6px 14px;background:var(--c-primary-soft);border-radius:99px;font-size:12px;font-weight:600;color:var(--c-primary)}
+.about-blockquote{background:linear-gradient(135deg,var(--c-primary-soft),var(--c-success-bg));border-radius:12px;padding:20px 24px;margin-top:16px;margin-bottom:16px}
+.about-blockquote p{font-size:14px;font-style:italic;color:var(--c-text);line-height:1.8;font-family:var(--font-display)}
+.about-blockquote cite{display:block;font-size:11px;color:var(--c-text3);margin-top:8px;font-style:normal;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.about-prose{font-size:13px;color:var(--c-text2);line-height:1.85}
+.about-acc{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-card);margin-bottom:12px;padding:0 16px;transition:box-shadow .15s}
+.about-acc[open]{box-shadow:var(--e-1)}
+.about-acc>summary{list-style:none;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--c-text);padding:16px 0}
+.about-acc>summary::-webkit-details-marker{display:none}
+.about-acc-chevron{margin-left:auto;font-size:13px;color:var(--c-text3);transition:transform .2s}
+.about-acc[open]>summary .about-acc-chevron{transform:rotate(180deg)}
+.about-acc>*:not(summary){margin-bottom:0}
+.about-acc>.about-prose:last-child,.about-acc>div:last-child{padding-bottom:16px}
+.about-prose p{margin-bottom:7px}
+
+/* REQUIRED FIELD HIGHLIGHT */
+input.has-error,select.has-error{border-color:var(--c-danger)!important;box-shadow:0 0 0 3px rgba(242,92,84,.1)}
+/* Phase 2 Task 03: incomplete-row highlight for the scholarship edit
+   grid — reuses the same --c-danger-bg token the (superseded) static
+   error grid / has-error inputs already use, not a new color. */
+tr.scholarship-edit-row.se-row-incomplete{background:var(--c-danger-bg)}
+.se-cell{width:100%;box-sizing:border-box}
+
+/* SETUP CTA smooth show */
+#setup-cta-card{transition:all .2s ease}
+#setup-incomplete-card{transition:all .2s ease}
+
+/* TRUST PILLS */
+.trust-pill{flex-shrink:0;padding:10px 16px;font-size:12px;font-weight:600;
+  color:var(--c-text2);cursor:pointer;transition:var(--transition);white-space:nowrap;
+  border-right:1px solid var(--c-border)}
+.trust-pill:last-child{border-right:none}
+.trust-pill:hover{background:var(--c-primary-soft);color:var(--c-primary)}
+.trust-pill.active{background:var(--c-primary-soft);color:var(--c-primary)}
+.trust-body{font-size:13px;color:var(--c-text2);line-height:1.75;animation:fadeIn .15s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+
+/* ── DASHBOARD NEW DESIGN ── */
+.db-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px}
+.db-export-section{margin-top:28px;padding-top:20px;border-top:2px solid var(--c-border);scroll-margin-top:20px}
+.db-title{font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--c-text)}
+.db-subtitle{font-size:12px;color:var(--c-text3);margin-top:2px}
+.db-kpi-strip{display:flex;gap:10px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.db-kpi-strip .kpi-card{flex:1;min-width:110px;border-radius:var(--r-card);background:var(--c-surface);
+  border:1px solid var(--c-border);padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--e-1);
+  transition:transform var(--dur-base) var(--ease-standard),box-shadow var(--dur-base) var(--ease-standard);
+  animation:kpiCardIn var(--dur-slow) var(--ease-standard) both}
+.db-kpi-strip .kpi-card:hover{transform:translateY(-2px);box-shadow:var(--e-2,var(--e-1))}
+.db-kpi-strip .kpi-card:nth-child(1){animation-delay:0s}.db-kpi-strip .kpi-card:nth-child(2){animation-delay:.04s}
+.db-kpi-strip .kpi-card:nth-child(3){animation-delay:.08s}.db-kpi-strip .kpi-card:nth-child(4){animation-delay:.12s}
+.db-kpi-strip .kpi-card:nth-child(n+5){animation-delay:.16s}
+@keyframes kpiCardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion: reduce){.db-kpi-strip .kpi-card{animation:none;transition:none}.db-kpi-strip .kpi-card:hover{transform:none}}
+.db-kpi-strip .kpi-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--kpi-accent,var(--c-primary));opacity:.7}
+/* bento-style hierarchy: the first card is the class's headline metric —
+   give it a bit more room and a larger value so the strip reads "one
+   important number, several supporting ones" instead of a uniform row
+   of equally-weighted tiles. */
+.db-kpi-strip .kpi-card:first-child{flex:1.5 1 150px}
+.db-kpi-strip .kpi-card:first-child .kpi-val{font-size:26px}
+@media(prefers-reduced-motion:no-preference){
+  .db-kpi-strip .kpi-card{transition:box-shadow var(--dur-base) var(--ease-standard),transform var(--dur-base) var(--ease-standard)}
+  .db-kpi-strip .kpi-card:hover{box-shadow:var(--e-2);transform:translateY(-2px)}
+}
+.db-kpi-strip .kpi-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--c-text3);font-weight:600;margin-bottom:6px}
+.db-kpi-strip .kpi-val{font-size:22px;font-weight:700;color:var(--c-text);line-height:1}
+.db-kpi-strip .kpi-sub{font-size:11px;color:var(--c-text3);margin-top:3px}
+.db-tabs{display:flex;gap:2px;border-bottom:2px solid var(--c-border);margin-bottom:16px;align-items:center;
+  overflow-x:auto;overflow-y:hidden;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.db-tabs::-webkit-scrollbar{display:none}
+.db-tab{flex-shrink:0}
+@media(max-width:768px){
+  .db-tabs{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent);
+    mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent)}
+}
+.db-tab{padding:8px 16px;font-size:13px;font-weight:600;color:var(--c-text2);cursor:pointer;
+  border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-2px;
+  transition:var(--transition);position:relative;top:0px}
+.db-tab:hover{color:var(--c-primary)}
+.db-tab.active{color:var(--c-primary);border-bottom-color:var(--c-primary)}
+.db-tab-panel{display:none}
+.db-tab-locked{opacity:.45;cursor:not-allowed}
+.db-tab-locked:hover{color:var(--c-text2)}
+.scholarship-tab-lock-banner{margin:-4px 0 12px;padding:10px 14px;border-radius:8px;
+  background:var(--c-warn-bg,rgba(217,119,6,.1));color:var(--c-warn,#b45309);
+  font-size:13px;font-weight:500}
+.db-tab-panel.active{display:block}
+@media(prefers-reduced-motion:no-preference){
+  .db-tab-panel.active{animation:screenFadeIn var(--dur-slow) var(--ease-standard)}
+}
+.db-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;
+  background:var(--c-danger);color:#fff;border-radius:99px;font-size:11px;font-weight:700;
+  padding:0 5px;margin-left:4px;vertical-align:middle}
+
+/* ── EMPTY STATES (High #22) — use for "no students match filter", "no sessions yet", etc. ── */
+.empty-state{text-align:center;padding:var(--sp-8) var(--sp-5);color:var(--c-text2)}
+.empty-state-icon{font-size:34px;margin-bottom:var(--sp-3);opacity:.7}
+.empty-state-title{font-family:var(--font-display);font-weight:700;font-size:var(--fs-lg);color:var(--c-text);margin-bottom:var(--sp-1)}
+.empty-state-body{font-size:var(--fs-sm);max-width:380px;margin:0 auto var(--sp-4)}
+
+/* ── BANNERS / ALERTS (High #23) — replaces ad-hoc inline-styled warning divs ── */
+.banner{display:flex;align-items:flex-start;gap:10px;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-sm);border:1px solid;font-size:var(--fs-sm);line-height:1.5;margin-bottom:var(--sp-3)}
+.banner::before{font-weight:900;flex-shrink:0;line-height:1.4}
+.banner-error{background:var(--c-danger-bg);border-color:#f3b8b3;color:var(--c-danger-text)}.banner-error::before{content:"✕"}
+.banner-warn{background:var(--c-warn-bg);border-color:#f6d38a;color:var(--c-warn-text)}.banner-warn::before{content:"⚠"}
+.banner-success{background:var(--c-success-bg);border-color:#9ee3d8;color:var(--c-success-text)}.banner-success::before{content:"✓"}
+.banner-info{background:var(--c-info-bg);border-color:#a9c6ef;color:var(--c-info-text)}.banner-info::before{content:"ⓘ"}
+
+/* ── TOOLTIPS (Medium #27) — CSS-only, hover + focus, works for icon-only ⓘ triggers already in the app ── */
+[data-tip]{position:relative}
+[data-tip]::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%) translateY(2px);
+  background:var(--c-text);color:var(--c-bg);font-size:11px;font-weight:500;padding:5px 9px;border-radius:var(--r-xs);
+  white-space:nowrap;max-width:240px;white-space:normal;width:max-content;pointer-events:none;opacity:0;
+  transition:opacity var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard);z-index:1500;box-shadow:var(--e-2)}
+[data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (hover: none){[data-tip]::after{display:none}}
+
+/* ── SKELETON LOADERS (Medium #32) — pairs with the existing #ai-loader spinner for skeleton-style loading UI ── */
+.skeleton{background:linear-gradient(90deg,var(--c-surface2) 25%,var(--c-border) 37%,var(--c-surface2) 63%);background-size:400% 100%;animation:skeletonWave 1.4s ease-in-out infinite;border-radius:var(--r-sm)}
+@keyframes skeletonWave{0%{background-position:100% 50%}100%{background-position:0 50%}}
+@media (prefers-reduced-motion: reduce){.skeleton{animation:none;background:var(--c-surface2)}}
+.skeleton-text{height:12px;margin-bottom:6px;width:100%}
+.skeleton-text:last-child{width:70%}
+.skeleton-card{height:88px}
+
+/* FIX (review #6): the 4 loader boxes below #ai-loader-msg used to be
+   bare .skeleton-card shimmer rectangles with nothing inside them —
+   just empty animated placeholders. Replaced with two card types that
+   tie back to what run-analysis actually computes, instead of a plain
+   shimmer with no content:
+   - .ai-loader-kpi-card (top row): a static preview of two real
+     dashboard KPI labels (Class Avg / Pass Rate) with a shimmering
+     bar standing in for the not-yet-known number — same shimmer
+     animation as before, now labelled instead of blank.
+   - .ai-loader-formula-card (bottom row): cycles its symbol+label
+     through a short list of metrics actually used in the app (see
+     startAiLoaderCardCycle() in app-utils-init.js), giving a sense of
+     motion without inventing a fake number.
+   Grid itself moved from an inline style on the wrapper div to this
+   class so it isn't duplicated per call site. */
+.ai-loader-cards{max-width:460px;margin:18px auto 0;display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.ai-loader-kpi-card,.ai-loader-formula-card{background:var(--c-bg-raised);border:1px solid var(--c-border);border-radius:var(--r-md);padding:12px 14px}
+.ai-loader-kpi-label{font-size:11px;color:var(--c-text3);margin-bottom:8px}
+.skeleton-bar{height:18px;width:60%;border-radius:var(--r-sm)}
+.ai-loader-formula-card{text-align:center}
+.ai-loader-formula-symbol{font-size:20px;font-weight:600;color:var(--c-primary);line-height:1.2}
+.ai-loader-formula-label{font-size:11px;color:var(--c-text2);margin-top:4px}
+
+/* ── PRINT (Polish #38) — chrome hidden, content readable on paper, PDF-adjacent panels unaffected since export uses jsPDF, not print ── */
+@media print{
+  #topbar,#stepper,#footer,.phase-actionbar,.filter-bar,.btn,.skip-link,#toast-wrap,#modal-overlay{display:none!important}
+  #main{margin-top:0;padding:0;max-width:100%}
+  body{background:#fff;color:#000;padding-bottom:0}
+  .card,.chart-container,.student-card,.kpi-card{box-shadow:none;border:1px solid #ccc;break-inside:avoid}
+  a{color:#000;text-decoration:underline}
+}
+/* ════ SMART REVEAL — buckets / filtered list / full answer ════ */
+.bucket-list{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.bucket-row{display:flex;align-items:center;gap:14px;padding:16px;min-height:64px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);cursor:pointer;text-align:left;box-shadow:var(--e-1);
+  transition:transform var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard),border-color var(--dur-fast) var(--ease-standard)}
+.bucket-row:hover,.bucket-row:focus-visible{border-color:var(--c-primary);box-shadow:var(--e-2);transform:translateX(2px)}
+.bucket-row:focus-visible{outline:2px solid var(--c-primary);outline-offset:2px}
+.bucket-icon{flex-shrink:0;color:var(--c-primary);display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:var(--c-primary-soft,rgba(43,58,103,.1));transition:transform var(--dur-fast) var(--ease-standard)}
+.bucket-row:hover .bucket-icon{transform:scale(1.08)}
+/* WoW pass: cycle bucket icons through the palette instead of one flat
+   brand color everywhere — same rows, same order, just distinguishable
+   at a glance. Pure CSS, no markup/JS change. */
+.bucket-list .bucket-row:nth-of-type(9n+1) .bucket-icon{color:#185FA5;background:#E6F1FB}
+.bucket-list .bucket-row:nth-of-type(9n+2) .bucket-icon{color:#3B6D11;background:#EAF3DE}
+.bucket-list .bucket-row:nth-of-type(9n+3) .bucket-icon{color:#993C1D;background:#FAECE7}
+.bucket-list .bucket-row:nth-of-type(9n+4) .bucket-icon{color:#854F0B;background:#FAEEDA}
+.bucket-list .bucket-row:nth-of-type(9n+5) .bucket-icon{color:#534AB7;background:#EEEDFE}
+.bucket-list .bucket-row:nth-of-type(9n+6) .bucket-icon{color:#0F6E56;background:#E1F5EE}
+.bucket-list .bucket-row:nth-of-type(9n+7) .bucket-icon{color:#993556;background:#FBEAF0}
+.bucket-list .bucket-row:nth-of-type(9n+8) .bucket-icon{color:#185FA5;background:#E6F1FB}
+.bucket-list .bucket-row:nth-of-type(9n+9) .bucket-icon{color:#3B6D11;background:#EAF3DE}
+@media (prefers-reduced-motion: reduce){.bucket-row,.bucket-icon{transition:none}.bucket-row:hover{transform:none}.bucket-row:hover .bucket-icon{transform:none}}
+.bucket-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.bucket-label{font-size:16px;font-weight:700;color:var(--c-text)}
+.bucket-desc{font-size:13px;color:var(--c-text2)}
+.bucket-badge{flex-shrink:0;font-size:12.5px;font-weight:700;color:var(--c-text2);background:var(--c-surface2);padding:4px 10px;border-radius:var(--r-pill)}
+.bucket-back-btn{display:inline-flex;align-items:center;min-height:44px;padding:8px 16px;margin-bottom:14px;font-size:15px;font-weight:700;color:var(--c-primary);background:none;border:none;cursor:pointer}
+.bucket-back-btn:focus-visible{outline:2px solid var(--c-primary);outline-offset:2px}
+.bucket-list-title,.bucket-answer-title{font-size:19px;font-weight:800;color:var(--c-text);margin-bottom:10px}
+/* About page signature — a flow diagram of the actual pitch (file never
+   leaves the browser), not decoration for its own sake. */
+.about-flow-diagram{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.about-flow-node{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:rgba(255,255,255,.85);
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:var(--r-card);padding:14px 16px;min-width:96px;text-align:center;
+  animation:aboutFlowIn var(--dur-slow) var(--ease-standard) both}
+.about-flow-node:nth-child(1){animation-delay:.05s}.about-flow-node:nth-child(3){animation-delay:.2s}.about-flow-node:nth-child(5){animation-delay:.35s}
+.about-flow-node small{font-weight:500;color:rgba(255,255,255,.55)}
+.about-flow-node-highlight{border-color:#2ec4b6;background:rgba(46,196,182,.12)}
+.about-flow-icon{font-size:20px}
+.about-flow-arrow{color:rgba(255,255,255,.4);font-size:16px;animation:aboutFlowIn var(--dur-slow) var(--ease-standard) both;animation-delay:.15s}
+@keyframes aboutFlowIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+@media (prefers-reduced-motion: reduce){.about-flow-node,.about-flow-arrow{animation:none}}
+@media (max-width:520px){.about-flow-diagram{flex-direction:column;align-items:flex-start}.about-flow-arrow{transform:rotate(90deg)}}
+/* Smart Search signature: display-face title with a subtle accent underline
+   the ✨ already in the label earns its keep here — everything else in
+   this screen stays quiet so this is the one thing that reads as designed. */
+#bucket-answer-screen:has(.chat-window) .bucket-answer-title{
+  font-family:var(--font-display);font-size:22px;letter-spacing:-.01em;color:var(--c-text);
+}
+.bucket-picker-hint{font-size:13px;color:var(--c-text2);margin-bottom:10px}
+.bucket-picker-input{width:100%;min-height:48px;font-size:16px;padding:10px 14px;border:1px solid var(--c-border);border-radius:var(--r-md);background:var(--c-surface);color:var(--c-text);box-sizing:border-box}
+/* FEEDBACK #7: real visible/clickable list instead of a free-text +
+   <datalist> autocomplete popup — the whole point being no guessing at an
+   exact string match and no hidden browser-native suggestion UI. */
+.bucket-picker-list{display:flex;flex-direction:column;gap:4px;margin-top:10px;max-height:360px;overflow-y:auto}
+.bucket-picker-row{padding:10px 14px;border-radius:var(--r-sm);background:var(--c-surface);border:1px solid var(--c-border);cursor:pointer;font-size:14px;color:var(--c-text)}
+.bucket-picker-row:hover,.bucket-picker-row:focus-visible{border-color:var(--c-primary);background:var(--c-primary-soft)}
+.bucket-empty{padding:20px;font-size:15px;color:var(--c-text2);background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md)}
+.finding-list{display:flex;flex-direction:column;gap:8px}
+.finding-row{min-height:52px;display:flex;align-items:center;padding:14px 16px;font-size:15px;line-height:1.4;color:var(--c-text);background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);cursor:pointer;text-align:left;box-shadow:var(--e-1)}
+.finding-row:hover,.finding-row:focus-visible{border-color:var(--c-primary);box-shadow:var(--e-2)}
+.finding-row:focus-visible{outline:2px solid var(--c-primary);outline-offset:2px}
+/* BUG 6b FIX (studin-ui-bugs-prompt v1.0): "Who Needs Help" — bold student
+   name distinct from the flag text, and inline accordion for the expanded
+   detail (only one row open at a time), needed once a class has 40-50+
+   flagged students. */
+.bucket-student-name{font-weight:700;color:var(--c-text)}
+.finding-row.bucket-row-open{border-color:var(--c-primary);border-radius:var(--r-md) var(--r-md) 0 0}
+.help-row-body{padding:10px 14px 12px;background:var(--c-surface2);border-radius:0 0 var(--r-sm) var(--r-sm);border:1px solid var(--c-border);border-top:none;font-size:13.5px;line-height:1.6;color:var(--c-text)}
+/* BUG 6c FIX (studin-ui-bugs-prompt v1.0): Top Performers rank badge +
+   meta row (avg / best subject / trend), same .finding-row card as Who
+   Needs Help for visual consistency. */
+.rank-badge{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;margin-right:8px}
+.rank-gold{background:#f5c518;color:#333}
+.rank-silver{background:#c0c0c0;color:#333}
+.rank-bronze{background:#cd7f32;color:#fff}
+.rank-other{background:var(--c-surface2);color:var(--c-text2)}
+.bucket-meta-row{font-size:11.5px;color:var(--c-text2);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap}
+.bucket-answer-sub{font-size:13.5px;color:var(--c-text2);margin-bottom:14px}
+.bucket-answer-body p{font-size:15px;line-height:1.55;color:var(--c-text);margin:0 0 12px}
+/* BUG 5 FIX (studin-ui-bugs-prompt v1.0): inline Smart Search accordion —
+   answer expands directly below its chip instead of a bottom scroll-to wrap. */
+.smart-chip-row{margin-bottom:0}
+.smart-chip-open{background:var(--c-primary-soft);border-color:var(--c-primary);border-radius:var(--r-md) var(--r-md) 0 0}
+.smart-ans-body{padding:10px 14px 12px;background:var(--c-surface2);border-radius:0 0 var(--r-sm) var(--r-sm);border:1px solid var(--c-border);border-top:none;font-size:13.5px;line-height:1.6;color:var(--c-text);margin-top:-10px;margin-bottom:10px}
+.subject-row-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.cluster-group-card{border:1px solid var(--c-border);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;background:var(--c-surface)}
+.cluster-group-card summary{font-size:13px}
+.cluster-group-scroll{max-height:260px;overflow-y:auto}
+.subject-row{display:flex;justify-content:space-between;padding:10px 14px;font-size:14px;background:var(--c-surface2);border-radius:var(--r-sm);color:var(--c-text)}
+@media(prefers-reduced-motion:no-preference){
+  .bucket-row,.finding-row{transition:border-color var(--dur-base) var(--ease-standard),box-shadow var(--dur-base) var(--ease-standard),transform var(--dur-base) var(--ease-standard)}
+  .bucket-row:hover,.bucket-row:focus-visible,.finding-row:hover,.finding-row:focus-visible{transform:translateY(-2px)}
+  .bucket-picker-row{transition:border-color var(--dur-fast) var(--ease-standard),background var(--dur-fast) var(--ease-standard)}
+}
+
+/* ── Setup Wizard ── */
+.sw-step { margin-bottom: 14px; }
+.sw-err  { font-size:12px; color:var(--c-danger); margin-top:8px;
+           padding:8px 10px; background:#fff0f0; border-radius:var(--r-sm);
+           border:1px solid var(--c-danger); }
+#sw-progress { display:flex; gap:8px; margin:12px 0 18px;
+               align-items:center; justify-content:center; }
+.sw-dot { width:28px; height:28px; border-radius:50%; display:flex;
+          align-items:center; justify-content:center; font-size:12px;
+          font-weight:700; background:var(--c-border); color:var(--c-text2);
+          transition:background var(--dur-base) var(--ease-standard),color var(--dur-base) var(--ease-standard),transform var(--dur-base) var(--ease-standard); }
+.sw-dot.sw-active { background:var(--c-primary); color:#fff; transform:scale(1.08); }
+.sw-dot.sw-done   { background:var(--c-success);  color:#fff; }
+.sw-nav { display:flex; justify-content:space-between; margin-top:14px; }
+.sw-nav button:only-child { margin-left:auto; }
+.sw-choice-card { border-width:2px; transition:box-shadow .15s; }
+.sw-choice-card.sw-choice-active { box-shadow:0 0 0 2px var(--c-primary) inset; }
+.sw-grid-2 { grid-template-columns:1fr 1fr; }
+@media(max-width:700px){ .sw-grid-2 { grid-template-columns:1fr; } }
+
+/* ── Bucket breadcrumb (feedback item #7) — replaces two stacked back
+   buttons with one line: "Dashboard › Back" ── */
+.bucket-breadcrumb { display:flex; align-items:center; gap:6px; margin-bottom:14px;
+                     font-size:12.5px; font-weight:600; }
+.bucket-breadcrumb a { color:var(--c-text2); text-decoration:none; }
+.bucket-breadcrumb a:hover, .bucket-breadcrumb a:focus-visible { color:var(--c-primary); text-decoration:underline; }
+.bucket-breadcrumb a:last-child { color:var(--c-primary); }
+.bucket-breadcrumb .crumb-sep { color:var(--c-text3); }
+
+/* ---- v4.23-smart-query-chat: center-panel chat window ---- */
+/* v4.28/v4.29 §1: #bucket-answer-screen (chat's parent) had zero CSS
+   rules, so .chat-window's height:100% resolved against an unbounded
+   parent and the page grew instead of the thread scrolling internally.
+   The first attempt at this fix only bounded #bucket-answer-screen
+   itself, but its ancestor .panel.active (the tab body wrapping it, see
+   ".panel{display:block}" below) has height:auto — a percentage height
+   chain stops working the moment it passes through an auto-height
+   ancestor, so that fix never actually took effect. Chaining the same
+   scoped (":has(.chat-window)") flex/height fix up through .panel too
+   closes that gap without touching .panel's normal (auto-height,
+   page-scrolls-via-#main) behavior for every other tab/bucket. */
+.panel.active:has(.chat-window){height:100%;display:flex;flex-direction:column;min-height:0}
+#bucket-answer-screen:has(.chat-window){height:100%;display:flex;flex-direction:column;min-height:0}
+.chat-window{display:flex;flex-direction:column;flex:1 1 auto;height:100%;min-height:360px}
+.chat-thread{display:flex;flex-direction:column;gap:10px;overflow-y:auto;flex:1 1 auto;min-height:120px;padding:4px 2px 10px}
+.chat-bubble{max-width:78%;padding:10px 14px;border-radius:var(--r-md);font-size:13.5px;line-height:1.5;overflow-wrap:anywhere;animation:chatBubbleIn var(--dur-slow) var(--ease-standard) both}
+@keyframes chatBubbleIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion: reduce){.chat-bubble{animation:none}}
+.chat-bubble-user{align-self:flex-end;background:var(--c-primary);color:#fff;border-bottom-right-radius:4px}
+.chat-bubble-answer{align-self:flex-start;background:var(--c-surface2);color:var(--c-text);border-bottom-left-radius:4px}
+.chat-bubble-thinking{align-self:flex-start;background:var(--c-surface2);padding:12px 16px;display:flex;gap:5px;align-items:center;border-bottom-left-radius:4px}
+.chat-thinking-dot{width:6px;height:6px;border-radius:50%;background:var(--c-text3);animation:chatDotPulse 1.1s ease-in-out infinite}
+.chat-thinking-dot:nth-child(2){animation-delay:.15s}
+.chat-thinking-dot:nth-child(3){animation-delay:.3s}
+@keyframes chatDotPulse{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+.chat-suggestions{align-self:flex-start;max-width:92%;display:flex;flex-direction:column;gap:6px}
+.chat-suggestion-chip{text-align:left;font-size:12.5px;padding:7px 12px;border-radius:var(--r-sm);border:1px solid var(--c-border);background:var(--c-surface);color:var(--c-text);cursor:pointer;
+  transition:border-color var(--dur-fast) var(--ease-standard),color var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard);
+  animation:chatBubbleIn var(--dur-base) var(--ease-standard) both}
+.chat-suggestion-chip:nth-of-type(1){animation-delay:.03s}.chat-suggestion-chip:nth-of-type(2){animation-delay:.06s}
+.chat-suggestion-chip:nth-of-type(3){animation-delay:.09s}.chat-suggestion-chip:nth-of-type(4){animation-delay:.12s}
+.chat-suggestion-chip:nth-of-type(5){animation-delay:.15s}
+.chat-suggestion-chip:hover{border-color:var(--c-primary);color:var(--c-primary);transform:translateY(-1px);box-shadow:var(--e-1)}
+.chat-suggestion-chip:active{transform:translateY(0)}
+@media (prefers-reduced-motion: reduce){.chat-suggestion-chip{animation:none}}
+.chat-composer{display:flex;gap:8px;margin-top:10px;flex:0 0 auto}
+.chat-composer input{flex:1 1 auto;min-width:0;transition:box-shadow var(--dur-fast) var(--ease-standard),border-color var(--dur-fast) var(--ease-standard)}
+.chat-composer input:focus-visible{box-shadow:var(--c-focus-ring);border-color:var(--c-primary);outline:none}
+.chat-composer .btn{transition:transform var(--dur-fast) var(--ease-standard)}
+.chat-composer .btn:active{transform:scale(.96)}
+.chat-empty-hint{color:var(--c-text2);font-size:12.5px;text-align:center;padding:24px 8px}
+.chat-suggestions-canned{align-self:center;max-width:100%;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:8px;padding:0 12px}
+.chat-suggestions-canned .chat-suggestion-chip{text-align:center}
+/* P1 #14: visually-hidden but screen-reader-accessible utility, used by
+   the Analytics tab's chart data-table fallbacks (render-core.js). */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}

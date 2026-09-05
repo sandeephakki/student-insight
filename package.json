@@ -1,0 +1,25 @@
+{
+  "name": "student-insight",
+  "version": "4.7.0",
+  "description": "Privacy-first, offline, in-browser student analytics. Static site, no build step, no backend. This file exists purely so dependency versions are visible to Dependabot/npm audit — nothing here is actually installed or bundled; all libraries load from pinned CDN <script> tags in index.html.",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE.md",
+  "homepage": "https://studin.in/",
+  "devDependencies": {
+    "chart.js": "^4.5.1",
+    "jsdom": "^30.0.1",
+    "jspdf": "^2.5.2",
+    "jszip": "^3.10.1",
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
+  },
+  "scripts": {
+    "audit-deps": "npm audit --omit=dev",
+    "test:engine": "node dev-tests/test-engine.mjs",
+    "test:completeness": "node dev-tests/test-completeness.mjs",
+    "test:report-views": "node dev-tests/test-report-views.mjs",
+    "test:loader-cards": "echo 'Needs a static file server on 127.0.0.1:8899 first, e.g.: python3 -m http.server 8899 --bind 127.0.0.1' && node dev-tests/verify-loader-cards.js",
+    "lint:i18n": "python3 scripts/i18n-gap-check.py && python3 scripts/i18n-lint-hardcoded-strings.py"
+  },
+  "keywords": []
+}

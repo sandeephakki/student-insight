@@ -1,0 +1,11 @@
+{
+  "code": "CA",
+  "label": "Canada",
+  "defaultLang": "en",
+  "languages": [
+    {
+      "code": "en",
+      "label": "English"
+    }
+  ]
+}
