@@ -42,6 +42,8 @@ const StudInVideos = (function () {
     { "id": "aWVd2lA915g", "title": "StudIn — Intro" }
   ];
 
+  const STAGE_EMPTY_HTML = '<div class="si-videos-stage-empty">Pick a video below to play it here</div>';
+
   function el(id) { return document.getElementById(id); }
   function lsGet(key) {
     try { return window.localStorage.getItem(key); } catch (e) { return null; }
@@ -134,6 +136,18 @@ const StudInVideos = (function () {
   function close() {
     const overlay = el("si-videos");
     if (overlay) overlay.hidden = true;
+    // BUG FIX (reported: audio keeps playing after close, worst on PWA —
+    // needed a full browser refresh to stop it): hiding the overlay only
+    // hides it visually. The YouTube <iframe> inside #si-videos-stage
+    // keeps running — and keeps playing audio — until its document is
+    // actually torn down, `hidden` doesn't do that. Reset the stage back
+    // to its empty-state markup so the iframe (and its audio) is
+    // destroyed, not just hidden. Same on every close path: backdrop
+    // click, ✕ button, Escape — all funnel through this one function.
+    const stage = el("si-videos-stage");
+    if (stage) stage.innerHTML = STAGE_EMPTY_HTML;
+    const strip = el("si-videos-strip");
+    if (strip) strip.querySelectorAll(".video-tile.is-active").forEach(function (t) { t.classList.remove("is-active"); });
     document.removeEventListener("keydown", onKeydown);
     document.removeEventListener("keydown", onTrapTab, true);
     if (lastActive && typeof lastActive.focus === "function") lastActive.focus();
@@ -162,7 +176,7 @@ const StudInVideos = (function () {
       +     '<span class="si-videos-title" id="si-videos-title">Watch StudIn in action</span>'
       +     '<button class="si-videos-close" id="si-videos-close" aria-label="Close">\u2715</button>'
       +   '</div>'
-      +   '<div class="si-videos-stage" id="si-videos-stage"><div class="si-videos-stage-empty">Pick a video below to play it here</div></div>'
+      +   '<div class="si-videos-stage" id="si-videos-stage">' + STAGE_EMPTY_HTML + '</div>'
       +   '<div class="si-videos-strip" id="si-videos-strip"></div>'
       + '</div>';
   }
