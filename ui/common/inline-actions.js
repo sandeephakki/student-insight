@@ -38,6 +38,11 @@ import { vsShellToggle } from '../../core/vs-shell.js';
     enableScholarshipAndOpenGrid: function(){ import('../scholarship/scholarship-nav.js').then(m => m.enableScholarshipAndOpenGrid()); },
     showSampleFiles: function(){ showSampleFiles(); },
     showStudInProForm: function(){ window.showStudInProForm(); },
+    // core/video-modal.js's tiles — Properties rail tile opens the modal
+    // on that video; a modal filmstrip tile loads it into the big stage.
+    // Same delegated data-action/data-arg path as everything else here.
+    openVideoModal: function(arg){ if (window.StudInVideos) window.StudInVideos.openVideo(arg); },
+    selectStageVideo: function(arg){ if (window.StudInVideos) window.StudInVideos.selectStageVideo(arg); },
     vsShellToggle: function(arg){ vsShellToggle(arg); },
     toggleTrust: function(arg){ toggleTrust(arg); },
     triggerHomeImport: function(){

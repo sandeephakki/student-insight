@@ -8,7 +8,7 @@ import { renderCharts, showSampleFiles } from '../ui/common/render-core.js';
 import { loadLanguage, reapplyI18nStrings, showAiTranslationNotice, srT } from './render-i18n.js';
 import { swGoto } from './setup-wizard.js';
 import { autoInferSetup, generateMergedTemplate, generateTemplate, renderAICheckboxes, renderHomePage } from './template-upload.js';
-import { renderShellLeftRail, renderShellRightRail, setShellRailsOpen } from './vs-shell.js';
+import { renderShellLeftRail, renderShellRightRail, setShellRailsOpen, setShellRailOpen } from './vs-shell.js';
 
 
 /* ════ APP STATE ════ */
@@ -242,6 +242,12 @@ async function goStep(step){
     // open by default).
     const railsCollapseOnThisStep = (step==="setup"||step==="about"||step==="faq"||step==="home");
     if(typeof setShellRailsOpen==="function") setShellRailsOpen(!railsCollapseOnThisStep);
+    // Video-tiles ask: Properties (end rail) defaults OPEN on Home now
+    // (it shows the video list, not useless bullets), overriding the
+    // collapse the line above just applied for "home". Start rail is
+    // untouched — still collapses on Home same as before. Every other
+    // step (setup/about/faq) keeps collapsing both rails, unchanged.
+    if(step==="home" && typeof setShellRailOpen==="function") setShellRailOpen("end", true);
   }catch(err){
     console.error("Shell rail render failed for step:",step,err);
   }

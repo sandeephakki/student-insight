@@ -188,12 +188,19 @@ function buildContinuitySetupSheet(periods){
   });
   return wsSetup;
 }
-function buildStudentsSheet(){
-  // Columns 4-9 (Category..Special Category Flag) are the Phase 1
-  // scholarship fields — locked order per studin-scholarship-discussion.md
-  // §24. All 6 optional/nullable; sample rows leave them blank on purpose
-  // (not sample-filled) since they're not part of the core roster identity.
-  const hdr=["Student ID","Full Name","Gender","Category","Annual Family Income","Guardian Occupation","Prior Scholarship Status","Persistent Student ID","Special Category Flag"];
+// includeScholarship: gates Columns 4-9 (Category..Special Category Flag)
+// — the Phase 1 scholarship fields, locked order per
+// studin-scholarship-discussion.md §24 — on whether "Enable Scholarship
+// Module" is actually checked (APP.setup.scholarship.enabled), so a
+// downloaded template never carries scholarship columns the teacher
+// never opted into. BUG FIX: these 6 columns used to be unconditional —
+// every template got them regardless of the checkbox, and unchecking it
+// after having checked it (same session) didn't remove them from the
+// next download either, since nothing here ever looked at .enabled.
+function buildStudentsSheet(includeScholarship){
+  const baseHdr=["Student ID","Full Name","Gender"];
+  const scholarshipHdr=["Category","Annual Family Income","Guardian Occupation","Prior Scholarship Status","Persistent Student ID","Special Category Flag"];
+  const hdr=includeScholarship?baseHdr.concat(scholarshipHdr):baseHdr;
   const rows=[hdr];
   // Was "STU001".."STU005" — a user who left these untouched and just
   // filled marks against them got silently-wrong analysis (the "SAMPLE-N"
@@ -201,9 +208,11 @@ function buildStudentsSheet(){
   // safety net — auto-skipping these if still untouched on import — is
   // in parseStudents(), js/compute-stats.js, matched against
   // SAMPLE_STUDENT_IDS below).
-  for(let i=1;i<=5;i++)rows.push(["SAMPLE-"+i,"⚠ Replace this row — delete or overwrite","M","","","","","",""]);
+  for(let i=1;i<=5;i++)rows.push(["SAMPLE-"+i,"⚠ Replace this row — delete or overwrite","M",...Array(hdr.length-3).fill("")]);
   const ws=XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"]=[{wch:16},{wch:34},{wch:10},{wch:14},{wch:18},{wch:22},{wch:20},{wch:18},{wch:22}];
+  const baseCols=[{wch:16},{wch:34},{wch:10}];
+  const scholarshipCols=[{wch:14},{wch:18},{wch:22},{wch:20},{wch:18},{wch:22}];
+  ws["!cols"]=includeScholarship?baseCols.concat(scholarshipCols):baseCols;
   ws["!rows"]=rows.map((_,r)=>({hpt:r===0?32:20}));
   ws["!views"]=[{state:"frozen",ySplit:1,topLeftCell:"A2",activePane:"bottomLeft"}];
   hdr.forEach((_,c)=>{const cell=ws[colLetter(c)+"1"];if(cell)cell.s=TPL_STYLE.header;});
@@ -373,7 +382,14 @@ function injectScholarshipDataValidations(wbBytes){
 // spec + test step 5) — generateMergedTemplate()/
 // generateContinuityAppendTemplate()/generateBulkSectionTemplates() keep
 // using plain XLSX.writeFile()/XLSX.write() untouched, out of scope here.
-function downloadWorkbookWithScholarshipValidation(wb,fname,onDone){
+// includeScholarship: skips the dropdown-validation zip-patch entirely
+// when the module isn't enabled — there's no Category/Prior Scholarship
+// Status/Special Category Flag columns for it to validate against in
+// that case (see buildStudentsSheet()), so injecting would either no-op
+// against the wrong columns or throw. Plain XLSX.writeFile(), same as
+// the existing injection-failure fallback below.
+function downloadWorkbookWithScholarshipValidation(wb,fname,includeScholarship,onDone){
+  if(!includeScholarship){XLSX.writeFile(wb,fname);if(onDone)onDone();return;}
   const bytes=XLSX.write(wb,{bookType:"xlsx",type:"array"});
   injectScholarshipDataValidations(bytes).then(patchedBytes=>{
     const blob=new Blob([patchedBytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
@@ -410,10 +426,15 @@ function generateTemplate(){
   const bulkOn=document.getElementById("bulk-sections-toggle");
   if(bulkOn&&bulkOn.checked){generateBulkSectionTemplates();return;}
   applyTabPrefix(APP.setup.tests);
+  // Single source of truth for every scholarship-gated piece of this
+  // workbook below — the STUDENTS columns, the REFERENCE tab, and the
+  // dropdown-validation injection all key off this one flag now instead
+  // of each unconditionally including scholarship content.
+  const scholarshipOn=!!(APP.setup.scholarship&&APP.setup.scholarship.enabled);
   const wb=XLSX.utils.book_new();
   const {subjects,tests,instName}=APP.setup;
   XLSX.utils.book_append_sheet(wb,buildSetupSheet(),"SETUP");
-  XLSX.utils.book_append_sheet(wb,buildStudentsSheet(),"STUDENTS");
+  XLSX.utils.book_append_sheet(wb,buildStudentsSheet(scholarshipOn),"STUDENTS");
   const usedNames=new Set(["SETUP","STUDENTS"]);
   tests.forEach(t=>{
     const sheetName=safeSheetName(t.name,usedNames);
@@ -421,10 +442,12 @@ function generateTemplate(){
   });
   usedNames.add("README");
   XLSX.utils.book_append_sheet(wb,buildReadmeSheet(),"README");
-  usedNames.add("REFERENCE");
-  XLSX.utils.book_append_sheet(wb,buildReferenceSheet(),"REFERENCE");
+  if(scholarshipOn){
+    usedNames.add("REFERENCE");
+    XLSX.utils.book_append_sheet(wb,buildReferenceSheet(),"REFERENCE");
+  }
   const fname=(instName+" "+APP.setup.className+" "+APP.setup.year).replace(/[^\w\s-]/g,"").replace(/\s+/g,"_")+".xlsx";
-  downloadWorkbookWithScholarshipValidation(wb,fname,()=>{
+  downloadWorkbookWithScholarshipValidation(wb,fname,scholarshipOn,()=>{
     toast(srT("toast_template_downloaded",{fname:fname}),"success");
     // BUG FIX (screenshot review): used to auto-reload to Home 900ms later
     // unconditionally, silently erasing a correctly-filled form even when
@@ -615,6 +638,7 @@ function generateBulkSectionTemplates(){
   // of correctly re-prefixing).
   const origTests=APP.setup.tests.map(t=>({name:t.name,date:t.date||"",maxMarks:Object.assign({},t.maxMarks)}));
   const origSection=APP.setup.section;
+  const scholarshipOn=!!(APP.setup.scholarship&&APP.setup.scholarship.enabled); // same gate as generateTemplate() — see buildStudentsSheet()
   const zip=new JSZip();
   sectionNames.forEach(sectionName=>{
     APP.setup.section=sectionName;
@@ -623,7 +647,7 @@ function generateBulkSectionTemplates(){
     APP.setup.tests=sectionTests; // buildSetupSheet()/buildTestSheet() read APP.setup.tests directly
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,buildSetupSheet(),"SETUP");
-    XLSX.utils.book_append_sheet(wb,buildStudentsSheet(),"STUDENTS");
+    XLSX.utils.book_append_sheet(wb,buildStudentsSheet(scholarshipOn),"STUDENTS");
     const usedNames=new Set(["SETUP","STUDENTS"]);
     sectionTests.forEach(t=>{
       const sheetName=safeSheetName(t.name,usedNames);

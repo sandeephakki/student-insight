@@ -52,14 +52,14 @@ import { gsapModalEntrance } from './render-core.js';
   // srT() (once its table is genuinely ready) overrides this — this is
   // only the floor, never the ceiling.
   var FALLBACK = {
-    "studinpro.item.pro_intro": "StudInPro is an advanced ERP that solves your institution's everyday challenges.",
-    "studinpro.item.contact_query": "For StudInPro or any other query, contact: sandeep@hakki.in | sandeephakki@gmail.com",
-    "studinpro.form_modal_title": "StudInPro — Tell us about your school",
-    "studinpro.form_modal_desc": "StudIn stays free, always. This just helps us understand who's using it, so we can build StudInPro around real needs.",
+    "studinpro.item.pro_intro": "Student Insight Intelligence is a smarter way to solve your institution's everyday challenges.",
+    "studinpro.item.contact_query": "For Student Insight Intelligence or any other query, contact: sandeep@hakki.in | sandeephakki@gmail.com",
+    "studinpro.form_modal_title": "Student Insight Intelligence — Tell us about your school",
+    "studinpro.form_modal_desc": "StudIn stays free, always. This just helps us understand who's using it, so we can build Student Insight Intelligence around real needs.",
     "studinpro.form_modal_email_note": "Prefer email? Reach us directly:",
-    "studinpro.already_submitted_msg": "Thanks — we've already received your details. We'll be in touch about StudInPro soon.",
+    "studinpro.already_submitted_msg": "Thanks — we've already received your details. We'll be in touch about Student Insight Intelligence soon.",
     "studinpro.fill_again_btn": "Fill the form again",
-    "studinpro.ticker.aria_label": "StudInPro announcements, updates every few seconds"
+    "studinpro.ticker.aria_label": "Student Insight Intelligence announcements, updates every few seconds"
   };
 
   // Shared text lookup: real translation if the table has it, else the

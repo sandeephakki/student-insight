@@ -64,33 +64,14 @@ import { getRecentFiles } from './template-upload.js';
     return _state;
   }
 
-  // Small inline icon set for the Home rail's pitch rows (prompt-v4.19
-  // follow-up: replace the plain <li> bullet wall with something that
-  // actually looks designed). Same stroke style as every other icon in
-  // the app (viewBox 0 0 24 24, stroke=currentColor, stroke-width 2) so
-  // nothing here introduces a new visual language, just applies the
-  // existing one to a spot that never had icons at all.
-  const PITCH_ICONS = {
-    doc:    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
-    shield: '<path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z"/>',
-    target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
-    users:  '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-    globe:  '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 0 0 20"/><path d="M12 2a15 15 0 0 1 0 20"/>',
-    chat:   '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4A8.9 8.9 0 0 1 3 15.5 8.4 8.4 0 0 1 11 3a8.9 8.9 0 0 1 8.6 6.1c.27.8.4 1.6.4 2.4Z"/>',
-    trend:  '<path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/>',
-    gauge:  '<path d="M12 20a8 8 0 1 0-8-8"/><path d="M12 12 16 8"/>',
-    grid:   '<path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/>',
-    flag:   '<path d="M4 22V4"/><path d="M4 4h13l-2 4 2 4H4"/>',
-    trophy: '<path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 5H4a2 2 0 0 0 2 4h1"/><path d="M17 5h3a2 2 0 0 1-2 4h-1"/>',
-    heart:  '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/>',
-    layers: '<path d="m12 2 9 5-9 5-9-5 9-5"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>'
-  };
+  // NOTE: this used to also declare PITCH_ICONS / HOME_RIGHT_ICONS /
+  // pitchRow() for the Home right-rail bullet rows. That rail branch is
+  // now the video tile list (see renderShellRightRail's "home" case,
+  // powered by core/video-modal.js) so those became orphaned by this
+  // change and were removed. HOME_LEFT_ICONS below was already unused
+  // before this change (see the dead-code comment near line ~430) —
+  // left as-is, not this change's to clean up.
   const HOME_LEFT_ICONS  = ["doc","shield","target","users","globe","chat","trend"];
-  const HOME_RIGHT_ICONS = ["gauge","grid","flag","trophy","heart","layers"];
-  function pitchRow(iconKey, text){
-    const inner = PITCH_ICONS[iconKey] || PITCH_ICONS.doc;
-    return '<div class="pitch-row"><span class="pitch-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#icon-52"/></svg></span><span class="pitch-text">' + esc(text) + '</span></div>';
-  }
 
   function root(){ return document.getElementById("app-shell-body"); }
 
@@ -651,10 +632,24 @@ import { getRecentFiles } from './template-upload.js';
     if(typeof srT !== "function" || typeof APP === "undefined"){ return; }
     let html = "";
     if(step === "home"){
-      const rows = [1,2,3,4,5,6].map(function(n,i){
-        return pitchRow(HOME_RIGHT_ICONS[i], srT("shell_home_right_pitch_" + n));
-      }).join("");
-      html += '<div class="pitch-rows">' + rows + '</div>';
+      // Bullet rows replaced with the marketing video list (see
+      // core/video-modal.js) — same tiles the first-visit modal shows,
+      // stacked/scrollable here. Tile click dispatches data-action=
+      // "openVideoModal" through ui/common/inline-actions.js, which opens
+      // that modal on the chosen video rather than embedding a player in
+      // this narrow column.
+      if(window.StudInVideos){
+        const videos = window.StudInVideos.getVideos();
+        if(videos === null){
+          window.StudInVideos.loadVideos().then(function(){
+            if(typeof renderShellRightRail === "function") renderShellRightRail("home");
+          });
+        } else {
+          html += '<div class="video-rail-tiles">' + videos.map(function(v){
+            return window.StudInVideos.tileHtml(v, "rail");
+          }).join("") + '</div>';
+        }
+      }
     }
     // prompt-v4.19 §2a/§2c: Setup renders no right-rail content (step
     // progress + Download Template removed) — the rail collapses via

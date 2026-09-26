@@ -42,15 +42,20 @@
      protection only works as a real HTTP response header, so it belongs
      in the hosting layer (e.g. a Cloudflare Pages/Workers _headers rule
      or equivalent), not here; it was never actually doing anything
-     as a meta tag. -->
+     as a meta tag.
+
+     FIX (video tiles feature): img-src now allow-lists https://img.youtube.com
+     (video tile thumbnails) and frame-src allow-lists
+     https://www.youtube-nocookie.com (inline video playback) — see
+     core/video-modal.js. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
   script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com;
-  img-src 'self' data: blob: https://api.qrserver.com;
+  img-src 'self' data: blob: https://api.qrserver.com https://img.youtube.com;
   connect-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cloudflareinsights.com;
-  frame-src 'self' https://docs.google.com;
+  frame-src 'self' https://docs.google.com https://www.youtube-nocookie.com;
   object-src 'none';
   base-uri 'self';
 "/>
@@ -94,6 +99,7 @@
 <link rel="stylesheet" href="css/core.css">
 <link rel="stylesheet" href="css/vs-shell.css">
 <link rel="stylesheet" href="css/onboarding-slider.css">
+<link rel="stylesheet" href="css/video-tiles.css">
 </head>
 <body>
 <!-- P1 #11: icon sprite. All 150 previously-inline <svg> icon
@@ -208,6 +214,13 @@
      auto-shown. Filled in by js/pitch-deck.js, same single-insertion-point
      convention as #si-onboard. -->
 <div id="si-deck" role="dialog" aria-modal="true" aria-labelledby="si-deck-counter" hidden></div>
+
+<!-- Marketing video modal — SEPARATE from #si-onboard/#si-deck above.
+     Grid of YouTube reels/demo videos (data/videos.json), auto-shown once
+     per browser on first load, replayable via any tile in the Home
+     "Properties" rail. Filled in by core/video-modal.js, same
+     single-insertion-point convention as the two containers above. -->
+<div id="si-videos" role="dialog" aria-modal="true" aria-labelledby="si-videos-title" hidden></div>
 <a href="#main" class="skip-link" data-i18n="shell_skip_to_content">Skip to main content</a>
 
 
@@ -1108,7 +1121,7 @@
          footer ticker (ui/common/studinpro-ticker.js showStudInProForm()). -->
     <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:20px;margin-top:14px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-weight:700;letter-spacing:.3px;padding:2px 9px;border-radius:999px;background:var(--c-primary);color:#fff;font-size:11px" data-i18n="studinpro.card_title">StudInPro</span>
+        <span style="font-weight:700;letter-spacing:.3px;padding:2px 9px;border-radius:999px;background:var(--c-primary);color:#fff;font-size:11px" data-i18n="studinpro.card_title">Student Insight Intelligence</span>
       </div>
       <p style="font-size:13px;color:var(--c-text2);margin-bottom:14px" data-i18n="studinpro.card_subtitle">StudIn is free, forever. Curious what's next?</p>
       <div style="display:grid;gap:8px;margin-bottom:16px">
@@ -1311,7 +1324,7 @@
      footer line, no extra row. See ui/common/studinpro-ticker.js for the
      rotation/hover/click logic. -->
 <footer id="footer">
-  <div id="studinpro-ticker" role="button" tabindex="0" data-action="showStudInProForm" title="StudInPro">
+  <div id="studinpro-ticker" role="button" tabindex="0" data-action="showStudInProForm" title="Student Insight Intelligence">
     <span id="studinpro-ticker-badge">StudInPro</span>
     <span id="studinpro-ticker-scroll"><span id="studinpro-ticker-text"></span></span>
     <span id="studinpro-ticker-hint" data-i18n="studinpro.ticker.hover_hint" style="display:none">Tap to learn more</span>
@@ -1384,6 +1397,7 @@
 <script type="module" src="ui/common/inline-actions.js"></script>
 <script type="module" src="core/onboarding-slider.js"></script>
 <script type="module" src="ui/common/pitch-deck.js"></script>
+<script type="module" src="core/video-modal.js"></script>
 <script type="module" src="ui/common/studinpro-ticker.js"></script>
 </body>
 </html>
