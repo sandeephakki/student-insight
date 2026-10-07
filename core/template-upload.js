@@ -963,6 +963,21 @@ function appendSubjectColumnsToTestSheet(sheetName,addedSubjects){
     r.splice(insertAt,0,...filler);
     return r;
   });
+  // SUBJECT-wise chapters: a newly added subject also needs its own "<Subject> Chapter" column on this existing tab
+  // (same as brand-new tabs get). Placement: right after the last existing "<X> Chapter" column; on a legacy tab
+  // (single student-wise "Chapter" column, or none) right before "Remark", else at the end. Existing cells never move
+  // relative to each other and the legacy "Chapter" column + its data are left exactly as they were.
+  {
+    const hdr=newRows[0].map(h=>h===null||h===undefined?"":String(h).trim().toLowerCase());
+    let chapAt=-1;
+    hdr.forEach((h,i)=>{if(/ chapter$/.test(h))chapAt=i;});
+    chapAt=chapAt>=0?chapAt+1:(hdr.indexOf("remark")>=0?hdr.indexOf("remark"):newRows[0].length);
+    const chapHeader=addedSubjects.map(s=>s+" Chapter");
+    newRows.forEach((r,ri)=>{
+      while(r.length<chapAt) r.push("");
+      r.splice(chapAt,0,...(ri===0?chapHeader:chapHeader.map(()=>"")));
+    });
+  }
   const ws=XLSX.utils.aoa_to_sheet(newRows);
   const finalHeader=newRows[0]||[];
   ws["!cols"]=finalHeader.map((_,i)=>({wch:i===0?12:i>=finalHeader.length-2?24:12}));
