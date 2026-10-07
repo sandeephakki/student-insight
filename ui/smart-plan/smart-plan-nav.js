@@ -1,6 +1,35 @@
 // ui/smart-plan/smart-plan-nav.js  (Smart Planner tasks 06/07) - DOM + events layer.
 // Calls the BAL (bal/smart-plan/*) for every decision; contains no eligibility/prompt/parse/PDF logic.
-// All state is session-only, in memory: nothing here is written to localStorage or sent anywhere.
+//
+// PIB EXCEPTION - localStorage (read this before removing/"fixing" it, same
+// convention as core/onboarding-slider.js's own PIB EXCEPTION note):
+//   A generated prompt's token/evidence used to live in memory only, so a
+//   hard refresh between "generate prompt" and "paste the answer back in" -
+//   a gap that's realistically minutes to days, not seconds - forced
+//   re-generating a brand new prompt even though the teacher's answer file
+//   was perfectly valid for the one they already sent. Fixed by persisting
+//   ONLY the session envelope (token, student IDs, evidence, checked tests)
+//   under key `smartplan-session:<fileKey>`, scoped to the exact uploaded
+//   file's identity so it's inert the moment a different file is open - same
+//   effective privacy boundary as before, surviving a refresh is the only
+//   change. Entry self-expires after 7 days and is deleted the moment its
+//   result is successfully consumed (see generateReports()) or a new prompt
+//   overwrites it (see generatePromptFile()) - never piles up stale tokens.
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+function sessionLsKey(fileKey) { return 'smartplan-session:' + fileKey; }
+function saveSession(fileKey, session) {
+  try { localStorage.setItem(sessionLsKey(fileKey), JSON.stringify({ ...session, savedAt: Date.now() })); } catch (e) { /* ignore, see PIB EXCEPTION note above */ }
+}
+function loadSession(fileKey) {
+  try {
+    const raw = localStorage.getItem(sessionLsKey(fileKey));
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || typeof s.savedAt !== 'number' || Date.now() - s.savedAt > SESSION_TTL_MS) { clearSession(fileKey); return null; }
+    return s;
+  } catch (e) { return null; }
+}
+function clearSession(fileKey) { try { localStorage.removeItem(sessionLsKey(fileKey)); } catch (e) { /* ignore */ } }
 import { APP } from '../../core/app-state.js';
 import { esc, toast } from '../../core/dom-helpers.js';
 import { srT } from '../../core/render-i18n.js';
@@ -27,7 +56,11 @@ const selectedIds = () => S.eligible.filter(e => !S.deselected.has(e.id)).map(e 
 async function loadData() {
   _setup = await getSetup(); _students = await getStudents();
   const key = (APP.homeSingleFile && APP.homeSingleFile.fileName) + '|' + _students.length + '|' + ((_setup && _setup.tests) || []).length;
-  if (S.fileKey !== key) resetFor(key);          // a different file/analysis: drop selections and any prompt session
+  if (S.fileKey !== key) {
+    resetFor(key);                                // a different file/analysis: drop selections and any prompt session...
+    const saved = loadSession(key);                // ...then offer back a not-yet-consumed, not-yet-expired one for THIS exact file, if any
+    if (saved) { S.session = { token: saved.token, studentIds: saved.studentIds, evidence: saved.evidence, testNames: saved.testNames, subjects: saved.subjects, checked: saved.checked }; S.checked = new Set(saved.checked || []); S.promptFile = saved.promptFile || ''; }
+  }
 }
 function recompute() {
   const r = computeEligibility(_students, [...S.checked]);
@@ -112,6 +145,7 @@ export async function generatePromptFile() {
   const fname = promptFileName(base);
   S.session = { token: p.validationToken, studentIds: p.studentIds, evidence: p.evidence, testNames: p.testNames, subjects: p.subjects, checked: [...S.checked] };
   S.result = null; S.error = ''; S.fileName = ''; S.promptFile = fname;
+  saveSession(S.fileKey, { ...S.session, promptFile: fname });   // survives a refresh; overwrites (invalidates) any prior one for this file
   download(new Blob([p.xmlString], { type: 'application/xml' }), fname);
   toast(srT('smartplan_prompt_ready', { fname }), 'success');
   paint({ card1: true, card2: true });
@@ -143,6 +177,7 @@ export async function generateReports() {
     S.busy = { done: 0, total: items.length }; paint({ card2: true });
     const out = await buildStudyPlanZip(items, _setup, S.session.checked, { jsPDF: window.jspdf.jsPDF, JSZip: window.JSZip }, (done, total) => { S.busy = { done, total }; paint({ card2: true }); });
     download(out.blob, out.fileName);
+    clearSession(S.fileKey);   // consumed - don't let the same answer file be replayed again later
     toast(srT('smartplan_reports_done', { fname: out.fileName, n: out.count }), 'success');
   } catch (err) {
     toast(srT('pdf_export_failed', { msg: err && err.message ? err.message : String(err) }), 'error');
