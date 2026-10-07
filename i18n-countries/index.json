@@ -1,0 +1,60 @@
+{
+  "defaultCountry": "IN",
+  "countries": [
+    {
+      "code": "IN",
+      "folder": "i18n-India",
+      "label": "India"
+    },
+    {
+      "code": "CN",
+      "folder": "i18n-China",
+      "label": "China"
+    },
+    {
+      "code": "US",
+      "folder": "i18n-UnitedStates",
+      "label": "United States"
+    },
+    {
+      "code": "GB",
+      "folder": "i18n-UnitedKingdom",
+      "label": "United Kingdom"
+    },
+    {
+      "code": "DE",
+      "folder": "i18n-Germany",
+      "label": "Germany"
+    },
+    {
+      "code": "FR",
+      "folder": "i18n-France",
+      "label": "France"
+    },
+    {
+      "code": "RU",
+      "folder": "i18n-Russia",
+      "label": "Russia"
+    },
+    {
+      "code": "AE",
+      "folder": "i18n-UAE",
+      "label": "UAE"
+    },
+    {
+      "code": "SG",
+      "folder": "i18n-Singapore",
+      "label": "Singapore"
+    },
+    {
+      "code": "AU",
+      "folder": "i18n-Australia",
+      "label": "Australia"
+    },
+    {
+      "code": "CA",
+      "folder": "i18n-Canada",
+      "label": "Canada"
+    }
+  ]
+}

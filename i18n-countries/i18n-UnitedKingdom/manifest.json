@@ -1,0 +1,11 @@
+{
+  "code": "GB",
+  "label": "United Kingdom",
+  "defaultLang": "en",
+  "languages": [
+    {
+      "code": "en",
+      "label": "English"
+    }
+  ]
+}

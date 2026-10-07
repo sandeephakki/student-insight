@@ -1,0 +1,2728 @@
+{
+ "setup": {
+  "instName": "Hakki Public School",
+  "className": "Class 7",
+  "section": "A",
+  "year": "2025-26",
+  "passThreshold": 35,
+  "subjects": [
+   "Mathematics",
+   "Science",
+   "English",
+   "Kannada",
+   "Social Studies"
+  ],
+  "tests": [
+   {
+    "name": "Class7A-Unit Test 1",
+    "date": "2025-06-15",
+    "maxMarks": {
+     "Mathematics": 50,
+     "Science": 50,
+     "English": 50,
+     "Kannada": 50,
+     "Social Studies": 50
+    },
+    "subjectsIncluded": [
+     "Mathematics",
+     "Science",
+     "English",
+     "Kannada",
+     "Social Studies"
+    ],
+    "chapters": {
+     "Mathematics": "Fractions & Decimals",
+     "Science": "Nutrition in Plants",
+     "English": "Letter Writing",
+     "Kannada": "Padya Pathya 1",
+     "Social Studies": "Tracing Changes Through a Thousand Years"
+    },
+    "_effSubjects": [
+     "Mathematics",
+     "Science",
+     "English",
+     "Kannada",
+     "Social Studies"
+    ]
+   },
+   {
+    "name": "Class7A-Mid-Term",
+    "date": "2025-09-04",
+    "maxMarks": {
+     "Mathematics": 100,
+     "Science": 100,
+     "English": 100,
+     "Kannada": 100,
+     "Social Studies": 100
+    },
+    "subjectsIncluded": [
+     "Mathematics",
+     "Science",
+     "English",
+     "Kannada",
+     "Social Studies"
+    ],
+    "chapters": {
+     "Mathematics": "Simple Equations",
+     "Science": "Heat",
+     "English": "Reading Comprehension",
+     "Kannada": "Vyakarana Basics",
+     "Social Studies": "Rulers and Buildings"
+    },
+    "_effSubjects": [
+     "Mathematics",
+     "Science",
+     "English",
+     "Kannada",
+     "Social Studies"
+    ]
+   },
+   {
+    "name": "Class7A-Unit Test 2",
+    "date": "2025-11-25",
+    "maxMarks": {
+     "Mathematics": 50,
+     "Science": 50,
+     "English": 50,
+     "Kannada": 50,
+     "Social Studies": 50
+    },
+    "subjectsIncluded": [
+     "Mathematics",
+     "Science",
+     "English",
+     "Kannada",
+     "Social Studies"
+    ],
+    "chapters": {
+     "Mathematics": "Lines & Angles",
+     "Science": "Acids, Bases & Salts",
+     "English": "Grammar - Tenses",
+     "Kannada": "Gadya Pathya 2",
+     "Social Studies": "The Mughal Empire"
+    },
+    "_effSubjects": [
+     "Mathematics",
+     "Science",
+     "English",
+     "Kannada",
+     "Social Studies"
+    ]
+   },
+   {
+    "name": "Class7A-Final Exam",
+    "date": "2026-02-15",
+    "maxMarks": {
+     "Mathematics": 100,
+     "Science": 100,
+     "English": 100,
+     "Kannada": 100,
+     "Social Studies": 100
+    },
+    "subjectsIncluded": [
+     "Mathematics",
+     "Science",
+     "English",
+     "Kannada",
+     "Social Studies"
+    ],
+    "chapters": {
+     "Mathematics": "Perimeter & Area",
+     "Science": "Motion & Time",
+     "English": "Poem: The Ant and the Cricket",
+     "Kannada": "Padya Pathya 3",
+     "Social Studies": "Democracy and Equality"
+    },
+    "_effSubjects": [
+     "Mathematics",
+     "Science",
+     "English",
+     "Kannada",
+     "Social Studies"
+    ]
+   }
+  ]
+ },
+ "students": [
+  {
+   "id": "C7A001",
+   "name": "Aditya Desai",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 46,
+      "Science": 50,
+      "English": 50,
+      "Kannada": 47,
+      "Social Studies": 50
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 97,
+      "Science": 94,
+      "English": 96,
+      "Kannada": 99,
+      "Social Studies": 92
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 43,
+      "Science": 46,
+      "English": 46,
+      "Kannada": 44,
+      "Social Studies": 43
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 100,
+      "Science": 92,
+      "English": 96,
+      "Kannada": 94,
+      "Social Studies": 94
+     },
+     "absents": 0,
+     "remark": "Outstanding grasp of concepts, sets the benchmark for the class.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "positive"
+    }
+   }
+  },
+  {
+   "id": "C7A011",
+   "name": "Nikhil Verma",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 45,
+      "Science": 44,
+      "English": 45,
+      "Kannada": 47,
+      "Social Studies": 45
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 93,
+      "Science": 93,
+      "English": 92,
+      "Kannada": 100,
+      "Social Studies": 91
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 46,
+      "Science": 47,
+      "English": 47,
+      "Kannada": 44,
+      "Social Studies": 44
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 86,
+      "Science": 94,
+      "English": 92,
+      "Kannada": 89,
+      "Social Studies": 82
+     },
+     "absents": 0,
+     "remark": "Outstanding grasp of concepts, sets the benchmark for the class.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "positive"
+    }
+   }
+  },
+  {
+   "id": "C7A021",
+   "name": "Aditya Rao",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 45,
+      "Science": 43,
+      "English": 43,
+      "Kannada": 44,
+      "Social Studies": 45
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 97,
+      "Science": 88,
+      "English": 88,
+      "Kannada": 88,
+      "Social Studies": 88
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 41,
+      "Science": 40,
+      "English": 45,
+      "Kannada": 44,
+      "Social Studies": 44
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 91,
+      "Science": 91,
+      "English": 91,
+      "Kannada": 91,
+      "Social Studies": 88
+     },
+     "absents": 0,
+     "remark": "Exceptional performance, keep up this standard.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A019",
+   "name": "Rohan Bhat",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 46,
+      "Science": 44,
+      "English": 41,
+      "Kannada": 43,
+      "Social Studies": 45
+     },
+     "absents": 0,
+     "remark": "Solid understanding, encourage attempting harder problems.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 80,
+      "Science": 78,
+      "English": 82,
+      "Kannada": 85,
+      "Social Studies": 77
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 41,
+      "Science": 42,
+      "English": 42,
+      "Kannada": 43,
+      "Social Studies": 42
+     },
+     "absents": 0,
+     "remark": "Solid understanding, encourage attempting harder problems.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 85,
+      "Science": 90,
+      "English": 94,
+      "Kannada": 90,
+      "Social Studies": 94
+     },
+     "absents": 0,
+     "remark": "Doing very well overall, minor slips in application-based questions.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A022",
+   "name": "Kavya Sharma",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 44,
+      "Science": 43,
+      "English": 44,
+      "Kannada": 47,
+      "Social Studies": 44
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 83,
+      "Science": 89,
+      "English": 78,
+      "Kannada": 88,
+      "Social Studies": 80
+     },
+     "absents": 0,
+     "remark": "Strong performer, small gains possible with more practice.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": "positive"
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 41,
+      "Science": 39,
+      "English": 43,
+      "Kannada": 44,
+      "Social Studies": 40
+     },
+     "absents": 0,
+     "remark": "Strong performer, small gains possible with more practice.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": "positive"
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 90,
+      "Science": 86,
+      "English": 92,
+      "Kannada": 81,
+      "Social Studies": 85
+     },
+     "absents": 0,
+     "remark": "Doing very well overall, minor slips in application-based questions.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A029",
+   "name": "Reyansh Sharma",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 39,
+      "Science": 41,
+      "English": 39,
+      "Kannada": 40,
+      "Social Studies": 42
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 87,
+      "Science": 88,
+      "English": 79,
+      "Kannada": 80,
+      "Social Studies": 88
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 40,
+      "Science": 38,
+      "English": 41,
+      "Kannada": 37,
+      "Social Studies": 38
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 89,
+      "Science": 86,
+      "English": 86,
+      "Kannada": 79,
+      "Social Studies": 87
+     },
+     "absents": 0,
+     "remark": "Doing very well overall, minor slips in application-based questions.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A002",
+   "name": "Tanya Naik",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 42,
+      "Science": 39,
+      "English": 41,
+      "Kannada": 39,
+      "Social Studies": 39
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 77,
+      "Science": 79,
+      "English": 78,
+      "Kannada": 80,
+      "Social Studies": 76
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 41,
+      "Science": 42,
+      "English": 40,
+      "Kannada": 40,
+      "Social Studies": 41
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 85,
+      "Science": 84,
+      "English": 84,
+      "Kannada": 81,
+      "Social Studies": 83
+     },
+     "absents": 0,
+     "remark": "Solid understanding, encourage attempting harder problems.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A009",
+   "name": "Rahul Rao",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 38,
+      "Science": 42,
+      "English": 43,
+      "Kannada": 38,
+      "Social Studies": 42
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 80,
+      "Science": 79,
+      "English": 77,
+      "Kannada": 84,
+      "Social Studies": 84
+     },
+     "absents": 0,
+     "remark": "Doing very well overall, minor slips in application-based questions.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 39,
+      "Science": 39,
+      "English": 37,
+      "Kannada": 41,
+      "Social Studies": 37
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 89,
+      "Science": 82,
+      "English": 82,
+      "Kannada": 85,
+      "Social Studies": 83
+     },
+     "absents": 0,
+     "remark": "Solid understanding, encourage attempting harder problems.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A012",
+   "name": "Diya Sharma",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 40,
+      "Science": 37,
+      "English": 42,
+      "Kannada": 42,
+      "Social Studies": 41
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 82,
+      "Science": 77,
+      "English": 86,
+      "Kannada": 80,
+      "Social Studies": 86
+     },
+     "absents": 2,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 35,
+      "Science": 38,
+      "English": 41,
+      "Kannada": 39,
+      "Social Studies": 37
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 73,
+      "Science": 78,
+      "English": 77,
+      "Kannada": 81,
+      "Social Studies": 77
+     },
+     "absents": 0,
+     "remark": "Solid understanding, encourage attempting harder problems.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A024",
+   "name": "Diya Naik",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 33,
+      "Science": 32,
+      "English": 33,
+      "Kannada": 35,
+      "Social Studies": 32
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 75,
+      "Science": 78,
+      "English": 69,
+      "Kannada": 74,
+      "Social Studies": 69
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 32,
+      "Science": 32,
+      "English": 32,
+      "Kannada": 34,
+      "Social Studies": 36
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 66,
+      "Science": 70,
+      "English": 63,
+      "Kannada": 64,
+      "Social Studies": 63
+     },
+     "absents": 0,
+     "remark": "Steady but needs more consistency across topics.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A004",
+   "name": "Myra Verma",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 33,
+      "Science": 34,
+      "English": 32,
+      "Kannada": 33,
+      "Social Studies": 34
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 66,
+      "Science": 75,
+      "English": 66,
+      "Kannada": 65,
+      "Social Studies": 67
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 35,
+      "Science": 32,
+      "English": 35,
+      "Kannada": 35,
+      "Social Studies": 31
+     },
+     "absents": 0,
+     "remark": "On track, but should aim higher with focused practice.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 63,
+      "Science": 69,
+      "English": 68,
+      "Kannada": 61,
+      "Social Studies": 67
+     },
+     "absents": 0,
+     "remark": "Steady but needs more consistency across topics.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A008",
+   "name": "Sara Kumar",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 31,
+      "Science": 34,
+      "English": 30,
+      "Kannada": 34,
+      "Social Studies": 30
+     },
+     "absents": 0,
+     "remark": "On track, but should aim higher with focused practice.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 58,
+      "Science": 65,
+      "English": 64,
+      "Kannada": 63,
+      "Social Studies": 59
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 33,
+      "Science": 31,
+      "English": 34,
+      "Kannada": 32,
+      "Social Studies": 33
+     },
+     "absents": 0,
+     "remark": "Steady but needs more consistency across topics.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 59,
+      "Science": 67,
+      "English": 70,
+      "Kannada": 68,
+      "Social Studies": 59
+     },
+     "absents": 0,
+     "remark": "Steady but needs more consistency across topics.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A027",
+   "name": "Akash Hegde",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 15,
+      "Science": 16,
+      "English": 17,
+      "Kannada": 15,
+      "Social Studies": 16
+     },
+     "absents": 0,
+     "remark": "Encouraging progress, on the right track now.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 45,
+      "Science": 45,
+      "English": 54,
+      "Kannada": 54,
+      "Social Studies": 53
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 37,
+      "Science": 33,
+      "English": 35,
+      "Kannada": 37,
+      "Social Studies": 36
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 91,
+      "Science": 86,
+      "English": 92,
+      "Kannada": 83,
+      "Social Studies": 92
+     },
+     "absents": 0,
+     "remark": "Great turnaround this term, keep the momentum going!",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "positive"
+    }
+   }
+  },
+  {
+   "id": "C7A023",
+   "name": "Pranav Desai",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 30,
+      "Science": 30,
+      "English": 33,
+      "Kannada": 33,
+      "Social Studies": 29
+     },
+     "absents": 0,
+     "remark": "On track, but should aim higher with focused practice.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 56,
+      "Science": 56,
+      "English": 57,
+      "Kannada": 66,
+      "Social Studies": 59
+     },
+     "absents": 0,
+     "remark": "On track, but should aim higher with focused practice.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 33,
+      "Science": 33,
+      "English": 31,
+      "Kannada": 30,
+      "Social Studies": 32
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 61,
+      "Science": 60,
+      "English": 66,
+      "Kannada": 68,
+      "Social Studies": 71
+     },
+     "absents": 0,
+     "remark": "On track, but should aim higher with focused practice.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A007",
+   "name": "Varun Nair",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 15,
+      "Science": 16,
+      "English": 15,
+      "Kannada": 16,
+      "Social Studies": 14
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 57,
+      "Science": 49,
+      "English": 45,
+      "Kannada": 45,
+      "Social Studies": 45
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 37,
+      "Science": 34,
+      "English": 37,
+      "Kannada": 33,
+      "Social Studies": 35
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 82,
+      "Science": 85,
+      "English": 82,
+      "Kannada": 87,
+      "Social Studies": 87
+     },
+     "absents": 0,
+     "remark": "Great turnaround this term, keep the momentum going!",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "positive"
+    }
+   }
+  },
+  {
+   "id": "C7A028",
+   "name": "Sneha Pai",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 28,
+      "Science": 27,
+      "English": 32,
+      "Kannada": 30,
+      "Social Studies": 30
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 63,
+      "Science": 66,
+      "English": 56,
+      "Kannada": 64,
+      "Social Studies": 64
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 30,
+      "Science": 27,
+      "English": 32,
+      "Kannada": 32,
+      "Social Studies": 30
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 59,
+      "Science": 61,
+      "English": 57,
+      "Kannada": 64,
+      "Social Studies": 60
+     },
+     "absents": 0,
+     "remark": "Steady but needs more consistency across topics.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A003",
+   "name": "Karthik Hegde",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 31,
+      "Science": 33,
+      "English": 31,
+      "Kannada": 31,
+      "Social Studies": 28
+     },
+     "absents": 0,
+     "remark": "On track, but should aim higher with focused practice.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 58,
+      "Science": 59,
+      "English": 55,
+      "Kannada": 62,
+      "Social Studies": 60
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 30,
+      "Science": 29,
+      "English": 31,
+      "Kannada": 30,
+      "Social Studies": 29
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 65,
+      "Science": 56,
+      "English": 63,
+      "Kannada": 63,
+      "Social Studies": 62
+     },
+     "absents": 0,
+     "remark": "On track, but should aim higher with focused practice.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A017",
+   "name": "Aarav Pai",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 17,
+      "Science": 12,
+      "English": 17,
+      "Kannada": 14,
+      "Social Studies": 13
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 45,
+      "Science": 41,
+      "English": 51,
+      "Kannada": 46,
+      "Social Studies": 46
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 34,
+      "Science": 30,
+      "English": 29,
+      "Kannada": 30,
+      "Social Studies": 33
+     },
+     "absents": 0,
+     "remark": "Great turnaround this term, keep the momentum going!",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": "positive"
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 87,
+      "Science": 80,
+      "English": 87,
+      "Kannada": 83,
+      "Social Studies": 87
+     },
+     "absents": 0,
+     "remark": "Great turnaround this term, keep the momentum going!",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "positive"
+    }
+   }
+  },
+  {
+   "id": "C7A030",
+   "name": "Ananya Gowda",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 27,
+      "Science": 26,
+      "English": 28,
+      "Kannada": 27,
+      "Social Studies": 28
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 54,
+      "Science": 45,
+      "English": 44,
+      "Kannada": 48,
+      "Social Studies": 52
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 28,
+      "Science": 31,
+      "English": 32,
+      "Kannada": 29,
+      "Social Studies": 34
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 69,
+      "Science": 67,
+      "English": 73,
+      "Kannada": 75,
+      "Social Studies": 67
+     },
+     "absents": 0,
+     "remark": "Unpredictable performance, may help to identify what's different on good days.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "positive"
+    }
+   }
+  },
+  {
+   "id": "C7A014",
+   "name": "Tanya Prabhu",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 28,
+      "Science": 33,
+      "English": 32,
+      "Kannada": 32,
+      "Social Studies": 31
+     },
+     "absents": 0,
+     "remark": "Steady but needs more consistency across topics.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 58,
+      "Science": 59,
+      "English": 53,
+      "Kannada": 53,
+      "Social Studies": 62
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 30,
+      "Science": 30,
+      "English": 28,
+      "Kannada": 33,
+      "Social Studies": 31
+     },
+     "absents": 0,
+     "remark": "Steady but needs more consistency across topics.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 50,
+      "Science": 58,
+      "English": 57,
+      "Kannada": 57,
+      "Social Studies": 50
+     },
+     "absents": 0,
+     "remark": "Average performance — revision of basics recommended.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A018",
+   "name": "Kavya Singh",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 26,
+      "Science": 28,
+      "English": 29,
+      "Kannada": 28,
+      "Social Studies": 26
+     },
+     "absents": 0,
+     "remark": "On track, but should aim higher with focused practice.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 61,
+      "Science": 62,
+      "English": 53,
+      "Kannada": 56,
+      "Social Studies": 53
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 29,
+      "Science": 31,
+      "English": 29,
+      "Kannada": 28,
+      "Social Studies": 29
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 65,
+      "Science": 56,
+      "English": 65,
+      "Kannada": 56,
+      "Social Studies": 59
+     },
+     "absents": 0,
+     "remark": "Average performance — revision of basics recommended.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A013",
+   "name": "Rahul Patel",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 29,
+      "Science": 29,
+      "English": 24,
+      "Kannada": 24,
+      "Social Studies": 24
+     },
+     "absents": 0,
+     "remark": "Average performance — revision of basics recommended.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 52,
+      "Science": 53,
+      "English": 50,
+      "Kannada": 52,
+      "Social Studies": 56
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 33,
+      "Science": 32,
+      "English": 33,
+      "Kannada": 33,
+      "Social Studies": 30
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 60,
+      "Science": 59,
+      "English": 63,
+      "Kannada": 65,
+      "Social Studies": 61
+     },
+     "absents": 0,
+     "remark": "Average performance — revision of basics recommended.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A010",
+   "name": "Kritika Shetty",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 19,
+      "Science": 19,
+      "English": 20,
+      "Kannada": 22,
+      "Social Studies": 18
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 30,
+      "Science": 31,
+      "English": 29,
+      "Kannada": 40,
+      "Social Studies": 32
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 36,
+      "Science": 37,
+      "English": 38,
+      "Kannada": 37,
+      "Social Studies": 37
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 55,
+      "Science": 55,
+      "English": 57,
+      "Kannada": 57,
+      "Social Studies": 48
+     },
+     "absents": 0,
+     "remark": "Unpredictable performance, may help to identify what's different on good days.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "positive"
+    }
+   }
+  },
+  {
+   "id": "C7A005",
+   "name": "Yash Reddy",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 25,
+      "Science": 25,
+      "English": 26,
+      "Kannada": 27,
+      "Social Studies": 25
+     },
+     "absents": 0,
+     "remark": "Finding it difficult to keep pace, needs individual attention.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 46,
+      "Science": 50,
+      "English": 50,
+      "Kannada": 41,
+      "Social Studies": 50
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 24,
+      "Science": 21,
+      "English": 19,
+      "Kannada": 21,
+      "Social Studies": 20
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 44,
+      "Science": 44,
+      "English": 38,
+      "Kannada": 44,
+      "Social Studies": 47
+     },
+     "absents": 0,
+     "remark": "Struggling with fundamentals, needs remedial sessions.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "concern"
+    }
+   }
+  },
+  {
+   "id": "C7A020",
+   "name": "Ananya Reddy",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 38,
+      "Science": 37,
+      "English": 40,
+      "Kannada": 40,
+      "Social Studies": 38
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 47,
+      "Science": 49,
+      "English": 48,
+      "Kannada": 44,
+      "Social Studies": 43
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 20,
+      "Science": 22,
+      "English": 25,
+      "Kannada": 21,
+      "Social Studies": 21
+     },
+     "absents": 2,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 33,
+      "Science": 35,
+      "English": 31,
+      "Kannada": 29,
+      "Social Studies": 35
+     },
+     "absents": 0,
+     "remark": "Unpredictable performance, may help to identify what's different on good days.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "positive"
+    }
+   }
+  },
+  {
+   "id": "C7A015",
+   "name": "Rohan Murthy",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 18,
+      "Science": 21,
+      "English": 20,
+      "Kannada": 22,
+      "Social Studies": 21
+     },
+     "absents": 0,
+     "remark": "Finding it difficult to keep pace, needs individual attention.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 40,
+      "Science": 45,
+      "English": 37,
+      "Kannada": 46,
+      "Social Studies": 43
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 21,
+      "Science": 20,
+      "English": 16,
+      "Kannada": 21,
+      "Social Studies": 21
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 38,
+      "Science": 29,
+      "English": 30,
+      "Kannada": 36,
+      "Social Studies": 33
+     },
+     "absents": 0,
+     "remark": "Finding it difficult to keep pace, needs individual attention.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A025",
+   "name": "Pranav Sharma",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 16,
+      "Science": 17,
+      "English": 18,
+      "Kannada": 20,
+      "Social Studies": 17
+     },
+     "absents": 2,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 39,
+      "Science": 32,
+      "English": 37,
+      "Kannada": 38,
+      "Social Studies": 40
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 19,
+      "Science": 18,
+      "English": 19,
+      "Kannada": 19,
+      "Social Studies": 19
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 42,
+      "Science": 39,
+      "English": 41,
+      "Kannada": 37,
+      "Social Studies": 38
+     },
+     "absents": 0,
+     "remark": "Below expectations — recommend extra classes after school.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A016",
+   "name": "Sara Naik",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 11,
+      "Science": 9,
+      "English": 7,
+      "Kannada": 12,
+      "Social Studies": 9
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 22,
+      "Science": 28,
+      "English": 24,
+      "Kannada": 24,
+      "Social Studies": 25
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 14,
+      "Science": 14,
+      "English": 11,
+      "Kannada": 11,
+      "Social Studies": 9
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 26,
+      "Science": 16,
+      "English": 20,
+      "Kannada": 27,
+      "Social Studies": 22
+     },
+     "absents": 0,
+     "remark": "Serious concern — immediate intervention needed.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "concern"
+    }
+   }
+  },
+  {
+   "id": "C7A006",
+   "name": "Riya Hegde",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 10,
+      "Science": 8,
+      "English": 9,
+      "Kannada": 11,
+      "Social Studies": 10
+     },
+     "absents": 0,
+     "remark": "Needs urgent academic support, at risk of failing.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "concern"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 14,
+      "Science": 13,
+      "English": 17,
+      "Kannada": 13,
+      "Social Studies": 16
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 8,
+      "Science": 10,
+      "English": 8,
+      "Kannada": 10,
+      "Social Studies": 11
+     },
+     "absents": 0,
+     "remark": "Serious concern — immediate intervention needed.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": "concern"
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 21,
+      "Science": 22,
+      "English": 23,
+      "Kannada": 21,
+      "Social Studies": 22
+     },
+     "absents": 0,
+     "remark": "Very low scores across the board, please involve parents.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  },
+  {
+   "id": "C7A026",
+   "name": "Myra Hegde",
+   "testData": {
+    "Class7A-Unit Test 1": {
+     "marks": {
+      "Mathematics": 9,
+      "Science": 7,
+      "English": 7,
+      "Kannada": 10,
+      "Social Studies": 7
+     },
+     "absents": 0,
+     "remark": "Needs urgent academic support, at risk of failing.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Fractions & Decimals",
+      "Science": "Nutrition in Plants",
+      "English": "Letter Writing",
+      "Kannada": "Padya Pathya 1",
+      "Social Studies": "Tracing Changes Through a Thousand Years"
+     },
+     "remarkTone": "concern"
+    },
+    "Class7A-Mid-Term": {
+     "marks": {
+      "Mathematics": 22,
+      "Science": 18,
+      "English": 16,
+      "Kannada": 18,
+      "Social Studies": 15
+     },
+     "absents": 0,
+     "remark": "",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Simple Equations",
+      "Science": "Heat",
+      "English": "Reading Comprehension",
+      "Kannada": "Vyakarana Basics",
+      "Social Studies": "Rulers and Buildings"
+     },
+     "remarkTone": null
+    },
+    "Class7A-Unit Test 2": {
+     "marks": {
+      "Mathematics": 3,
+      "Science": 4,
+      "English": 8,
+      "Kannada": 6,
+      "Social Studies": 7
+     },
+     "absents": 0,
+     "remark": "Very low scores across the board, please involve parents.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Lines & Angles",
+      "Science": "Acids, Bases & Salts",
+      "English": "Grammar - Tenses",
+      "Kannada": "Gadya Pathya 2",
+      "Social Studies": "The Mughal Empire"
+     },
+     "remarkTone": "neutral"
+    },
+    "Class7A-Final Exam": {
+     "marks": {
+      "Mathematics": 17,
+      "Science": 8,
+      "English": 14,
+      "Kannada": 13,
+      "Social Studies": 19
+     },
+     "absents": 2,
+     "remark": "Very low scores across the board, please involve parents.",
+     "chapter": "",
+     "chapters": {
+      "Mathematics": "Perimeter & Area",
+      "Science": "Motion & Time",
+      "English": "Poem: The Ant and the Cricket",
+      "Kannada": "Padya Pathya 3",
+      "Social Studies": "Democracy and Equality"
+     },
+     "remarkTone": "neutral"
+    }
+   }
+  }
+ ]
+}
