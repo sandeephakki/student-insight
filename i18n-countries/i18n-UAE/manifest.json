@@ -1,0 +1,15 @@
+{
+  "code": "AE",
+  "label": "UAE",
+  "defaultLang": "en",
+  "languages": [
+    {
+      "code": "en",
+      "label": "English"
+    },
+    {
+      "code": "ur",
+      "label": "اردو (Urdu)"
+    }
+  ]
+}
