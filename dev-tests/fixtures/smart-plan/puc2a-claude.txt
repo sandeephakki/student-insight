@@ -1,0 +1,439 @@
+SP-7BE1E985B08F4B72
+[[STUDENT:IIPUCA027]]
+Summary: A very strong student overall (91%, 94%, 86%), with a modest dip in the latest exam that comes mainly from Chemistry and English.
+SubjectNotes: Physics: 80%, 100%, 97%. A full-marks 100% in Preparatory Exam 1 and 97% in Preparatory Exam 2 make Physics the clearest strength.
+SubjectNotes: Chemistry: 100%, 96%, 77%. A perfect 100% in Unit Test 1 has slid 19 points to 77%, the biggest single drop; no chapter was logged.
+SubjectNotes: Mathematics: 82%, 92%, 79%. It rose to 92% and then fell 13 points to 79%, and the trend flags it as the weakest subject across the three tests.
+SubjectNotes: Biology: 98%, 85%, 97%. A dip to 85% in Preparatory Exam 1 was fully recovered to 97%.
+SubjectNotes: English: 96%, 99%, 82%. A 99% in Preparatory Exam 1 fell 17 points to 82% in Preparatory Exam 2.
+FocusAreas: Chemistry, which went from 100% to 77%; no chapter was logged, so I infer a slip in balancing equations and mole calculations from the score pattern, not from a logged fact.
+FocusAreas: Mathematics at 79%; no chapter was logged, so extend it with harder mixed algebra and trigonometric-identity problems, which is a general inference.
+NextSteps: Redo five Chemistry mole-calculation questions from the 100% Unit Test 1 level each day this week, checking each step of the working (an inference, no chapter logged).
+NextSteps: Solve one timed Mathematics paper section on algebra manipulation and mark where the 79% marks were lost (inference from the score pattern).
+NextSteps: Write one 150-word English answer to a past question and compare it with your 99% Preparatory Exam 1 style.
+ParentNote: Your child is doing very well, with a 100% in Physics in Preparatory Exam 1 and 97% in Biology in the latest exam, and the small slide in Chemistry (100% to 77%) is very fixable with a few focused practice sessions; 2 absence days were recorded in the latest exam, so catching up on any missed class notes would help.
+[[/STUDENT]]
+[[STUDENT:IIPUCA019]]
+Summary: Excellent earlier results (90%, 95%) have eased to 81% in the latest exam, and the trend marks a decline, led by Biology and English.
+SubjectNotes: Physics: 78%, 87%, 82%. Fairly steady in the low-to-mid 80s after an 87% peak.
+SubjectNotes: Chemistry: 94%, 94%, 90%. The most consistent subject, always at 90% or above.
+SubjectNotes: Mathematics: 98%, 100%, 83%. A perfect 100% in Preparatory Exam 1 fell 17 points to 83%.
+SubjectNotes: Biology: 98%, 96%, 75%. It slid 21 points from 96% to 75%, second-lowest in the latest exam after English.
+SubjectNotes: English: 80%, 98%, 73%. A big 98% in Preparatory Exam 1 has dropped 25 points to 73%, the steepest fall.
+FocusAreas: English, 98% down to 73%; no chapter was logged, so I infer paragraph structure and comprehension accuracy as the foundation, from the score pattern only.
+FocusAreas: Biology at 75%; no chapter was logged, so terminology and labelled-diagram recall is a general inference to check first.
+NextSteps: Write two timed English comprehension answers and compare their structure with the 98% Preparatory Exam 1 approach (inference, no chapter logged).
+NextSteps: Make a one-page Biology terminology sheet and quiz yourself on it for ten minutes daily until the 75% rises (an inference from the scores).
+NextSteps: Redo the Mathematics questions lost in the 83% paper so the 100% level returns.
+ParentNote: Your child has had a strong year, including 100% in Mathematics and 98% in Biology and English earlier, and the latest exam at 81% overall shows a dip that short daily revision in English (73%) and Biology (75%) should be able to reverse; 1 absence day was recorded in the latest exam.
+[[/STUDENT]]
+[[STUDENT:IIPUCA025]]
+Summary: A real turnaround: overall went 85%, 77%, 94%, with a 17-point rise in the latest exam and the trend marked improving.
+SubjectNotes: Physics: 96%, 65%, 85%. A sharp drop to 65% in Preparatory Exam 1 was recovered to 85%.
+SubjectNotes: Chemistry: 88%, 75%, 96%. Up 21 points to 96% in the latest exam.
+SubjectNotes: Mathematics: 80%, 71%, 92%. The weakest subject earlier at 71% jumped to 92%.
+SubjectNotes: Biology: 80%, 86%, 97%. A steady climb to 97%.
+SubjectNotes: English: 80%, 89%, 100%. A perfect 100% in Preparatory Exam 2, the best subject.
+FocusAreas: Physics at 85%, the lowest mark now and the one that fell hardest to 65%; no chapter was logged, so extend numerical problem setup and unit conversions, a general inference.
+NextSteps: Do three extra Physics numericals each day, starting from writing the given data and units (inference, no chapter logged).
+NextSteps: Keep the 92% Mathematics gains by reworking two of the questions that gave 71% in Preparatory Exam 1.
+NextSteps: Explain one Physics solution aloud to a friend each weekend to find any weak step.
+ParentNote: Your child has bounced back well, with 100% in English and 97% in Biology in the latest exam after a rough 77% overall in Preparatory Exam 1, so please keep praising the steady routine that made this possible.
+[[/STUDENT]]
+[[STUDENT:IIPUCA031]]
+Summary: Consistently strong overall (87%, 80%, 87%), and the trend is steady, with English the one subject that has not grown.
+SubjectNotes: Physics: 98%, 82%, 89%. A 98% in Unit Test 1 and a recovery to 89% after the 82% dip.
+SubjectNotes: Chemistry: 88%, 82%, 85%. Narrow range of 82% to 88%, very stable.
+SubjectNotes: Mathematics: 82%, 76%, 88%. It climbed 12 points to 88% in the latest exam.
+SubjectNotes: Biology: 88%, 81%, 94%. Best mark of the year at 94%.
+SubjectNotes: English: 80%, 77%, 78%. Flat in the high 70s, the only subject below 80% now.
+FocusAreas: English, flat at 80%, 77%, 78%; no chapter was logged, so extend writing skills such as paragraph structure and comprehension, an inference from the pattern.
+NextSteps: Write one 200-word English paragraph every two days and check each for one clear point per paragraph (inference, no chapter logged).
+NextSteps: Read one English editorial and summarise it in three lines to lift the 78%.
+NextSteps: Keep the 88% Mathematics pace by solving one extra timed set weekly.
+ParentNote: Your child is a consistently strong student, with 94% in Biology and 89% in Physics in the latest exam, and the only gentle push needed is in English, which has stayed near 78%.
+[[/STUDENT]]
+[[STUDENT:IIPUCA032]]
+Summary: A clear improver: overall went 76%, 79%, 89%, a 13-point gain, with the trend marked improving.
+SubjectNotes: Physics: 90%, 78%, 91%. Back above its first mark at 91%.
+SubjectNotes: Chemistry: 70%, 78%, 93%. A big 23-point climb in the latest exam.
+SubjectNotes: Mathematics: 80%, 84%, 80%. The only subject that did not rise, at 80% in the latest exam.
+SubjectNotes: Biology: 70%, 76%, 91%. Up 21 points from Unit Test 1 to 91%.
+SubjectNotes: English: 72%, 81%, 91%. A steady climb of 19 points.
+FocusAreas: Mathematics, stuck at 80% while others rose; no chapter was logged, so I infer algebraic manipulation and trigonometric identities as the foundation to extend, from the pattern only.
+NextSteps: Solve five mixed algebra questions daily and write each step fully (an inference, no chapter logged).
+NextSteps: Redo the Mathematics questions lost in the 84% to 80% step.
+NextSteps: Keep the Chemistry habits that took 78% to 93%.
+ParentNote: Your child has improved in four subjects, with Chemistry up from 70% to 93% and English from 72% to 91%, so a bit more practice in Mathematics (80%) will complete a very good picture.
+[[/STUDENT]]
+[[STUDENT:IIPUCA004]]
+Summary: A sharp decline from 94% to 82% to 70% overall, with the biggest falls in Mathematics and Physics in the latest exam; this deserves attention soon.
+SubjectNotes: Physics: 96%, 83%, 61%. A steady fall of 35 points to 61%.
+SubjectNotes: Chemistry: 100%, 79%, 74%. From a perfect 100% to 74%.
+SubjectNotes: Mathematics: 98%, 80%, 58%. A fall of 40 points from 98% to 58%, the lowest mark.
+SubjectNotes: Biology: 90%, 87%, 80%. The most resilient subject, still 80%.
+SubjectNotes: English: 88%, 82%, 77%. A gentle slide of 11 points to 77%.
+FocusAreas: Mathematics, 98% down to 58%; no chapter was logged, so I infer algebra and differentiation basics as a likely gap, from the score pattern, not a logged fact.
+FocusAreas: Physics at 61%; no chapter was logged, so formula rearrangement and unit handling is a general inference.
+NextSteps: Redo Mathematics questions from Unit Test 1 level (98%) daily, five at a time, to rebuild basics (inference, no chapter logged).
+NextSteps: Write all Physics formulas with units on one sheet and solve three numericals using it (an inference from the 61% score).
+NextSteps: Meet the Mathematics teacher this week to review where the 58% marks were lost.
+ParentNote: Your child began the year very strongly with 98% in Mathematics and 100% in Chemistry, and the fall to 70% overall is real and needs support at home, but it is recoverable with a calm daily routine; 2 absence days were recorded in Unit Test 1.
+[[/STUDENT]]
+[[STUDENT:IIPUCA014]]
+Summary: Steady overall (88%, 68%, 87%) after a mid-year dip to 68% that was fully recovered.
+SubjectNotes: Physics: 90%, 70%, 74%. The weakest subject, still well below its 90% start.
+SubjectNotes: Chemistry: 96%, 75%, 88%. Recovered 13 points after the 75% dip.
+SubjectNotes: Mathematics: 78%, 76%, 89%. A 13-point climb to 89%.
+SubjectNotes: Biology: 90%, 56%, 92%. A deep drop to 56% in Preparatory Exam 1 then a full recovery to 92%.
+SubjectNotes: English: 84%, 64%, 93%. A rise of 29 points to 93% after 64%.
+FocusAreas: Physics, 90% to 74%; no chapter was logged, so I infer numerical problem setup and unit conversions as a gap, from the scores only.
+NextSteps: Solve three Physics numericals daily, writing given data and units first (an inference, no chapter logged).
+NextSteps: Compare the 74% Physics paper with the 90% Unit Test 1 level and list the question types that differ.
+NextSteps: Keep the Biology revision routine that lifted 56% to 92%.
+ParentNote: Your child showed real resilience, lifting Biology from 56% to 92% and English from 64% to 93%, so Physics at 74% is the one subject worth extra attention now.
+[[/STUDENT]]
+[[STUDENT:IIPUCA029]]
+Summary: Steady and solid overall (75%, 79%, 80%), with gradual gains in Chemistry and Biology and English slightly behind.
+SubjectNotes: Physics: 76%, 74%, 81%. A small rise to 81%.
+SubjectNotes: Chemistry: 74%, 84%, 87%. Three steady gains, up 13 points.
+SubjectNotes: Mathematics: 70%, 89%, 72%. A high 89% in Preparatory Exam 1 fell 17 points to 72%.
+SubjectNotes: Biology: 80%, 73%, 89%. A recovery of 16 points to 89%.
+SubjectNotes: English: 74%, 76%, 71%. The weakest subject, ending at 71%.
+FocusAreas: English at 71%, falling from 76%; no chapter was logged, so I infer grammar accuracy and paragraph structure as foundation skills, from the pattern only.
+FocusAreas: Mathematics, 89% to 72%; no chapter was logged, so revisit core algebra, a general inference.
+NextSteps: Write one short English paragraph daily and underline any grammar slips (an inference, no chapter logged).
+NextSteps: Redo the Mathematics questions missed in the 72% paper to recover the 89% level.
+NextSteps: Read one English passage weekly and answer three questions in full sentences.
+ParentNote: Your child is steady and improving overall, with Chemistry up to 87% and Biology to 89%, and a little focused work on English (71%) and Mathematics (72%) will help.
+[[/STUDENT]]
+[[STUDENT:IIPUCA002]]
+Summary: A real turnaround: overall 77%, 65%, 90%, a 25-point leap in the latest exam, and the trend is improving.
+SubjectNotes: Physics: 76%, 59%, 90%. Up 31 points from 59% to 90%.
+SubjectNotes: Chemistry: 94%, 66%, 88%. A 94% start, a dip to 66% and a rebound to 88%.
+SubjectNotes: Mathematics: 72%, 56%, 96%. A huge 40-point jump to 96%.
+SubjectNotes: Biology: 72%, 65%, 80%. The lowest subject at 80%.
+SubjectNotes: English: 72%, 78%, 98%. A 20-point rise to 98%.
+FocusAreas: Biology at 80%, the lowest of the five; no chapter was logged, so I infer terminology and labelled-diagram recall as the skill to extend, from the pattern only.
+NextSteps: Label and redraw two Biology diagrams daily from memory (an inference, no chapter logged).
+NextSteps: Keep the habits behind the Mathematics 56% to 96% jump.
+NextSteps: Self-test ten Biology terms every evening for a week.
+ParentNote: Your child has made an impressive recovery, with Mathematics from 56% to 96% and English to 98%, and 2 absence days in Unit Test 1 now seem well behind.
+[[/STUDENT]]
+[[STUDENT:IIPUCA001]]
+Summary: Overall rose hugely from 48% to 89% but dipped to 79% in the latest exam, and the trend marks a decline in the last step of 10 points.
+SubjectNotes: Physics: 40%, 93%, 71%. A peak of 93% followed by a drop of 22 points to 71%, the lowest mark now.
+SubjectNotes: Chemistry: 58%, 90%, 74%. A fall of 16 points from 90% to 74%.
+SubjectNotes: Mathematics: 48%, 85%, 84%. Held its gain at 84%.
+SubjectNotes: Biology: 54%, 86%, 87%. Stable at 87% across the last two exams.
+SubjectNotes: English: 42%, 92%, 80%. A drop of 12 points from 92%.
+FocusAreas: Physics at 71%, down from 93%; no chapter was logged, so I infer unit conversions and formula rearrangement as the foundation, from the scores only.
+FocusAreas: Chemistry at 74%; no chapter was logged, so balancing equations is a general inference.
+NextSteps: Redo four Physics numericals daily, starting with the units (an inference, no chapter logged).
+NextSteps: Compare the 93% Preparatory Exam 1 Physics approach with the 71% paper.
+NextSteps: Practise five Chemistry equation-balancing questions each day this week.
+ParentNote: Your child climbed enormously, from 48% to 89% overall, and the recent dip to 79% in Physics (71%) and Chemistry (74%) can be reversed with steady daily practice; 1 absence day was recorded in the latest exam.
+[[/STUDENT]]
+[[STUDENT:IIPUCA023]]
+Summary: A strong improvement from 37% to 91% to 82% overall, with a small dip in the latest exam and several subjects now in the 70s and above.
+SubjectNotes: Physics: 38%, 89%, 83%. Above the 35% line in Unit Test 1 and far stronger since.
+SubjectNotes: Chemistry: 34%, 88%, 77%. A mark of 34% in Unit Test 1 was below the 35% threshold and has since risen to 77%, which the trend flags as the weakest subject overall.
+SubjectNotes: Mathematics: 34%, 100%, 72%. From 34% to a perfect 100% and then down 28 points to 72%.
+SubjectNotes: Biology: 48%, 89%, 94%. A steady rise to 94%.
+SubjectNotes: English: 32%, 91%, 86%. From 32% in Unit Test 1 to 86%.
+FocusAreas: Mathematics, 100% down to 72%; no chapter was logged, so I infer algebra and calculus basics as the skill to lock in, from the pattern only.
+FocusAreas: Chemistry at 77%; no chapter was logged, so mole concept practice is a general inference.
+NextSteps: Redo three Mathematics questions daily from the 100% paper level (an inference, no chapter logged).
+NextSteps: Solve five Chemistry mole questions each day and note the formula used.
+NextSteps: Keep the Biology routine that gave 94%.
+ParentNote: Your child has come a long way, from 34% in Mathematics and Chemistry in Unit Test 1 to a perfect 100% in Mathematics, so a small dip to 72% in the latest exam should be easy to repair.
+[[/STUDENT]]
+[[STUDENT:IIPUCA028]]
+Summary: Overall 77%, 81%, 66%, with the trend marked as a decline of 15 points in the latest exam, mostly in Physics, Biology and Mathematics.
+SubjectNotes: Physics: 88%, 89%, 66%. A fall of 23 points from 89% to 66%.
+SubjectNotes: Chemistry: 88%, 72%, 72%. Level at 72% after a first-test 88%.
+SubjectNotes: Mathematics: 78%, 74%, 59%. The weakest subject, falling to 59%.
+SubjectNotes: Biology: 66%, 85%, 61%. A drop of 24 points from 85% to 61%.
+SubjectNotes: English: 66%, 87%, 73%. A 14-point fall from 87%.
+FocusAreas: Mathematics at 59%, down from 78%; no chapter was logged, so I infer algebra and trigonometric identities as likely gaps, from the scores only.
+FocusAreas: Biology, 85% to 61%; no chapter was logged, so terminology recall is a general inference.
+NextSteps: Solve five Mathematics algebra questions daily and write every step (an inference, no chapter logged).
+NextSteps: Review the Physics numericals from the 66% paper and redo two.
+NextSteps: Make flashcards for ten Biology terms each evening.
+ParentNote: Your child needs support after a dip to 66% overall, with Mathematics at 59% and Biology at 61%, and a daily half-hour routine can bring marks back; 1 absence day in Unit Test 1 and 2 in the latest exam were recorded, so please check for missed notes.
+[[/STUDENT]]
+[[STUDENT:IIPUCA009]]
+Summary: A sharp decline from 84% and 89% to 51% overall in the latest exam, with every subject falling, and this needs prompt attention.
+SubjectNotes: Physics: 68%, 100%, 55%. A perfect 100% in Preparatory Exam 1 fell 45 points to 55%.
+SubjectNotes: Chemistry: 88%, 90%, 50%. A 40-point fall to 50%.
+SubjectNotes: Mathematics: 82%, 82%, 45%. A fall of 37 points to 45%, the lowest but one.
+SubjectNotes: Biology: 88%, 93%, 44%. The lowest mark of all at 44%, down 49 points.
+SubjectNotes: English: 92%, 81%, 59%. The strongest subject now at 59%.
+FocusAreas: Biology at 44%, close to the 35% pass line; no chapter was logged, so I infer terminology and concept recall as a gap, from the scores only.
+FocusAreas: Mathematics at 45%; no chapter was logged, so algebra fluency is a general inference.
+NextSteps: Sit with a teacher this week to find why every subject fell in Preparatory Exam 2 (inference, no chapter logged).
+NextSteps: Redo Biology diagrams and terms for fifteen minutes daily to rebuild from 44%.
+NextSteps: Solve three Mathematics algebra questions daily, writing the full working.
+ParentNote: Your child has shown they can do very well, with 100% in Physics and 93% in Biology earlier, and the fall to 51% overall is serious enough that a talk with the teacher soon would help; 1 and 2 absence days were recorded in Unit Test 1 and the latest exam.
+[[/STUDENT]]
+[[STUDENT:IIPUCA013]]
+Summary: A sharp decline to 57% overall in the latest exam after 84% and 85%, with English and Physics the lowest.
+SubjectNotes: Physics: 68%, 84%, 53%. A 31-point fall to 53%.
+SubjectNotes: Chemistry: 90%, 76%, 65%. A steady fall of 25 points.
+SubjectNotes: Mathematics: 92%, 87%, 64%. Down 28 points from 92%.
+SubjectNotes: Biology: 80%, 87%, 58%. A 29-point fall to 58%.
+SubjectNotes: English: 88%, 90%, 43%. The lowest mark at 43%, down 47 points.
+FocusAreas: English at 43%, down from 90%; no chapter was logged, so I infer comprehension accuracy and structured writing as the foundation, from the scores only.
+FocusAreas: Physics at 53%; no chapter was logged, so unit handling is a general inference.
+NextSteps: Write one full English answer daily and have a teacher mark it (an inference, no chapter logged).
+NextSteps: Redo two Physics numericals from the 53% paper each evening.
+NextSteps: Review Biology terms for ten minutes daily to lift 58%.
+ParentNote: Your child scored 90% in English in Preparatory Exam 1 but only 43% in the latest exam, so a gentle talk about what changed will help; 2 absence days were recorded in the latest exam.
+[[/STUDENT]]
+[[STUDENT:IIPUCA022]]
+Summary: Overall 67%, 81%, 68%, and the trend is a decline as every subject fell from Preparatory Exam 1 to the latest.
+SubjectNotes: Physics: 64%, 76%, 63%. The weakest at 63%.
+SubjectNotes: Chemistry: 70%, 87%, 73%. A drop of 14 points from 87%.
+SubjectNotes: Mathematics: 76%, 82%, 64%. Down 18 points to 64%.
+SubjectNotes: Biology: 60%, 85%, 72%. A fall of 13 points from 85%.
+SubjectNotes: English: 64%, 75%, 70%. A smaller dip to 70%.
+FocusAreas: Physics at 63%, and Mathematics at 64%; no chapter was logged, so I infer unit conversions and algebra fluency respectively, from the scores only.
+NextSteps: Redo three Physics numericals daily, writing units at each step (an inference, no chapter logged).
+NextSteps: Solve five Mathematics algebra questions each day.
+NextSteps: Revisit the 87% Chemistry approach and apply it to the 73% paper.
+ParentNote: Your child reached 87% in Chemistry and 85% in Biology in Preparatory Exam 1, so the dip to 68% overall is a return to a level they have already beaten.
+[[/STUDENT]]
+[[STUDENT:IIPUCA024]]
+Summary: A strong improvement from 47% to 77% to 83% overall, and every subject is now above 70%.
+SubjectNotes: Physics: 52%, 85%, 78%. A small dip of 7 points from the 85% peak.
+SubjectNotes: Chemistry: 46%, 80%, 82%. A steady rise to 82%.
+SubjectNotes: Mathematics: 50%, 64%, 73%. The weakest subject, but up 23 points since Unit Test 1.
+SubjectNotes: Biology: 44%, 69%, 91%. A big climb of 47 points to 91%.
+SubjectNotes: English: 44%, 85%, 93%. A 49-point rise to 93%.
+FocusAreas: Mathematics at 73%, the lowest now; no chapter was logged, so I infer algebra and trigonometric identities as the foundation to extend, from the pattern only.
+NextSteps: Solve five mixed Mathematics questions daily to keep the rise going (an inference, no chapter logged).
+NextSteps: Review the Physics numericals from the 78% paper.
+NextSteps: Keep the Biology habits that took 44% to 91%.
+ParentNote: Your child has made impressive progress, with Biology from 44% to 91% and English from 44% to 93%, and Mathematics at 73% is the next subject to lift.
+[[/STUDENT]]
+[[STUDENT:IIPUCA021]]
+Summary: A decline from 89% to 65% overall, with a small recovery to 70%, and Mathematics, Biology and English staying behind.
+SubjectNotes: Physics: 90%, 74%, 72%. An 18-point fall from the start.
+SubjectNotes: Chemistry: 94%, 68%, 84%. Rebounded 16 points to 84%.
+SubjectNotes: Mathematics: 78%, 62%, 61%. The weakest subject at 61%.
+SubjectNotes: Biology: 92%, 61%, 64%. Down 28 points from Unit Test 1.
+SubjectNotes: English: 92%, 59%, 70%. Recovered to 70% from 59%.
+FocusAreas: Mathematics at 61%; no chapter was logged, so I infer algebra and trigonometry basics, from the scores only.
+FocusAreas: Biology at 64%; no chapter was logged, so terminology recall is a general inference.
+NextSteps: Solve five Mathematics questions daily and check each step (an inference, no chapter logged).
+NextSteps: Do ten minutes of Biology term revision each evening.
+NextSteps: Repeat the habits that lifted Chemistry back to 84%.
+ParentNote: Your child showed in Chemistry that a rebound is possible, climbing from 68% to 84%, and Mathematics at 61% and Biology at 64% are the places to focus; 2 absence days were recorded in Unit Test 1.
+[[/STUDENT]]
+[[STUDENT:IIPUCA030]]
+Summary: A sharp decline from 84% to 56% overall in the latest exam, with Chemistry, Mathematics and English the lowest.
+SubjectNotes: Physics: 60%, 86%, 64%. A 22-point fall from 86%.
+SubjectNotes: Chemistry: 82%, 86%, 51%. A 35-point drop to 51%.
+SubjectNotes: Mathematics: 74%, 85%, 53%. A fall of 32 points to 53%.
+SubjectNotes: Biology: 72%, 83%, 64%. A 19-point drop to 64%.
+SubjectNotes: English: 78%, 80%, 48%. The lowest mark at 48%, down 32 points.
+FocusAreas: English at 48%; no chapter was logged, so I infer comprehension and writing structure, from the scores only.
+FocusAreas: Chemistry at 51%; no chapter was logged, so the mole concept is a general inference.
+NextSteps: Write one 150-word English answer daily and mark it with a teacher (an inference, no chapter logged).
+NextSteps: Solve five Chemistry mole questions each day.
+NextSteps: Redo three Mathematics questions each evening from the 53% paper.
+ParentNote: Your child scored 86% in Chemistry and 85% in Mathematics in Preparatory Exam 1, so the fall to 56% overall is surprising and worth a calm conversation; 1 absence day was recorded in Preparatory Exam 1.
+[[/STUDENT]]
+[[STUDENT:IIPUCA003]]
+Summary: Overall 52%, 77%, 71%, an improving trend since Unit Test 1, though the latest step slipped by 6 points.
+SubjectNotes: Physics: 52%, 75%, 70%. A small slip to 70%.
+SubjectNotes: Chemistry: 64%, 74%, 67%. A dip of 7 points.
+SubjectNotes: Mathematics: 58%, 86%, 83%. The strongest, holding 83%.
+SubjectNotes: Biology: 44%, 78%, 60%. A drop of 18 points to 60%, the weakest.
+SubjectNotes: English: 42%, 70%, 73%. A gain of 31 points since Unit Test 1, with a small further rise of 3 points in the latest exam.
+FocusAreas: Biology at 60%, down from 78%; no chapter was logged, so I infer terminology and labelled-diagram recall as the foundation, from the scores only.
+NextSteps: Label and redraw two Biology diagrams from memory each evening (an inference, no chapter logged).
+NextSteps: Quiz yourself on ten Biology terms daily until the 60% rises back towards 78%.
+NextSteps: Keep the Mathematics routine that holds 83% by redoing the questions missed in that paper.
+ParentNote: Your child has come a long way, from 52% to 71% overall, with Mathematics at 83% and English up from 42% to 73%, and Biology at 60% is the one place where steady revision will help; 2 absence days were recorded in Unit Test 1.
+[[/STUDENT]]
+[[STUDENT:IIPUCA008]]
+Summary: A sharp decline from 71% and 88% to 50% overall in the latest exam, with four subjects at or below 50%, and this needs prompt attention.
+SubjectNotes: Physics: 72%, 86%, 48%. A fall of 38 points from 86% to 48%.
+SubjectNotes: Chemistry: 72%, 94%, 50%. A 94% in Preparatory Exam 1 dropped 44 points to 50%, the steepest fall.
+SubjectNotes: Mathematics: 78%, 86%, 50%. Down 36 points to exactly 50%.
+SubjectNotes: Biology: 56%, 84%, 40%. At 40% this is the lowest mark, only 5 points above the 35% pass line.
+SubjectNotes: English: 76%, 91%, 60%. The strongest subject now at 60%, though 31 points below its peak.
+FocusAreas: Biology at 40%, close to the 35% pass line; no chapter was logged, so I infer terminology and core concept recall as the foundation, from the scores only.
+FocusAreas: Chemistry, 94% down to 50%; no chapter was logged, so I infer the mole concept as a general gap, not a logged fact.
+NextSteps: Book a meeting with the class teacher this week to find out why all five subjects fell in Preparatory Exam 2 (an inference, no chapter logged).
+NextSteps: Spend fifteen minutes each day recalling Biology terms and diagrams to move 40% upwards.
+NextSteps: Solve four Chemistry equation-balancing questions each evening and check them against the answers.
+ParentNote: Your child scored 94% in Chemistry and 91% in English in Preparatory Exam 1, so the drop to 50% overall is a sign that something changed rather than a lack of ability, and a conversation with the teacher soon would help; 1 absence day was recorded in each of the last two exams.
+[[/STUDENT]]
+[[STUDENT:IIPUCA017]]
+Summary: Overall slipped from 90% to 65% and then 62%, a sharp decline though the last step was only 3 points, with Chemistry and Mathematics now lowest.
+SubjectNotes: Physics: 82%, 66%, 70%. A small recovery of 4 points after the dip.
+SubjectNotes: Chemistry: 98%, 76%, 50%. From a near-perfect 98% to 50%, a fall of 48 points.
+SubjectNotes: Mathematics: 80%, 60%, 55%. A steady slide of 25 points over three tests.
+SubjectNotes: Biology: 96%, 63%, 67%. A 33-point drop from Unit Test 1 with a 4-point gain at the end.
+SubjectNotes: English: 96%, 61%, 68%. A recovery of 7 points from 61%.
+FocusAreas: Chemistry at 50%; no chapter was logged, so I infer balancing equations and the mole concept as the foundation, from the score pattern only.
+FocusAreas: Mathematics at 55%; no chapter was logged, so algebra fluency is a general inference.
+NextSteps: Do six Chemistry mole questions each day for a week and tick off each step of the working (an inference, no chapter logged).
+NextSteps: Redo the Mathematics questions missed in the 55% paper, two per evening.
+NextSteps: Re-read the 98% Chemistry Unit Test 1 answers and note the method used.
+ParentNote: Your child began the year at 98% in Chemistry and 96% in Biology and English, so the ability is clearly there, and the slide to 62% overall can be reversed with daily practice at home; 2 absence days in Unit Test 1 and 1 in the latest exam were recorded.
+[[/STUDENT]]
+[[STUDENT:IIPUCA018]]
+Summary: A sharp decline from 74% and 83% to 51% overall, a 32-point fall in the latest exam, with all five subjects now between 48% and 54%.
+SubjectNotes: Physics: 76%, 97%, 48%. A 97% in Preparatory Exam 1 fell 49 points to 48%, the lowest mark.
+SubjectNotes: Chemistry: 76%, 78%, 50%. A fall of 28 points to 50%.
+SubjectNotes: Mathematics: 82%, 74%, 50%. Down 32 points from the first test.
+SubjectNotes: Biology: 60%, 78%, 54%. The highest mark now at 54%, though it started at 60%.
+SubjectNotes: English: 78%, 88%, 51%. A 37-point fall from 88%.
+FocusAreas: Physics at 48%, down from 97%; no chapter was logged, so I infer unit handling and formula rearrangement as the foundation, from the scores only.
+FocusAreas: Mathematics at 50%; no chapter was logged, so algebra fluency is a general inference.
+NextSteps: Meet the Physics teacher this week to review the 48% paper (an inference, no chapter logged).
+NextSteps: Solve three Physics numericals daily with units at every step.
+NextSteps: Redo two Mathematics questions each evening from the 50% paper.
+ParentNote: Your child reached 97% in Physics in Preparatory Exam 1, so the fall to 51% overall across all subjects is worth a gentle conversation about what changed; 1 absence day in Unit Test 1 and 2 in Preparatory Exam 1 were recorded.
+[[/STUDENT]]
+[[STUDENT:IIPUCA020]]
+Summary: Overall fell from 86% to 60% and recovered slightly to 66%, so the trend is a sharp decline from the first test with a 6-point lift in the last step.
+SubjectNotes: Physics: 78%, 53%, 59%. A drop of 25 points at first and a small recovery of 6 points.
+SubjectNotes: Chemistry: 82%, 52%, 77%. A rebound of 25 points to 77%.
+SubjectNotes: Mathematics: 98%, 67%, 53%. From 98% to 53%, a 45-point fall and the lowest mark now.
+SubjectNotes: Biology: 86%, 56%, 73%. A recovery of 17 points to 73%.
+SubjectNotes: English: 86%, 74%, 67%. A steady slide of 19 points.
+FocusAreas: Mathematics at 53%, down from 98%; no chapter was logged, so I infer algebra and differentiation basics as a likely gap, from the scores only.
+FocusAreas: Physics at 59%; no chapter was logged, so unit conversions are a general inference.
+NextSteps: Solve five Mathematics algebra questions daily, writing the full working (an inference, no chapter logged).
+NextSteps: Redo three Physics numericals each evening from the 59% paper.
+NextSteps: Repeat the Chemistry routine that lifted 52% to 77%.
+ParentNote: Your child had 98% in Mathematics in Unit Test 1 and then rebuilt Chemistry from 52% to 77%, so Mathematics at 53% is the main subject to support now; 2 absence days were recorded in Unit Test 1.
+[[/STUDENT]]
+[[STUDENT:IIPUCA026]]
+Summary: Overall 68%, 76%, 54%, a sharp decline of 22 points in the latest exam, with Mathematics and Chemistry lowest.
+SubjectNotes: Physics: 68%, 73%, 59%. A fall of 14 points in the latest exam.
+SubjectNotes: Chemistry: 62%, 89%, 49%. From 89% to 49%, a 40-point fall.
+SubjectNotes: Mathematics: 72%, 67%, 46%. The lowest mark at 46%, down 26 points from the start.
+SubjectNotes: Biology: 74%, 72%, 62%. The most stable subject at 62%.
+SubjectNotes: English: 66%, 80%, 52%. A fall of 28 points from 80%.
+FocusAreas: Mathematics at 46%; no chapter was logged, so I infer algebra and trigonometry basics, from the scores only.
+FocusAreas: Chemistry at 49%, down from 89%; no chapter was logged, so equation balancing is a general inference.
+NextSteps: Solve five Mathematics questions daily, writing every step (an inference, no chapter logged).
+NextSteps: Work through four Chemistry equation-balancing questions each evening.
+NextSteps: Ask the English teacher for feedback on one answer to lift the 52%.
+ParentNote: Your child reached 89% in Chemistry in Preparatory Exam 1, so the latest 54% overall is not the true level, and support in Mathematics (46%) and Chemistry (49%) can help bring it back.
+[[/STUDENT]]
+[[STUDENT:IIPUCA005]]
+Summary: Steady overall at 61%, 66%, 66% with no change in the last step, and English the clear gainer.
+SubjectNotes: Physics: 60%, 72%, 69%. A rise of 9 points since Unit Test 1.
+SubjectNotes: Chemistry: 72%, 73%, 68%. Very level in the high 60s and low 70s.
+SubjectNotes: Mathematics: 60%, 63%, 61%. Almost flat at around 61%.
+SubjectNotes: Biology: 60%, 67%, 60%. Back to where it started at 60%.
+SubjectNotes: English: 52%, 57%, 72%. Up 20 points to 72%, now the strongest subject.
+FocusAreas: Biology at 60% and Mathematics at 61%, both flat; no chapter was logged, so I infer terminology recall and algebra fluency respectively, from the pattern only.
+NextSteps: Quiz ten Biology terms every evening for a week (an inference, no chapter logged).
+NextSteps: Solve four Mathematics algebra questions daily.
+NextSteps: Keep up the English habits that lifted 57% to 72%.
+ParentNote: Your child has been steady and has made a real gain in English, from 52% to 72%, and with a little extra time on Biology (60%) and Mathematics (61%) the whole picture can rise; 2 absence days were recorded in Unit Test 1.
+[[/STUDENT]]
+[[STUDENT:IIPUCA010]]
+Summary: Overall 81%, 46%, 75%, a steady trend after a sharp dip in Preparatory Exam 1 and a 29-point recovery.
+SubjectNotes: Physics: 74%, 48%, 77%. Back above its start at 77%.
+SubjectNotes: Chemistry: 80%, 42%, 85%. The best subject now, up 43 points from 42%.
+SubjectNotes: Mathematics: 92%, 49%, 65%. A high 92% start; 65% is the lowest latest mark.
+SubjectNotes: Biology: 80%, 48%, 70%. The trend flags it as the weakest subject overall.
+SubjectNotes: English: 80%, 42%, 79%. A near-complete recovery to 79%.
+FocusAreas: Mathematics at 65%, down from 92%; no chapter was logged, so I infer algebra and calculus basics as a likely gap, from the scores only.
+FocusAreas: Biology at 70%; no chapter was logged, so terminology recall is a general inference.
+NextSteps: Redo three Mathematics questions daily from the level that gave 92% (an inference, no chapter logged).
+NextSteps: Make flashcards for ten Biology terms and review them each night.
+NextSteps: Keep the habits that took Chemistry from 42% to 85%.
+ParentNote: Your child dropped to 46% overall in Preparatory Exam 1 and came back to 75%, with Chemistry at 85%, which shows real determination; 1 absence day was recorded in the latest exam.
+[[/STUDENT]]
+[[STUDENT:IIPUCA006]]
+Summary: Overall 74%, 57%, 63%, a decline since Unit Test 1 with a small recovery of 6 points, and Physics now the lowest.
+SubjectNotes: Physics: 64%, 67%, 56%. The lowest mark now at 56%, down 11 points.
+SubjectNotes: Chemistry: 66%, 46%, 64%. A dip to 46% was recovered to 64%.
+SubjectNotes: Mathematics: 74%, 64%, 63%. A slow slide of 11 points.
+SubjectNotes: Biology: 82%, 55%, 68%. A 13-point recovery after a 27-point fall.
+SubjectNotes: English: 84%, 55%, 62%. Down 22 points since Unit Test 1.
+FocusAreas: Physics at 56%; no chapter was logged, so I infer unit conversions and numerical setup as the foundation, from the scores only.
+FocusAreas: English at 62%, down from 84%; no chapter was logged, so paragraph structure is a general inference.
+NextSteps: Solve three Physics numericals daily and write the units at each step (an inference, no chapter logged).
+NextSteps: Write one English answer each evening and compare it with the 84% Unit Test 1 level.
+NextSteps: Review the Chemistry method that lifted 46% to 64%.
+ParentNote: Your child has recovered in Chemistry and Biology after a rough Preparatory Exam 1, and Physics at 56% and English at 62% now need gentle support; 2 absence days were recorded in each of Unit Test 1 and Preparatory Exam 1.
+[[/STUDENT]]
+[[STUDENT:IIPUCA007]]
+Summary: Steady but modest overall at 70%, 58%, 63%, with Physics falling to 50% and Biology slipping to 57%.
+SubjectNotes: Physics: 64%, 59%, 50%. A fall of 14 points, the lowest mark now at 50%.
+SubjectNotes: Chemistry: 68%, 53%, 69%. Back above its start at 69%.
+SubjectNotes: Mathematics: 68%, 55%, 67%. A recovery of 12 points.
+SubjectNotes: Biology: 72%, 63%, 57%. A slow slide of 15 points.
+SubjectNotes: English: 76%, 61%, 70%. A rebound of 9 points to 70%.
+FocusAreas: Physics at 50%; no chapter was logged, so I infer unit conversions and formula use, from the scores only.
+FocusAreas: Biology at 57%; no chapter was logged, so terminology recall is a general inference.
+NextSteps: Redo three Physics numericals daily with units at each step (an inference, no chapter logged).
+NextSteps: Review ten Biology terms each evening.
+NextSteps: Keep the habits that brought Chemistry back to 69%.
+ParentNote: Your child has bounced back in Chemistry (69%), Mathematics (67%) and English (70%), and Physics at 50% is the place where support is most needed.
+[[/STUDENT]]
+[[STUDENT:IIPUCA011]]
+Summary: A strong improvement, with overall 48%, 44%, 87%, a 43-point leap in the latest exam, and Chemistry now the lowest.
+SubjectNotes: Physics: 36%, 51%, 82%. Up 46 points since Unit Test 1.
+SubjectNotes: Chemistry: 52%, 39%, 75%. A dip to 39% then a 36-point rise to 75%, the lowest mark now.
+SubjectNotes: Mathematics: 58%, 54%, 96%. A jump of 42 points to 96%.
+SubjectNotes: Biology: 44%, 43%, 85%. Doubled from 43% to 85%.
+SubjectNotes: English: 52%, 34%, 98%. A 34% in Preparatory Exam 1 was below the 35% pass line and rose to 98%.
+FocusAreas: Chemistry at 75%, the lowest now; no chapter was logged, so I infer the mole concept and equation balancing as the foundation to extend, from the scores only.
+NextSteps: Solve four Chemistry mole questions each day to lift 75% (an inference, no chapter logged).
+NextSteps: Keep the habits behind English from 34% to 98%.
+NextSteps: Write a short Physics formula sheet and use it for three numericals each week.
+ParentNote: Your child has made a remarkable turnaround, with English from 34% to 98% and Mathematics to 96%, so please keep the routine going; 2 absence days were recorded in Unit Test 1.
+[[/STUDENT]]
+[[STUDENT:IIPUCA016]]
+Summary: A strong improvement, with overall 48%, 57%, 73%, a 16-point gain in the latest exam, and Mathematics and English now lowest.
+SubjectNotes: Physics: 52%, 57%, 75%. A rise of 23 points to 75%.
+SubjectNotes: Chemistry: 50%, 53%, 81%. The best subject now, up 28 points in the latest exam.
+SubjectNotes: Mathematics: 46%, 54%, 68%. A climb of 22 points, still the lowest alongside English.
+SubjectNotes: Biology: 40%, 65%, 73%. Up 33 points from 40% in Unit Test 1.
+SubjectNotes: English: 52%, 54%, 68%. A rise of 14 points in the latest exam.
+FocusAreas: Mathematics at 68%; no chapter was logged, so I infer algebra and trigonometric identities as the foundation to build on, from the pattern only.
+FocusAreas: English at 68%; no chapter was logged, so paragraph structure is a general inference.
+NextSteps: Solve five Mathematics questions daily and write each step (an inference, no chapter logged).
+NextSteps: Write one 150-word English answer every two days.
+NextSteps: Keep the Chemistry habits behind the 81% result.
+ParentNote: Your child has risen steadily, with Chemistry from 50% to 81% and Biology from 40% to 73%, and a bit more time on Mathematics and English will help; 1 absence day was recorded in the latest exam.
+[[/STUDENT]]
+[[STUDENT:IIPUCA015]]
+Summary: Overall 43%, 73%, 51%, a sharp decline of 22 points in the latest exam, though still 8 points above Unit Test 1, with Physics lowest.
+SubjectNotes: Physics: 36%, 73%, 43%. A fall of 30 points from 73%, the lowest mark now.
+SubjectNotes: Chemistry: 44%, 74%, 58%. Down 16 points but well above its start.
+SubjectNotes: Mathematics: 56%, 76%, 52%. A 24-point fall from 76%.
+SubjectNotes: Biology: 42%, 62%, 48%. A fall of 14 points.
+SubjectNotes: English: 36%, 79%, 55%. A fall of 24 points from 79%.
+FocusAreas: Physics at 43%, close to the 35% pass line; no chapter was logged, so I infer unit handling and numerical setup, from the scores only.
+FocusAreas: Biology at 48%; no chapter was logged, so terminology recall is a general inference.
+NextSteps: Solve three Physics numericals daily with units at every step (an inference, no chapter logged).
+NextSteps: Ask the Physics teacher to go through the 43% paper this week.
+NextSteps: Review ten Biology terms every evening.
+ParentNote: Your child showed in Preparatory Exam 1 that 79% in English and 76% in Mathematics are possible, so the 51% overall is a setback to support at home, especially in Physics at 43%; 1 absence day was recorded in each of Unit Test 1 and Preparatory Exam 1.
+[[/STUDENT]]
+[[STUDENT:IIPUCA012]]
+Summary: A sharp decline from 67% to 51% to 43% overall, with every subject between 38% and 49% in the latest exam, and this needs prompt attention.
+SubjectNotes: Physics: 60%, 60%, 41%. Level for two tests and then a fall of 19 points to 41%.
+SubjectNotes: Chemistry: 64%, 61%, 38%. The lowest mark at 38%, only 3 points above the 35% pass line.
+SubjectNotes: Mathematics: 74%, 38%, 49%. A 38% in Preparatory Exam 1 and a recovery of 11 points to 49%.
+SubjectNotes: Biology: 66%, 51%, 48%. A steady slide of 18 points.
+SubjectNotes: English: 72%, 45%, 41%. A fall of 31 points, and the trend flags it as the weakest subject overall.
+FocusAreas: Chemistry at 38%, close to the pass line; no chapter was logged, so I infer the mole concept and equation balancing as the foundation, from the scores only.
+FocusAreas: English at 41%, down from 72%; no chapter was logged, so comprehension and writing structure is a general inference.
+NextSteps: Meet the class teacher this week to plan support for Chemistry and English (an inference, no chapter logged).
+NextSteps: Do four Chemistry equation-balancing questions each evening and check the answers.
+NextSteps: Write one short English answer daily and ask for feedback.
+ParentNote: Your child scored 74% in Mathematics and 72% in English in Unit Test 1, so the slide to 43% overall deserves real attention and a talk with the teacher soon, but it can be turned around with steady support; 2 absence days were recorded in the latest exam.
+[[/STUDENT]]
